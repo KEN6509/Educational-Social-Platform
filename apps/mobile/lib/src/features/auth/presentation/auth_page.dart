@@ -9,7 +9,7 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -75,118 +75,128 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  void _changeAuthMode(bool isRegistering) {
+    if (_isLoading || _isRegistering == isRegistering) {
+      return;
+    }
+
+    setState(() {
+      _isRegistering = isRegistering;
+      _message = null;
+      _isSuccessMessage = false;
+      _showConfirmPassword = false;
+      _formKey = GlobalKey<FormState>();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF58E1B5),
-              Color(0xFF4490AD),
-              Color(0xFF0B1F3E),
-            ],
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF58E1B5),
+                Color(0xFF4490AD),
+                Color(0xFF0B1F3E),
+              ],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 460),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const _BrandMark(),
-                          const SizedBox(height: 18),
-                          Text(
-                            'A safer social space for curious teens.',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              height: 1.12,
-                            ),
-                          ),
-                        const SizedBox(height: 8),
-                          Text(
-                            _isRegistering
-                                ? 'Create your CyanZone account. Parent links and creator access happen after signup.'
-                                : 'Log in to continue learning, posting, and staying connected with supervision built in.',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Colors.white.withValues(alpha: 0.86),
-                              height: 1.45,
-                            ),
-                            ),
-                          const SizedBox(height: 22),
-                          _AuthPanel(
-                            isRegistering: _isRegistering,
-                            isLoading: _isLoading,
-                            message: _message,
-                            isSuccessMessage: _isSuccessMessage,
-                            formKey: _formKey,
-                            nameController: _nameController,
-                            emailController: _emailController,
-                            passwordController: _passwordController,
-                            confirmPasswordController:
-                                _confirmPasswordController,
-                            showPassword: _showPassword,
-                            showConfirmPassword: _showConfirmPassword,
-                            onModeChanged: (isRegistering) {
-                              if (_isLoading) {
-                                return;
-                              }
-
-                              setState(() {
-                                _isRegistering = isRegistering;
-                                _message = null;
-                              });
-                            },
-                            onTogglePassword: () => setState(
-                              () => _showPassword = !_showPassword,
-                            ),
-                            onToggleConfirmPassword: () => setState(
-                              () => _showConfirmPassword =
-                                  !_showConfirmPassword,
-                            ),
-                            onSubmit: _submit,
-                          ),
-                          const SizedBox(height: 18),
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: const [
-                              _TrustPill(
-                                icon: Icons.shield_outlined,
-                                label: 'AI moderation',
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 460),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const _BrandMark(),
+                            const SizedBox(height: 18),
+                            Text(
+                              'Beyond the Blue, Inside the Zone.',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                height: 1.12,
                               ),
-                              _TrustPill(
-                                icon: Icons.family_restroom_outlined,
-                                label: 'Parent linked',
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _isRegistering
+                                  ? 'Create your CyanZone account. Parent links and creator access happen after signup.'
+                                  : 'Log in to continue learning, posting, and staying connected with supervision built in.',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.86),
+                                height: 1.45,
                               ),
-                              _TrustPill(
-                                icon: Icons.school_outlined,
-                                label: 'Learning first',
+                            ),
+                            const SizedBox(height: 22),
+                            _AuthPanel(
+                              isRegistering: _isRegistering,
+                              isLoading: _isLoading,
+                              message: _message,
+                              isSuccessMessage: _isSuccessMessage,
+                              formKey: _formKey,
+                              nameController: _nameController,
+                              emailController: _emailController,
+                              passwordController: _passwordController,
+                              confirmPasswordController:
+                                  _confirmPasswordController,
+                              showPassword: _showPassword,
+                              showConfirmPassword: _showConfirmPassword,
+                              onModeChanged: _changeAuthMode,
+                              onTogglePassword: () => setState(
+                                () => _showPassword = !_showPassword,
                               ),
-                            ],
-                          ),
-                        ],
+                              onToggleConfirmPassword: () => setState(
+                                () => _showConfirmPassword =
+                                    !_showConfirmPassword,
+                              ),
+                              onSubmit: _submit,
+                            ),
+                            const SizedBox(height: 18),
+                            Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: const [
+                                _TrustPill(
+                                  icon: Icons.shield_outlined,
+                                  label: 'AI moderation',
+                                ),
+                                _TrustPill(
+                                  icon: Icons.family_restroom_outlined,
+                                  label: 'Parent linked',
+                                ),
+                                _TrustPill(
+                                  icon: Icons.school_outlined,
+                                  label: 'Learning first',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -205,9 +215,9 @@ class _BrandMark extends StatelessWidget {
           width: 92,
           height: 92,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.14),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.34)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.86)),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x330B1F3E),
@@ -303,6 +313,7 @@ class _AuthPanel extends StatelessWidget {
               const SizedBox(height: 20),
               if (isRegistering) ...[
                 TextFormField(
+                  key: const ValueKey('register-name-field'),
                   controller: nameController,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.name],
@@ -322,6 +333,9 @@ class _AuthPanel extends StatelessWidget {
                 const SizedBox(height: 14),
               ],
               TextFormField(
+                key: ValueKey(
+                  isRegistering ? 'register-email-field' : 'login-email-field',
+                ),
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
@@ -340,6 +354,11 @@ class _AuthPanel extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               TextFormField(
+                key: ValueKey(
+                  isRegistering
+                      ? 'register-password-field'
+                      : 'login-password-field',
+                ),
                 controller: passwordController,
                 obscureText: !showPassword,
                 textInputAction:
@@ -377,6 +396,7 @@ class _AuthPanel extends StatelessWidget {
               if (isRegistering) ...[
                 const SizedBox(height: 14),
                 TextFormField(
+                  key: const ValueKey('register-confirm-password-field'),
                   controller: confirmPasswordController,
                   obscureText: !showConfirmPassword,
                   textInputAction: TextInputAction.done,
