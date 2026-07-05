@@ -449,9 +449,8 @@ class ChatNotification {
         (a, b) => ((a['position'] as int?) ?? 0)
             .compareTo((b['position'] as int?) ?? 0),
       );
-    final postAuthorProfile =
-        (post?['profiles'] ?? post?['profiles!posts_author_id_fkey'])
-            as Map<String, dynamic>?;
+    final postAuthorProfile = (post?['profiles'] ??
+        post?['profiles!posts_author_id_fkey']) as Map<String, dynamic>?;
 
     return ChatNotification(
       id: _stringValue(map['id']),

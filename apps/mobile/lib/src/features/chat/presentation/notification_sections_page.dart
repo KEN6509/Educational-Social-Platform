@@ -234,8 +234,9 @@ class _FollowerOrGenericNotificationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFollower = section == NotificationSection.followers;
-    final displayTitle =
-        isFollower ? (notification.actorName ?? 'New follower') : notification.title;
+    final displayTitle = isFollower
+        ? (notification.actorName ?? 'New follower')
+        : notification.title;
     final displaySubtitle =
         isFollower ? 'Started following you' : notification.body;
 
@@ -248,9 +249,8 @@ class _FollowerOrGenericNotificationTile extends StatelessWidget {
               avatarUrl: notification.actorAvatarUrl,
             )
           : CircleAvatar(
-              backgroundColor:
-                  (notification.isUnread ? chatDanger : chatCyan)
-                      .withValues(alpha: 0.12),
+              backgroundColor: (notification.isUnread ? chatDanger : chatCyan)
+                  .withValues(alpha: 0.12),
               child: Icon(
                 notification.isUnread
                     ? Icons.circle_notifications_rounded

@@ -106,7 +106,8 @@ void main() {
     expect(groupCleanupSql, contains('delete from public.chat_messages'));
   });
 
-  test('chat SQL supports comment reply and comment like activity notifications',
+  test(
+      'chat SQL supports comment reply and comment like activity notifications',
       () {
     final sql = File('../../supabase/chat.sql').readAsStringSync();
 
