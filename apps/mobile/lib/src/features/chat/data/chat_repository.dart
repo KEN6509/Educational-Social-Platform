@@ -18,6 +18,13 @@ enum NotificationActivityFilter {
   final String label;
 }
 
+class ChatNotificationPostUnavailableException implements Exception {
+  const ChatNotificationPostUnavailableException();
+
+  @override
+  String toString() => 'ChatNotificationPostUnavailableException';
+}
+
 class ChatImageUpload {
   const ChatImageUpload({
     required this.fileName,
@@ -143,6 +150,42 @@ class ChatRepository {
               item.activityGroup == expectedGroup,
         )
         .toList();
+  }
+
+  static int bottomChatBadgeCount({
+    required Map<NotificationSection, int> notificationCounts,
+    required List<ChatConversation> conversations,
+  }) {
+    final notificationSources = [
+      NotificationSection.activity,
+      NotificationSection.system,
+      NotificationSection.followers,
+    ].where((section) => (notificationCounts[section] ?? 0) > 0).length;
+    final unreadConversations =
+        conversations.where((conversation) => conversation.unreadCount > 0).length;
+    return notificationSources + unreadConversations;
+  }
+
+  static int calculateUnreadConversationCount({
+    required List<Map<String, dynamic>> messages,
+    required String currentUserId,
+    DateTime? lastReadAt,
+    DateTime? clearedAt,
+  }) {
+    return messages.where((message) {
+      final senderId = _string(message['sender_id'] ?? message['senderId']);
+      if (senderId.isEmpty || senderId == currentUserId) return false;
+      if (message['deleted_at'] != null || message['deletedAt'] != null) {
+        return false;
+      }
+      final createdAt = _dateTimeFromObject(
+        message['created_at'] ?? message['createdAt'],
+      );
+      if (createdAt == null) return false;
+      if (lastReadAt != null && !createdAt.isAfter(lastReadAt)) return false;
+      if (clearedAt != null && !createdAt.isAfter(clearedAt)) return false;
+      return true;
+    }).length;
   }
 
   Future<String> createDirectConversation(String targetUserId) async {
@@ -458,6 +501,28 @@ class ChatRepository {
     return notifications;
   }
 
+  Future<void> markNotificationsReadForSection(
+    NotificationSection section,
+  ) async {
+    var query = _client
+        .from('notifications')
+        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+        .isFilter('read_at', null);
+
+    switch (section) {
+      case NotificationSection.activity:
+        query = query.not('type', 'in', '(system,new_follower,chat_message)');
+      case NotificationSection.system:
+        query = query.eq('type', 'system');
+      case NotificationSection.followers:
+        query = query.eq('type', 'new_follower');
+      case NotificationSection.chat:
+        return;
+    }
+
+    await query;
+  }
+
   Future<FeedPost> fetchPostForNotification(String postId) {
     return PostsRepository(_client).fetchPostById(postId);
   }
@@ -733,8 +798,21 @@ class ChatRepository {
     return conversationRows.map((row) {
       final conversationId = _string(row['id']);
       final type = _string(row['type']);
+      final currentMember =
+          (membersByConversation[conversationId] ?? const [])
+              .where((member) => _string(member['user_id']) == currentUserId)
+              .firstOrNull;
+      final lastReadAt = _dateTimeFromObject(currentMember?['last_read_at']);
+      final clearedAt = _dateTimeFromObject(currentMember?['cleared_at']);
+      final lastMessage = lastMessagesByConversation[conversationId];
+      final unreadCount = calculateUnreadConversationCount(
+        messages: lastMessage == null ? const [] : [lastMessage],
+        currentUserId: currentUserId ?? '',
+        lastReadAt: lastReadAt,
+        clearedAt: clearedAt,
+      );
       final enriched = Map<String, dynamic>.from(row)
-        ..['unread_count'] = 0
+        ..['unread_count'] = unreadCount
         ..['last_message_body'] =
             lastMessagesByConversation[conversationId]?['body']
         ..['created_by_name'] =
@@ -903,6 +981,14 @@ class ChatRepository {
   }
 
   static String _string(Object? value) => value?.toString() ?? '';
+
+  static DateTime? _dateTimeFromObject(Object? value) {
+    if (value == null) return null;
+    if (value is DateTime) return value.isUtc ? value.toLocal() : value;
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return null;
+    return parsed.isUtc ? parsed.toLocal() : parsed;
+  }
 
   static String _safeSearchTerm(String term) {
     return normalizeSearchTerm(

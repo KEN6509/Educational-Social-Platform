@@ -205,5 +205,54 @@ void main() {
       expect(source, contains('post_images(public_url, position)'));
       expect(source, contains('profiles!posts_author_id_fkey(avatar_url)'));
     });
+
+    test(
+        'bottom badge counts notification sections as sources plus unread chats',
+        () {
+      final counts = {
+        NotificationSection.activity: 5,
+        NotificationSection.system: 2,
+        NotificationSection.followers: 0,
+        NotificationSection.chat: 9,
+      };
+      final conversations = [
+        ChatConversation.fromMap({
+          'id': 'c1',
+          'type': 'direct',
+          'request_status': 'accepted',
+          'unread_count': 3,
+        }),
+        ChatConversation.fromMap({
+          'id': 'c2',
+          'type': 'group',
+          'request_status': 'accepted',
+          'unread_count': 0,
+        }),
+        ChatConversation.fromMap({
+          'id': 'c3',
+          'type': 'direct',
+          'request_status': 'accepted',
+          'unread_count': 1,
+        }),
+      ];
+
+      expect(
+        ChatRepository.bottomChatBadgeCount(
+          notificationCounts: counts,
+          conversations: conversations,
+        ),
+        4,
+      );
+    });
+
+    test('source contains section read marker and unread calculation', () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+
+      expect(source, contains('markNotificationsReadForSection'));
+      expect(source, contains('calculateUnreadConversationCount'));
+      expect(source, contains('last_read_at'));
+      expect(source, contains('cleared_at'));
+    });
   });
 }
