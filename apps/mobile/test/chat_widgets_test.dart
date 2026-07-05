@@ -386,6 +386,62 @@ void main() {
     expect(find.text('No chats yet'), findsOneWidget);
   });
 
+  testWidgets('ChatPage message filters include unread between all and groups',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async => const [],
+          loadRequests: () async => const [],
+          loadCounts: () async => const {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final allX = tester.getTopLeft(find.text('All')).dx;
+    final unreadX = tester.getTopLeft(find.text('Unread')).dx;
+    final groupsX = tester.getTopLeft(find.text('Groups')).dx;
+    final requestsX = tester.getTopLeft(find.text('Requests')).dx;
+
+    expect(allX, lessThan(unreadX));
+    expect(unreadX, lessThan(groupsX));
+    expect(groupsX, lessThan(requestsX));
+  });
+
+  testWidgets('Unread filter empty state can switch back to all chats',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async => [
+            ChatConversation.fromMap({
+              'id': 'c1',
+              'type': 'direct',
+              'request_status': 'accepted',
+              'unread_count': 0,
+              'other_user_name': 'Alicia',
+            }),
+          ],
+          loadRequests: () async => const [],
+          loadCounts: () async => const {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Unread'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No chats in Unread'), findsOneWidget);
+    expect(find.text('View all chats'), findsOneWidget);
+
+    await tester.tap(find.text('View all chats'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alicia'), findsOneWidget);
+  });
+
   testWidgets('ChatRoomPage keeps text when send fails', (tester) async {
     final conversation = ChatConversation.fromMap({
       'id': 'send-fail-test',
