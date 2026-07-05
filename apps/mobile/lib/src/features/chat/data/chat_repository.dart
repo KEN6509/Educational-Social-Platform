@@ -537,6 +537,15 @@ class ChatRepository {
     return _mapListFromResponse(response).length;
   }
 
+  Future<int> fetchUnreadChatTabBadgeCount() async {
+    final conversations = await fetchConversations();
+    final counts = await fetchUnreadNotificationCounts();
+    return bottomChatBadgeCount(
+      notificationCounts: counts,
+      conversations: conversations,
+    );
+  }
+
   Future<Map<NotificationSection, int>> fetchUnreadNotificationCounts() async {
     final response = await _client
         .from('notifications')

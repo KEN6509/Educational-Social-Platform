@@ -254,5 +254,14 @@ void main() {
       expect(source, contains('last_read_at'));
       expect(source, contains('cleared_at'));
     });
+
+    test('main shell uses total chat badge count instead of chat message only',
+        () {
+      final source = File('lib/src/features/shell/presentation/main_shell.dart')
+          .readAsStringSync();
+
+      expect(source, contains('fetchUnreadChatTabBadgeCount'));
+      expect(source, isNot(contains('fetchUnreadChatCount();')));
+    });
   });
 }
