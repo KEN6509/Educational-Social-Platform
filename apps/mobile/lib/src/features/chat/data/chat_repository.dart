@@ -161,8 +161,9 @@ class ChatRepository {
       NotificationSection.system,
       NotificationSection.followers,
     ].where((section) => (notificationCounts[section] ?? 0) > 0).length;
-    final unreadConversations =
-        conversations.where((conversation) => conversation.unreadCount > 0).length;
+    final unreadConversations = conversations
+        .where((conversation) => conversation.unreadCount > 0)
+        .length;
     return notificationSources + unreadConversations;
   }
 
@@ -506,8 +507,8 @@ class ChatRepository {
   ) async {
     var query = _client
         .from('notifications')
-        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
-        .isFilter('read_at', null);
+        .update({'read_at': DateTime.now().toUtc().toIso8601String()}).isFilter(
+            'read_at', null);
 
     switch (section) {
       case NotificationSection.activity:
@@ -807,10 +808,9 @@ class ChatRepository {
     return conversationRows.map((row) {
       final conversationId = _string(row['id']);
       final type = _string(row['type']);
-      final currentMember =
-          (membersByConversation[conversationId] ?? const [])
-              .where((member) => _string(member['user_id']) == currentUserId)
-              .firstOrNull;
+      final currentMember = (membersByConversation[conversationId] ?? const [])
+          .where((member) => _string(member['user_id']) == currentUserId)
+          .firstOrNull;
       final lastReadAt = _dateTimeFromObject(currentMember?['last_read_at']);
       final clearedAt = _dateTimeFromObject(currentMember?['cleared_at']);
       final lastMessage = lastMessagesByConversation[conversationId];

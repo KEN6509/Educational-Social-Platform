@@ -177,94 +177,94 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
       },
       child: ChatNoSplash(
         child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
           backgroundColor: Colors.white,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          centerTitle: true,
-          leading: IconButton(
-            onPressed: () async {
-              await _markCurrentSectionRead();
-              if (context.mounted) Navigator.pop(context, true);
-            },
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          ),
-          title: _section == NotificationSection.activity
-              ? _ActivityFilterChip(
-                  label: _activityFilter.label,
-                  isExpanded: _showActivityFilters,
-                  onTap: () => setState(
-                    () => _showActivityFilters = !_showActivityFilters,
-                  ),
-                )
-              : Text(_title, style: chatAppBarTitleStyle),
-        ),
-        body: Stack(
-          children: [
-            FutureBuilder<List<ChatNotification>>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return const ChatNoResultsState(
-                    title: 'No internet connection',
-                    subtitle: 'Please try again later',
-                    icon: Icons.wifi_off_rounded,
-                  );
-                }
-
-                var notifications = snapshot.data ?? const [];
-                if (_section == NotificationSection.activity) {
-                  notifications = ChatRepository.filterActivityNotifications(
-                    notifications,
-                    _activityFilter,
-                  );
-                }
-
-                if (notifications.isEmpty) {
-                  final emptyState = _emptyState;
-                  return ChatEmptyState(
-                    title: emptyState.title,
-                    subtitle: emptyState.subtitle,
-                    icon: emptyState.icon,
-                  );
-                }
-
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  itemCount: notifications.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final notification = notifications[index];
-                    if (_section == NotificationSection.activity) {
-                      return _ActivityNotificationTile(
-                        notification: notification,
-                        onTap: () => _openActivityPost(notification),
-                      );
-                    }
-                    return _FollowerOrGenericNotificationTile(
-                      notification: notification,
-                      section: _section,
-                      onFollowerTap: () => _openFollowerProfile(notification),
-                    );
-                  },
-                );
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            centerTitle: true,
+            leading: IconButton(
+              onPressed: () async {
+                await _markCurrentSectionRead();
+                if (context.mounted) Navigator.pop(context, true);
               },
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             ),
-            if (_section == NotificationSection.activity &&
-                _showActivityFilters)
-              _ActivityFilterDropdown(
-                selected: _activityFilter,
-                onDismiss: () => setState(() => _showActivityFilters = false),
-                onSelect: (filter) {
-                  setState(() {
-                    _activityFilter = filter;
-                    _showActivityFilters = false;
-                  });
+            title: _section == NotificationSection.activity
+                ? _ActivityFilterChip(
+                    label: _activityFilter.label,
+                    isExpanded: _showActivityFilters,
+                    onTap: () => setState(
+                      () => _showActivityFilters = !_showActivityFilters,
+                    ),
+                  )
+                : Text(_title, style: chatAppBarTitleStyle),
+          ),
+          body: Stack(
+            children: [
+              FutureBuilder<List<ChatNotification>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const ChatNoResultsState(
+                      title: 'No internet connection',
+                      subtitle: 'Please try again later',
+                      icon: Icons.wifi_off_rounded,
+                    );
+                  }
+
+                  var notifications = snapshot.data ?? const [];
+                  if (_section == NotificationSection.activity) {
+                    notifications = ChatRepository.filterActivityNotifications(
+                      notifications,
+                      _activityFilter,
+                    );
+                  }
+
+                  if (notifications.isEmpty) {
+                    final emptyState = _emptyState;
+                    return ChatEmptyState(
+                      title: emptyState.title,
+                      subtitle: emptyState.subtitle,
+                      icon: emptyState.icon,
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    itemCount: notifications.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final notification = notifications[index];
+                      if (_section == NotificationSection.activity) {
+                        return _ActivityNotificationTile(
+                          notification: notification,
+                          onTap: () => _openActivityPost(notification),
+                        );
+                      }
+                      return _FollowerOrGenericNotificationTile(
+                        notification: notification,
+                        section: _section,
+                        onFollowerTap: () => _openFollowerProfile(notification),
+                      );
+                    },
+                  );
                 },
               ),
-          ],
-        ),
+              if (_section == NotificationSection.activity &&
+                  _showActivityFilters)
+                _ActivityFilterDropdown(
+                  selected: _activityFilter,
+                  onDismiss: () => setState(() => _showActivityFilters = false),
+                  onSelect: (filter) {
+                    setState(() {
+                      _activityFilter = filter;
+                      _showActivityFilters = false;
+                    });
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );
