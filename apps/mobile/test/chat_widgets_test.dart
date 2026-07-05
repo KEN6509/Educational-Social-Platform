@@ -697,6 +697,64 @@ void main() {
     expect(openedNotification?.actorId, 'user-follower-1');
   });
 
+  testWidgets('Activity page shows filter dropdown and rich activity row',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSectionsPage(
+          initialSection: NotificationSection.activity,
+          loadNotifications: (_) async => [
+            ChatNotification.fromMap({
+              'id': 'activity-1',
+              'type': 'mention',
+              'actor_id': 'actor-1',
+              'post_id': 'post-1',
+              'title': 'Mention',
+              'body': 'Someone mentioned you',
+              'created_at': '2026-07-05T08:30:00',
+              'profiles': {
+                'name': 'Kenny',
+              },
+              'posts': {
+                'author_id': 'post-author-1',
+                'profiles': <String, dynamic>{},
+                'post_images': <Map<String, dynamic>>[],
+              },
+            }),
+            ChatNotification.fromMap({
+              'id': 'activity-2',
+              'type': 'like',
+              'actor_id': 'actor-2',
+              'post_id': 'post-2',
+              'title': 'Like',
+              'body': 'Someone liked your post',
+              'created_at': '2026-07-05T08:00:00',
+              'profiles': {'name': 'Ming'},
+            }),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Activity'), findsWidgets);
+    expect(find.text('Kenny'), findsOneWidget);
+    expect(find.text('mentioned you'), findsOneWidget);
+    expect(find.byIcon(Icons.alternate_email_rounded), findsOneWidget);
+
+    await tester.tap(find.text('Activity').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Likes & Favorites'), findsOneWidget);
+    expect(find.text('Comments'), findsOneWidget);
+    expect(find.text('Mentions'), findsOneWidget);
+
+    await tester.tap(find.text('Mentions'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kenny'), findsOneWidget);
+    expect(find.text('Ming'), findsNothing);
+  });
+
   testWidgets('ChatDetailsPage exposes group edit and clear chat',
       (tester) async {
     final group = ChatConversation.fromMap({

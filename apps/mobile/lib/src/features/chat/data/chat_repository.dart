@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../posts/data/feed_post.dart';
+import '../../posts/data/posts_repository.dart';
 import 'chat_models.dart';
 
 enum NotificationActivityFilter {
@@ -454,6 +456,10 @@ class ChatRepository {
       return visibleNewFollowerNotifications(notifications);
     }
     return notifications;
+  }
+
+  Future<FeedPost> fetchPostForNotification(String postId) {
+    return PostsRepository(_client).fetchPostById(postId);
   }
 
   Future<int> fetchUnreadChatCount() async {
