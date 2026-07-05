@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:cyanzone_mobile/src/features/chat/data/chat_models.dart';
+import 'package:cyanzone_mobile/src/features/chat/data/chat_repository.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_details_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_room_page.dart';
@@ -753,6 +754,65 @@ void main() {
 
     expect(find.text('Kenny'), findsOneWidget);
     expect(find.text('Ming'), findsNothing);
+  });
+
+  testWidgets('NotificationSectionsPage marks section read when leaving',
+      (tester) async {
+    NotificationSection? markedSection;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSectionsPage(
+          initialSection: NotificationSection.activity,
+          loadNotifications: (_) async => const [],
+          markSectionRead: (section) async {
+            markedSection = section;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+
+    expect(markedSection, NotificationSection.activity);
+  });
+
+  testWidgets('Activity row shows missing post snackbar when post cannot open',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSectionsPage(
+          initialSection: NotificationSection.activity,
+          loadNotifications: (_) async => [
+            ChatNotification.fromMap({
+              'id': 'activity-missing',
+              'type': 'comment',
+              'actor_id': 'actor-1',
+              'post_id': 'post-missing',
+              'title': 'Comment',
+              'body': 'Comment',
+              'created_at': '2026-07-06T09:00:00',
+              'profiles': {'name': 'Chan'},
+            }),
+          ],
+          openActivityPost: (_) async {
+            throw const ChatNotificationPostUnavailableException();
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Chan'));
+    await tester.pump();
+
+    expect(
+      find.text(
+        "This post can't be viewed. It may be deleted or not approved yet.",
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('ChatDetailsPage exposes group edit and clear chat',

@@ -14,17 +14,29 @@ typedef NotificationLoader = Future<List<ChatNotification>> Function(
 
 typedef FollowerProfileOpener = void Function(ChatNotification notification);
 
+typedef NotificationSectionReadMarker = Future<void> Function(
+  NotificationSection section,
+);
+
+typedef ActivityPostOpener = Future<void> Function(
+  ChatNotification notification,
+);
+
 class NotificationSectionsPage extends StatefulWidget {
   const NotificationSectionsPage({
     super.key,
     required this.initialSection,
     this.loadNotifications,
     this.openFollowerProfile,
+    this.markSectionRead,
+    this.openActivityPost,
   });
 
   final NotificationSection initialSection;
   final NotificationLoader? loadNotifications;
   final FollowerProfileOpener? openFollowerProfile;
+  final NotificationSectionReadMarker? markSectionRead;
+  final ActivityPostOpener? openActivityPost;
 
   @override
   State<NotificationSectionsPage> createState() =>
@@ -37,6 +49,7 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
   late Future<List<ChatNotification>> _future;
   NotificationActivityFilter _activityFilter = NotificationActivityFilter.all;
   bool _showActivityFilters = false;
+  bool _markedRead = false;
 
   ChatRepository get _repo =>
       _repository ??= ChatRepository(Supabase.instance.client);
@@ -85,14 +98,44 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
     );
   }
 
+  Future<void> _markCurrentSectionRead() async {
+    if (_markedRead || _section == NotificationSection.chat) return;
+    _markedRead = true;
+    final marker = widget.markSectionRead;
+    if (marker != null) {
+      await marker(_section);
+      return;
+    }
+    await _repo.markNotificationsReadForSection(_section);
+  }
+
   Future<void> _openActivityPost(ChatNotification notification) async {
-    final postId = notification.postId;
-    if (postId == null) return;
     try {
+      final injected = widget.openActivityPost;
+      if (injected != null) {
+        await injected(notification);
+        return;
+      }
+      final postId = notification.postId;
+      if (postId == null) {
+        throw const ChatNotificationPostUnavailableException();
+      }
       final post = await _repo.fetchPostForNotification(postId);
+      if (post.moderationStatus != 'approved') {
+        throw const ChatNotificationPostUnavailableException();
+      }
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => PostDetailPage(post: post)),
+      );
+    } on ChatNotificationPostUnavailableException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "This post can't be viewed. It may be deleted or not approved yet.",
+          ),
+        ),
       );
     } catch (_) {
       if (!mounted) return;
@@ -128,8 +171,12 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ChatNoSplash(
-      child: Scaffold(
+    return PopScope(
+      onPopInvokedWithResult: (_, __) {
+        _markCurrentSectionRead();
+      },
+      child: ChatNoSplash(
+        child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
           backgroundColor: Colors.white,
@@ -137,7 +184,10 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
           scrolledUnderElevation: 0,
           centerTitle: true,
           leading: IconButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () async {
+              await _markCurrentSectionRead();
+              if (context.mounted) Navigator.pop(context, true);
+            },
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           ),
           title: _section == NotificationSection.activity
@@ -214,6 +264,7 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
                 },
               ),
           ],
+        ),
         ),
       ),
     );
