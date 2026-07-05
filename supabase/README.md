@@ -27,7 +27,7 @@ Run `storage.sql` in the Supabase SQL editor.
 Buckets:
 
 - `avatars`
-- `post-images`
+- `images`
 
 ## 4. Create Database Schema
 
@@ -107,7 +107,27 @@ where trigger_name = 'on_auth_user_created';
 
 Expected result: 1 row for `auth.users`.
 
-## 6. Client Usage
+## 6. Configure Chat and Notifications
+
+Run `follow.sql` after `schema.sql`, then run `comment_mentions.sql`, then run `chat.sql`.
+
+`chat.sql` adds:
+
+- Direct and group chat tables
+- Chat RPC helpers for conversations, messages, read state, and clearing chats
+- Notification preferences and notifications
+- Activity notification triggers for follows, likes, saves, comments, and mentions
+- RLS policies and realtime publication entries for chat/notification tables
+
+### Chat activity notification triggers
+
+Apply `supabase/chat.sql` to the live Supabase database after pulling chat
+notification changes. The Activity page depends on notification trigger types
+including `comment_reply`, `comment_like`, and `mention`. Existing
+notifications are not backfilled automatically; create a new comment, reply,
+mention, or comment like after applying the SQL to verify the live trigger path.
+
+## 7. Client Usage
 
 - Flutter uses `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
 - React admin uses `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.

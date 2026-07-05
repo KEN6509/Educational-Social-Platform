@@ -121,4 +121,12 @@ void main() {
     expect(sql, contains('liked your comment'));
     expect(sql, contains('replied to your comment'));
   });
+
+  test('Supabase README documents applying chat SQL for activity triggers', () {
+    final readme = File('../../supabase/README.md').readAsStringSync();
+
+    expect(readme, contains('comment_reply'));
+    expect(readme, contains('comment_like'));
+    expect(readme, contains('supabase/chat.sql'));
+  });
 }
