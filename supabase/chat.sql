@@ -62,6 +62,18 @@ check (char_length(btrim(body)) between 1 and 10000);
 
 alter table public.chat_messages add column if not exists deleted_for uuid[] not null default '{}'::uuid[];
 
+create table if not exists public.chat_message_mentions (
+  message_id uuid not null references public.chat_messages(id) on delete cascade,
+  mentioned_user_id uuid not null references public.profiles(id) on delete cascade,
+  display_text text not null,
+  start_offset integer not null check (start_offset >= 0),
+  end_offset integer not null check (end_offset > start_offset),
+  is_all_source boolean not null default false,
+  created_at timestamptz not null default now(),
+  visited_at timestamptz,
+  unique (message_id, mentioned_user_id, start_offset)
+);
+
 create table if not exists public.notification_preferences (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   in_app_enabled boolean not null default true,
@@ -173,6 +185,13 @@ on public.chat_messages (conversation_id, created_at desc);
 
 create index if not exists chat_messages_deleted_for_gin_idx
 on public.chat_messages using gin (deleted_for);
+
+create index if not exists chat_message_mentions_recipient_unvisited_idx
+on public.chat_message_mentions (mentioned_user_id, created_at, message_id)
+where visited_at is null;
+
+create index if not exists chat_message_mentions_message_offset_idx
+on public.chat_message_mentions (message_id, start_offset);
 
 create index if not exists notifications_user_created_idx
 on public.notifications (user_id, created_at desc);
@@ -831,7 +850,13 @@ begin
 end;
 $$;
 
-create or replace function public.send_chat_message(p_conversation_id uuid, p_body text)
+drop function if exists public.send_chat_message(uuid, text);
+
+create or replace function public.send_chat_message(
+  p_conversation_id uuid,
+  p_body text,
+  p_mentions jsonb default '[]'::jsonb
+)
 returns uuid
 language plpgsql
 security definer
@@ -843,6 +868,12 @@ declare
   v_conversation public.chat_conversations%rowtype;
   v_message_id uuid;
   v_pending_message_count int;
+  v_mention jsonb;
+  v_mentioned_user uuid;
+  v_display_text text;
+  v_start_offset int;
+  v_end_offset int;
+  v_is_all boolean;
 begin
   if v_current_user is null then
     raise exception 'Authentication required';
@@ -854,6 +885,12 @@ begin
 
   if p_conversation_id is null then
     raise exception 'Conversation id is required';
+  end if;
+
+  if jsonb_typeof(coalesce(p_mentions, '[]'::jsonb)) <> 'array'
+    or jsonb_array_length(coalesce(p_mentions, '[]'::jsonb)) > 100
+  then
+    raise exception 'Message mentions must be an array of at most 100 entries';
   end if;
 
   perform pg_advisory_xact_lock(hashtextextended(p_conversation_id::text, 0));
@@ -896,6 +933,77 @@ begin
   insert into public.chat_messages (conversation_id, sender_id, body)
   values (p_conversation_id, v_current_user, v_body)
   returning id into v_message_id;
+
+  for v_mention in
+    select value from jsonb_array_elements(coalesce(p_mentions, '[]'::jsonb))
+  loop
+    if v_conversation.type <> 'group' then
+      raise exception 'Mentions are only supported in group chats';
+    end if;
+
+    v_display_text := v_mention->>'display_text';
+    v_start_offset := (v_mention->>'start_offset')::int;
+    v_end_offset := (v_mention->>'end_offset')::int;
+    v_is_all := coalesce((v_mention->>'is_all')::boolean, false);
+
+    if v_display_text is null
+      or v_start_offset < 0
+      or v_end_offset <= v_start_offset
+      or v_end_offset > char_length(v_body)
+      or substring(v_body from v_start_offset + 1 for v_end_offset - v_start_offset) <> v_display_text
+    then
+      raise exception 'Invalid mention span';
+    end if;
+
+    if v_is_all then
+      if v_display_text <> '@all' or not exists (
+        select 1
+        from public.chat_conversation_members cm
+        where cm.conversation_id = p_conversation_id
+          and cm.user_id = v_current_user
+          and cm.status = 'active'
+          and cm.role = 'owner'
+      ) then
+        raise exception 'Only group admins can mention all members';
+      end if;
+
+      insert into public.chat_message_mentions (
+        message_id, mentioned_user_id, display_text,
+        start_offset, end_offset, is_all_source
+      )
+      select
+        v_message_id, cm.user_id, v_display_text,
+        v_start_offset, v_end_offset, true
+      from public.chat_conversation_members cm
+      where cm.conversation_id = p_conversation_id
+        and cm.status = 'active'
+        and cm.user_id <> v_current_user
+      on conflict (message_id, mentioned_user_id, start_offset) do nothing;
+    else
+      v_mentioned_user := nullif(v_mention->>'user_id', '')::uuid;
+      if v_mentioned_user is null
+        or v_mentioned_user = v_current_user
+        or not exists (
+          select 1
+          from public.chat_conversation_members cm
+          where cm.conversation_id = p_conversation_id
+            and cm.user_id = v_mentioned_user
+            and cm.status = 'active'
+        )
+      then
+        raise exception 'Mentioned user is not an active group member';
+      end if;
+
+      insert into public.chat_message_mentions (
+        message_id, mentioned_user_id, display_text,
+        start_offset, end_offset, is_all_source
+      ) values (
+        v_message_id, v_mentioned_user, v_display_text,
+        v_start_offset, v_end_offset, false
+      )
+      on conflict (message_id, mentioned_user_id, start_offset) do nothing;
+    end if;
+  end loop;
 
   update public.chat_conversations c
   set last_message_at = now()
@@ -942,6 +1050,53 @@ begin
   end;
 
   return v_message_id;
+end;
+$$;
+
+create or replace function public.fetch_unvisited_chat_mentions(
+  p_conversation_id uuid default null
+)
+returns table (
+  message_id uuid,
+  conversation_id uuid,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select distinct m.id, m.conversation_id, m.created_at
+  from public.chat_message_mentions mm
+  join public.chat_messages m on m.id = mm.message_id
+  join public.chat_conversation_members cm
+    on cm.conversation_id = m.conversation_id
+   and cm.user_id = auth.uid()
+  where mm.mentioned_user_id = auth.uid()
+    and mm.visited_at is null
+    and m.deleted_at is null
+    and not (auth.uid() = any(m.deleted_for))
+    and cm.status = 'active'
+    and (cm.cleared_at is null or m.created_at > cm.cleared_at)
+    and (p_conversation_id is null or m.conversation_id = p_conversation_id)
+  order by m.created_at, m.id;
+$$;
+
+create or replace function public.mark_chat_mention_visited(p_message_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  update public.chat_message_mentions mm
+  set visited_at = coalesce(mm.visited_at, now())
+  where mm.message_id = p_message_id
+    and mm.mentioned_user_id = auth.uid();
 end;
 $$;
 
@@ -1378,6 +1533,7 @@ for each row execute function public.notify_comment_like();
 alter table public.chat_conversations enable row level security;
 alter table public.chat_conversation_members enable row level security;
 alter table public.chat_messages enable row level security;
+alter table public.chat_message_mentions enable row level security;
 alter table public.notification_preferences enable row level security;
 alter table public.notifications enable row level security;
 
@@ -1416,6 +1572,19 @@ to authenticated
   )
 );
 
+drop policy if exists "Mentions visible to conversation members" on public.chat_message_mentions;
+create policy "Mentions visible to conversation members"
+on public.chat_message_mentions for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.chat_messages m
+    where m.id = chat_message_mentions.message_id
+      and public.chat_is_conversation_member(m.conversation_id, auth.uid())
+  )
+);
+
 drop policy if exists "Users manage own notification preferences" on public.notification_preferences;
 create policy "Users manage own notification preferences"
 on public.notification_preferences for all
@@ -1437,7 +1606,9 @@ revoke execute on function public.chat_is_conversation_member(uuid, uuid) from p
 
 revoke execute on function public.create_direct_conversation(uuid) from public, anon;
 revoke execute on function public.create_group_conversation(text, uuid[]) from public, anon;
-revoke execute on function public.send_chat_message(uuid, text) from public, anon;
+revoke execute on function public.send_chat_message(uuid, text, jsonb) from public, anon;
+revoke execute on function public.fetch_unvisited_chat_mentions(uuid) from public, anon;
+revoke execute on function public.mark_chat_mention_visited(uuid) from public, anon;
 revoke execute on function public.accept_message_request(uuid) from public, anon;
 revoke execute on function public.clear_chat(uuid) from public, anon;
 revoke execute on function public.rename_group_conversation(uuid, text) from public, anon;
@@ -1454,7 +1625,9 @@ revoke execute on function public.mark_notification_section_read(text) from publ
 grant execute on function public.chat_is_conversation_member(uuid, uuid) to authenticated;
 grant execute on function public.create_direct_conversation(uuid) to authenticated;
 grant execute on function public.create_group_conversation(text, uuid[]) to authenticated;
-grant execute on function public.send_chat_message(uuid, text) to authenticated;
+grant execute on function public.send_chat_message(uuid, text, jsonb) to authenticated;
+grant execute on function public.fetch_unvisited_chat_mentions(uuid) to authenticated;
+grant execute on function public.mark_chat_mention_visited(uuid) to authenticated;
 grant execute on function public.accept_message_request(uuid) to authenticated;
 grant execute on function public.clear_chat(uuid) to authenticated;
 grant execute on function public.rename_group_conversation(uuid, text) to authenticated;
