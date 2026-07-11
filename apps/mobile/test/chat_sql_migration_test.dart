@@ -167,14 +167,16 @@ void main() {
 
     expect(sql,
         contains('create table if not exists public.chat_message_mentions'));
-    expect(sql,
-        contains('unique (message_id, mentioned_user_id, start_offset)'));
+    expect(
+        sql, contains('unique (message_id, mentioned_user_id, start_offset)'));
     expect(sql, contains("p_mentions jsonb default '[]'::jsonb"));
     expect(sql, contains('fetch_unvisited_chat_mentions'));
     expect(sql, contains('mark_chat_mention_visited'));
     expect(sql, contains("v_conversation.type <> 'group'"));
     expect(sql, contains("v_mention->>'is_all'"));
     expect(sql, contains("cm.role = 'owner'"));
+    expect(sql, contains("'@' || p.name"));
+    expect(sql, contains("cm.status = 'active'"));
     expect(sql, contains('on delete cascade'));
   });
 }

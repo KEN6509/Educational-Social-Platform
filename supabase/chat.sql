@@ -986,9 +986,11 @@ begin
         or not exists (
           select 1
           from public.chat_conversation_members cm
+          join public.profiles p on p.id = cm.user_id
           where cm.conversation_id = p_conversation_id
             and cm.user_id = v_mentioned_user
             and cm.status = 'active'
+            and v_display_text = '@' || p.name
         )
       then
         raise exception 'Mentioned user is not an active group member';
@@ -1582,6 +1584,13 @@ using (
     from public.chat_messages m
     where m.id = chat_message_mentions.message_id
       and public.chat_is_conversation_member(m.conversation_id, auth.uid())
+      and exists (
+        select 1
+        from public.chat_conversation_members cm
+        where cm.conversation_id = m.conversation_id
+          and cm.user_id = auth.uid()
+          and cm.status = 'active'
+      )
   )
 );
 

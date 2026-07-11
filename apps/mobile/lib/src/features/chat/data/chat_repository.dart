@@ -257,7 +257,7 @@ class ChatRepository {
         sendBodyParam: body,
         sendMentionsParam: mentions
             .where((mention) => mention.matches(body))
-            .map((mention) => mention.toRpcMap())
+            .map((mention) => mention.toRpcMap(body))
             .toList(),
       },
     );
@@ -536,6 +536,19 @@ class ChatRepository {
         .order('created_at', ascending: false)
         .limit(50);
 
+    return _mapListFromResponse(response)
+        .map((row) => ChatMessage.fromMap(row, currentUserId: currentUserId))
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
+  Future<List<ChatMessage>> fetchMessagesByIds(List<String> messageIds) async {
+    if (messageIds.isEmpty) return const [];
+    final currentUserId = _requireCurrentUserId();
+    final response = await _client
+        .from('chat_messages')
+        .select(_messageSelectColumns)
+        .inFilter('id', messageIds.toSet().toList());
     return _mapListFromResponse(response)
         .map((row) => ChatMessage.fromMap(row, currentUserId: currentUserId))
         .toList()

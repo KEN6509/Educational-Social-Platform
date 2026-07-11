@@ -22,25 +22,37 @@ class ChatMention {
         text.substring(start, end) == displayText;
   }
 
-  Map<String, Object> toRpcMap() => {
+  Map<String, Object> toRpcMap(String body) => {
         'user_id': userId,
         'display_text': displayText,
-        'start_offset': start,
-        'end_offset': end,
+        'start_offset': body.substring(0, start).runes.length,
+        'end_offset': body.substring(0, end).runes.length,
         'is_all': isAll,
       };
 
   Map<String, Object?> toJson() => {
-        ...toRpcMap(),
+        'user_id': userId,
+        'display_text': displayText,
+        'start': start,
+        'end': end,
+        'is_all': isAll,
         'visited_at': visitedAt?.toIso8601String(),
       };
 
-  factory ChatMention.fromMap(Map<dynamic, dynamic> map) {
+  factory ChatMention.fromMap(Map<dynamic, dynamic> map, {String? body}) {
+    final cachedStart = map['start'];
+    final cachedEnd = map['end'];
+    final rawStart = _asInt(cachedStart ?? map['start_offset']);
+    final rawEnd = _asInt(cachedEnd ?? map['end_offset']);
     return ChatMention(
       userId: '${map['mentioned_user_id'] ?? map['user_id'] ?? ''}',
       displayText: '${map['display_text'] ?? ''}',
-      start: _asInt(map['start_offset']),
-      end: _asInt(map['end_offset']),
+      start: cachedStart != null || body == null
+          ? rawStart
+          : _codePointOffsetToUtf16(body, rawStart),
+      end: cachedEnd != null || body == null
+          ? rawEnd
+          : _codePointOffsetToUtf16(body, rawEnd),
       isAll: map['is_all_source'] == true || map['is_all'] == true,
       visitedAt: DateTime.tryParse('${map['visited_at'] ?? ''}'),
     );
@@ -57,5 +69,10 @@ class ChatMention {
 
   static int _asInt(Object? value) {
     return value is int ? value : int.tryParse('$value') ?? 0;
+  }
+
+  static int _codePointOffsetToUtf16(String value, int codePointOffset) {
+    if (codePointOffset <= 0) return 0;
+    return String.fromCharCodes(value.runes.take(codePointOffset)).length;
   }
 }

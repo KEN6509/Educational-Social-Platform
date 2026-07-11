@@ -100,6 +100,8 @@ Implemented conversations:
 - Message ordering, unread divider, latest/unread entry positioning, keyboard-safe scrolling, and jump-to-bottom control.
 - Current-user-only clear chat.
 - Group rename, add/remove members, member search, admin display, exit group, and cleanup when the final member exits.
+- Group-chat member mentions with `@` autocomplete, repeated tappable dark-green mention spans, stable profile targets, and admin-only `@all`.
+- Chat rows show an `@` indicator for unvisited mentions; room entry and the floating `@` button traverse mentioned messages oldest first.
 - Storage cleanup for unsent/deleted chat images and deleted empty groups.
 
 Chat design decisions:
@@ -189,7 +191,7 @@ supabase/chat.sql
 
 The storage bucket is named `images`; it stores post and chat images. Deleted posts, unsent image messages, and deleted final-member groups should remove their related storage objects.
 
-Apply `follow.sql`, `comment_mentions.sql`, and the latest `chat.sql` to the live project. Notification trigger changes do not backfill historical events automatically.
+Apply `follow.sql`, `comment_mentions.sql`, and the latest `chat.sql` to the live project. The July 12 `chat.sql` update is required for group mentions. Notification trigger changes do not backfill historical events automatically.
 
 ## Verification state
 

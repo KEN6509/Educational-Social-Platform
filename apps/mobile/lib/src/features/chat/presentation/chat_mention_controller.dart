@@ -82,7 +82,40 @@ class ChatMentionController {
     required String text,
   }) {
     if (previousText == text) return mentions;
-    _mentions = _mentions.where((mention) => mention.matches(text)).toList();
+    var prefix = 0;
+    final prefixLimit =
+        previousText.length < text.length ? previousText.length : text.length;
+    while (prefix < prefixLimit &&
+        previousText.codeUnitAt(prefix) == text.codeUnitAt(prefix)) {
+      prefix += 1;
+    }
+    var suffix = 0;
+    while (suffix < previousText.length - prefix &&
+        suffix < text.length - prefix &&
+        previousText.codeUnitAt(previousText.length - suffix - 1) ==
+            text.codeUnitAt(text.length - suffix - 1)) {
+      suffix += 1;
+    }
+    final oldSuffixStart = previousText.length - suffix;
+    final delta = text.length - previousText.length;
+    _mentions = _mentions
+        .map((mention) {
+          if (mention.end <= prefix) return mention;
+          if (mention.start >= oldSuffixStart) {
+            return ChatMention(
+              userId: mention.userId,
+              displayText: mention.displayText,
+              start: mention.start + delta,
+              end: mention.end + delta,
+              isAll: mention.isAll,
+              visitedAt: mention.visitedAt,
+            );
+          }
+          return null;
+        })
+        .whereType<ChatMention>()
+        .where((mention) => mention.matches(text))
+        .toList();
     return mentions;
   }
 

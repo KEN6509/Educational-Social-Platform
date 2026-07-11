@@ -122,6 +122,30 @@ Run `follow.sql` after `schema.sql`, then run `comment_mentions.sql`, then run `
 - Notification preferences and notifications
 - Activity notification triggers for follows, likes, saves, comments, and mentions
 - RLS policies and realtime publication entries for chat/notification tables
+- Structured group-chat mentions, admin-only `@all`, and per-recipient mention visit state
+
+After pulling the group-mention implementation, run the updated
+`supabase/chat.sql` in the Supabase SQL Editor. The script is idempotent for
+schema objects, but inspect any SQL Editor error before rerunning it.
+
+Verify the mention objects:
+
+```sql
+select table_name
+from information_schema.tables
+where table_schema = 'public'
+  and table_name = 'chat_message_mentions';
+
+select routine_name
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name in (
+    'send_chat_message',
+    'fetch_unvisited_chat_mentions',
+    'mark_chat_mention_visited'
+  )
+order by routine_name;
+```
 
 ### Chat activity notification triggers
 

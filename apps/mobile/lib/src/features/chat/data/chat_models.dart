@@ -406,7 +406,10 @@ class ChatMessage {
       ),
       mentions: ((map['chat_message_mentions'] ?? map['mentions']) as List?)
               ?.whereType<Map>()
-              .map(ChatMention.fromMap)
+              .map((entry) => ChatMention.fromMap(
+                    entry,
+                    body: _stringValue(map['body']).trim(),
+                  ))
               .where((mention) => mention.matches(
                     _stringValue(map['body']).trim(),
                   ))

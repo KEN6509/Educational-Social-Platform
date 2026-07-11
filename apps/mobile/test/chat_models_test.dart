@@ -53,6 +53,37 @@ void main() {
 
       expect(reconciled, isEmpty);
     });
+
+    test('RPC offsets count Unicode code points instead of UTF-16 units', () {
+      const body = '😀 hi @Ava';
+      const mention = ChatMention(
+        userId: 'u1',
+        displayText: '@Ava',
+        start: 6,
+        end: 10,
+      );
+
+      expect(mention.toRpcMap(body)['start_offset'], 5);
+      expect(mention.toRpcMap(body)['end_offset'], 9);
+    });
+
+    test('controller shifts intact mentions after an earlier text edit', () {
+      final controller = ChatMentionController();
+      final inserted = controller.insertMention(
+        text: 'Hi @av',
+        selectionOffset: 6,
+        userId: 'u1',
+        displayName: 'Ava',
+      );
+
+      final reconciled = controller.reconcile(
+        previousText: inserted.text,
+        text: 'Hello ${inserted.text}',
+      );
+
+      expect(reconciled.single.start, inserted.mentions.single.start + 6);
+      expect(reconciled.single.matches('Hello ${inserted.text}'), isTrue);
+    });
   });
 
   group('ChatConversation', () {

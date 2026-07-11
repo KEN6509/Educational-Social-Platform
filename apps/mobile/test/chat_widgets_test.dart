@@ -151,6 +151,28 @@ void main() {
     expect(visited, ['m1', 'm2']);
   });
 
+  testWidgets('room never marks a mention visited when its message is absent',
+      (tester) async {
+    final visited = <String>[];
+    await tester.pumpWidget(MaterialApp(
+      home: ChatRoomPage(
+        conversation: const ChatConversation(
+          id: 'c-missing',
+          type: ChatConversationType.group,
+          requestStatus: ChatRequestStatus.none,
+          unreadCount: 0,
+        ),
+        loadMessages: () async => const [],
+        markRead: (_) async {},
+        initialUnvisitedMentionMessageIds: const ['missing-message'],
+        markMentionVisited: (id) async => visited.add(id),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(visited, isEmpty);
+  });
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });

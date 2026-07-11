@@ -276,6 +276,13 @@ class _ChatRoomPageState extends State<ChatRoomPage>
         );
         _unvisitedMentionMessageIds =
             mentions.map((mention) => mention.messageId).toSet().toList();
+        final loadedIds = messages.map((message) => message.id).toSet();
+        final missingIds = _unvisitedMentionMessageIds
+            .where((messageId) => !loadedIds.contains(messageId))
+            .toList();
+        if (missingIds.isNotEmpty) {
+          messages.addAll(await _repo.fetchMessagesByIds(missingIds));
+        }
       }
       messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
       _cachedMessages[_conversation.id] = messages.length <= 10
@@ -489,14 +496,13 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     if (_unvisitedMentionMessageIds.isEmpty) return;
     final messageId = _unvisitedMentionMessageIds.first;
     final context = _messageKeys[messageId]?.currentContext;
-    if (context != null) {
-      await Scrollable.ensureVisible(
-        context,
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOutCubic,
-        alignment: 0.2,
-      );
-    }
+    if (context == null) return;
+    await Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      alignment: 0.2,
+    );
     if (mounted) {
       setState(() {
         _unvisitedMentionMessageIds =

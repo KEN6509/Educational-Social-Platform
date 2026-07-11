@@ -8,6 +8,7 @@ Flutter application for CyanZone's educational social, chat, and family-safety e
 - Educational waterfall feed, search, post creation/editing, and post details
 - Comments, replies, mentions, reactions, saves, reports, and sharing
 - Direct/group chat, message requests, text/images, shared-post messages, unread state, group management, and local recent-history caches
+- Group-chat member mentions, admin-only `@all`, tappable profile links, and oldest-first unread mention navigation
 - Activity, System, and New Followers pages with in-app badges/read state
 - Parent-child repository and safety-center foundations
 

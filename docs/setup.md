@@ -52,6 +52,11 @@ by the current mobile app. At minimum, the live project should include:
 7. `supabase/comment_mentions.sql`
 8. `supabase/chat.sql`
 
+The latest `chat.sql` is required for group-chat mentions. Run it manually in
+the Supabase SQL Editor after updating the application. It creates
+`chat_message_mentions` and the mention fetch/visit RPCs. Inspect any SQL Editor
+error before rerunning the script.
+
 Inspect the remote schema before rerunning scripts. Notification trigger changes
 do not backfill old Activity/New Followers rows.
 
