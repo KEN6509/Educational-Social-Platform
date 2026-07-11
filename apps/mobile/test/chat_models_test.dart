@@ -1,7 +1,60 @@
 import 'package:cyanzone_mobile/src/features/chat/data/chat_models.dart';
+import 'package:cyanzone_mobile/src/features/chat/data/chat_mention.dart';
+import 'package:cyanzone_mobile/src/features/chat/presentation/chat_mention_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('ChatMention', () {
+    test('allows repeated occurrences but deduplicates recipients', () {
+      const mentions = [
+        ChatMention(userId: 'u1', displayText: '@Ava', start: 0, end: 4),
+        ChatMention(userId: 'u1', displayText: '@Ava', start: 9, end: 13),
+      ];
+
+      expect(ChatMention.uniqueRecipientIds(mentions), ['u1']);
+    });
+
+    test('controller detects active query and inserts repeated mentions', () {
+      final controller = ChatMentionController();
+
+      expect(controller.queryFor('Hi @av', 6), 'av');
+      final first = controller.insertMention(
+        text: 'Hi @av',
+        selectionOffset: 6,
+        userId: 'u1',
+        displayName: 'Ava',
+      );
+      final secondText = '${first.text}@a';
+      final second = controller.insertMention(
+        text: secondText,
+        selectionOffset: secondText.length,
+        userId: 'u1',
+        displayName: 'Ava',
+      );
+
+      expect(second.text, 'Hi @Ava @Ava ');
+      expect(second.mentions, hasLength(2));
+      expect(ChatMention.uniqueRecipientIds(second.mentions), ['u1']);
+    });
+
+    test('controller removes a selected mention after its token is edited', () {
+      final controller = ChatMentionController();
+      final inserted = controller.insertMention(
+        text: '@av',
+        selectionOffset: 3,
+        userId: 'u1',
+        displayName: 'Ava',
+      );
+
+      final reconciled = controller.reconcile(
+        previousText: inserted.text,
+        text: inserted.text.replaceFirst('@Ava', '@Eva'),
+      );
+
+      expect(reconciled, isEmpty);
+    });
+  });
+
   group('ChatConversation', () {
     test('parses direct pending state with display title and unread count', () {
       final conversation = ChatConversation.fromMap({
