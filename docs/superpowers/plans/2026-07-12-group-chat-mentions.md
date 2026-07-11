@@ -474,3 +474,33 @@ git add Project_Overview.md apps/mobile/README.md supabase/README.md docs/setup.
 git commit -m "docs: document group chat mentions"
 ```
 
+### Task 8: Polish Mention UI From Device Feedback
+
+**Files:**
+- Modify: `apps/mobile/lib/src/features/chat/presentation/chat_room_page.dart`
+- Modify: `apps/mobile/lib/src/features/chat/presentation/chat_widgets.dart`
+- Test: `apps/mobile/test/chat_widgets_test.dart`
+
+- [ ] **Step 1: Add failing widget and source-contract tests**
+
+Cover the shared `#128C7E` accent, overlay positioning, four-row viewport, text-column dividers, keyboard dismissal, centered indicator/button glyphs, and shrink-wrapped mention-only bubbles.
+
+- [ ] **Step 2: Run the focused widget suite and confirm RED**
+
+Run: `flutter test test/chat_widgets_test.dart`
+
+Expected: new layout/style assertions fail against the current implementation.
+
+- [ ] **Step 3: Implement the approved overlay and visual polish**
+
+Use one exported chat mention accent constant, move the panel from the composer column into the room stack, cap it at four 60-pixel rows, use separators indented by the avatar width plus gap, dismiss focus/query from empty chat taps, center both `@` glyphs, and add `widthFactor: 1` to the rich mention text alignment.
+
+- [ ] **Step 4: Run focused and full verification**
+
+Run: `flutter test test/chat_widgets_test.dart`
+
+Run: `flutter test`
+
+Run: `flutter analyze`
+
+Expected: all tests pass and analyzer reports no issues.

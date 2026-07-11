@@ -104,3 +104,14 @@ Tests cover:
 
 After implementation and local verification, the user must run the updated `supabase/chat.sql` in the Supabase SQL Editor. No automated remote migration will be performed. The handoff must call out the exact file and provide a short verification query.
 
+## Approved UI Polish
+
+- The shared mention/accent color is `#128C7E`, matching group-chat sender names.
+- The mention suggestion list overlays the chat history above the composer and never pushes messages upward.
+- At most four suggestion rows are visible; additional rows scroll inside the overlay.
+- `@all` uses the same avatar size and text-column alignment as member rows, with a `#128C7E` avatar.
+- Dividers begin at the name/text column, not beneath the avatar.
+- Tapping chat space outside the composer and suggestion overlay dismisses both the keyboard and mention list.
+- The conversation mention indicator is a centered white `@` on a `#128C7E` circular background.
+- The in-room mention-navigation `@` is optically centered.
+- Mention-only message bubbles shrink-wrap their content instead of expanding to the maximum bubble width.
