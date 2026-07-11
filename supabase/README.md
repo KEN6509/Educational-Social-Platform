@@ -29,6 +29,10 @@ Buckets:
 - `avatars`
 - `images`
 
+The `images` bucket is shared by post images and chat image messages. Current
+cleanup paths remove objects for deleted posts, unsent image messages, and group
+conversations deleted after the final member exits.
+
 ## 4. Create Database Schema
 
 Run `schema.sql` in the Supabase SQL editor after `storage.sql`.
@@ -126,6 +130,9 @@ notification changes. The Activity page depends on notification trigger types
 including `comment_reply`, `comment_like`, and `mention`. Existing
 notifications are not backfilled automatically; create a new comment, reply,
 mention, or comment like after applying the SQL to verify the live trigger path.
+
+Current mobile notifications are in-app Supabase rows and badges. External
+FCM/APNs device push delivery is not configured yet.
 
 ## 7. Client Usage
 

@@ -1058,6 +1058,43 @@ begin
 end;
 $$;
 
+create or replace function public.mark_notification_section_read(p_section text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_current_user uuid := auth.uid();
+begin
+  if v_current_user is null then
+    raise exception 'Authentication required';
+  end if;
+
+  if p_section = 'activity' then
+    update public.notifications n
+    set read_at = coalesce(n.read_at, now())
+    where n.user_id = v_current_user
+      and n.read_at is null
+      and n.type not in ('system', 'new_follower', 'chat_message');
+  elsif p_section = 'followers' then
+    update public.notifications n
+    set read_at = coalesce(n.read_at, now())
+    where n.user_id = v_current_user
+      and n.read_at is null
+      and n.type = 'new_follower';
+  elsif p_section = 'system' then
+    update public.notifications n
+    set read_at = coalesce(n.read_at, now())
+    where n.user_id = v_current_user
+      and n.read_at is null
+      and n.type = 'system';
+  else
+    raise exception 'Unsupported notification section: %', p_section;
+  end if;
+end;
+$$;
+
 create or replace function public.notify_new_follower()
 returns trigger
 language plpgsql
@@ -1066,6 +1103,11 @@ set search_path = public
 as $$
 begin
   if new.following_id <> new.follower_id then
+    delete from public.notifications
+    where user_id = new.following_id
+      and type = 'new_follower'
+      and actor_id = new.follower_id;
+
     insert into public.notifications (user_id, type, actor_id, title, body, action_type, action_payload)
     select
       new.following_id,
@@ -1407,6 +1449,7 @@ revoke execute on function public.restore_chat_message_for_me(uuid) from public,
 revoke execute on function public.unsend_chat_message(uuid) from public, anon;
 revoke execute on function public.mark_conversation_read(uuid) from public, anon;
 revoke execute on function public.mark_notification_read(uuid) from public, anon;
+revoke execute on function public.mark_notification_section_read(text) from public, anon;
 
 grant execute on function public.chat_is_conversation_member(uuid, uuid) to authenticated;
 grant execute on function public.create_direct_conversation(uuid) to authenticated;
@@ -1423,6 +1466,7 @@ grant execute on function public.restore_chat_message_for_me(uuid) to authentica
 grant execute on function public.unsend_chat_message(uuid) to authenticated;
 grant execute on function public.mark_conversation_read(uuid) to authenticated;
 grant execute on function public.mark_notification_read(uuid) to authenticated;
+grant execute on function public.mark_notification_section_read(text) to authenticated;
 
 do $$
 begin

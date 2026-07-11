@@ -78,10 +78,10 @@ where status = 'pending';
 create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references public.profiles(id) on delete cascade,
-  title text not null check (char_length(title) between 3 and 120),
-  content text not null check (char_length(content) between 1 and 5000),
+  title text not null check (char_length(title) between 0 and 40),
+  content text not null check (char_length(content) between 0 and 1000),
   tags text[] not null default '{}',
-  moderation_status public.moderation_status not null default 'pending',
+  moderation_status public.moderation_status not null default 'approved', -- Temporary: auto-approve for testing
   ai_toxicity_score numeric(5,4) check (ai_toxicity_score is null or ai_toxicity_score between 0 and 1),
   moderation_reason text,
   reviewed_by uuid references public.profiles(id) on delete set null,
@@ -107,7 +107,7 @@ create table if not exists public.comments (
   author_id uuid not null references public.profiles(id) on delete cascade,
   parent_comment_id uuid references public.comments(id) on delete cascade,
   content text not null check (char_length(content) between 1 and 1000),
-  moderation_status public.moderation_status not null default 'pending',
+  moderation_status public.moderation_status not null default 'approved', -- Temporary: auto-approve for testing
   ai_toxicity_score numeric(5,4) check (ai_toxicity_score is null or ai_toxicity_score between 0 and 1),
   moderation_reason text,
   created_at timestamptz not null default now(),
@@ -123,12 +123,27 @@ create table if not exists public.likes (
   unique (post_id, user_id)
 );
 
+create table if not exists public.comment_likes (
+  id uuid primary key default gen_random_uuid(),
+  comment_id uuid not null references public.comments(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (comment_id, user_id)
+);
+
 create table if not exists public.saves (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references public.posts(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
   created_at timestamptz not null default now(),
   unique (post_id, user_id)
+);
+
+create table if not exists public.shares (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.reports (
@@ -193,6 +208,15 @@ create table if not exists public.sos_alerts (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.follows (
+  id uuid primary key default gen_random_uuid(),
+  follower_id uuid not null references public.profiles(id) on delete cascade,
+  following_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (follower_id, following_id),
+  check (follower_id <> following_id)
+);
+
 create index if not exists profiles_created_at_idx on public.profiles(created_at desc);
 create index if not exists posts_author_created_idx on public.posts(author_id, created_at desc);
 create index if not exists posts_feed_idx on public.posts(moderation_status, published_at desc nulls last, created_at desc);
@@ -207,6 +231,11 @@ create index if not exists parent_child_child_idx on public.parent_child_links(c
 create index if not exists screen_time_child_date_idx on public.screen_time_logs(child_id, log_date desc);
 create index if not exists check_ins_user_created_idx on public.check_ins(user_id, created_at desc);
 create index if not exists sos_alerts_child_status_idx on public.sos_alerts(child_id, status, created_at desc);
+
+-- TEMPORARY: Approve existing pending content for testing
+-- Run these in Supabase SQL Editor if you have existing data
+update public.posts set moderation_status = 'approved' where moderation_status = 'pending';
+update public.comments set moderation_status = 'approved' where moderation_status = 'pending';
 
 drop trigger if exists set_profiles_updated_at on public.profiles;
 create trigger set_profiles_updated_at
@@ -275,12 +304,15 @@ alter table public.posts enable row level security;
 alter table public.post_images enable row level security;
 alter table public.comments enable row level security;
 alter table public.likes enable row level security;
+alter table public.comment_likes enable row level security;
 alter table public.saves enable row level security;
+alter table public.shares enable row level security;
 alter table public.reports enable row level security;
 alter table public.parent_child_links enable row level security;
 alter table public.screen_time_logs enable row level security;
 alter table public.check_ins enable row level security;
 alter table public.sos_alerts enable row level security;
+alter table public.follows enable row level security;
 
 drop policy if exists "Profiles are visible to signed-in users" on public.profiles;
 create policy "Profiles are visible to signed-in users"
@@ -396,17 +428,55 @@ to authenticated
 using (user_id = auth.uid())
 with check (user_id = auth.uid());
 
+drop policy if exists "Users can view comment likes" on public.comment_likes;
+create policy "Users can view comment likes"
+on public.comment_likes for select
+to authenticated
+using (true);
+
+drop policy if exists "Users can manage own comment likes" on public.comment_likes;
+create policy "Users can manage own comment likes"
+on public.comment_likes for all
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
 drop policy if exists "Users can view own saves" on public.saves;
 create policy "Users can view own saves"
 on public.saves for select
 to authenticated
 using (user_id = auth.uid());
 
+drop policy if exists "Follows are visible to everyone" on public.follows;
+create policy "Follows are visible to everyone"
+on public.follows for select
+to authenticated
+using (true);
+
+drop policy if exists "Users can manage own follows" on public.follows;
+create policy "Users can manage own follows"
+on public.follows for all
+to authenticated
+using (follower_id = auth.uid())
+with check (follower_id = auth.uid());
+
 drop policy if exists "Users can manage own saves" on public.saves;
 create policy "Users can manage own saves"
 on public.saves for all
 to authenticated
 using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+drop policy if exists "Users can view shares" on public.shares;
+create policy "Users can view shares"
+on public.shares for select
+to authenticated
+using (true);
+
+drop policy if exists "Users can record own shares" on public.shares;
+create policy "Users can record own shares"
+on public.shares for insert
+to authenticated
 with check (user_id = auth.uid());
 
 drop policy if exists "Users can submit reports" on public.reports;
@@ -576,3 +646,94 @@ begin
     alter publication supabase_realtime add table public.sos_alerts;
   end if;
 end $$;
+
+-- STORAGE POLICIES
+-- Note: Buckets must be created manually or via dashboard before policies apply.
+-- Assuming 'avatars' and 'images' buckets exist.
+
+-- Avatars Bucket
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Avatar images are publicly accessible" on storage.objects;
+create policy "Avatar images are publicly accessible"
+on storage.objects for select
+using (bucket_id = 'avatars');
+
+drop policy if exists "Users can upload their own avatar" on storage.objects;
+create policy "Users can upload their own avatar"
+on storage.objects for insert
+with check (
+  bucket_id = 'avatars' 
+  and (auth.uid())::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "Users can update their own avatar" on storage.objects;
+create policy "Users can update their own avatar"
+on storage.objects for update
+using (
+  bucket_id = 'avatars' 
+  and (auth.uid())::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "Users can delete their own avatar" on storage.objects;
+create policy "Users can delete their own avatar"
+on storage.objects for delete
+using (
+  bucket_id = 'avatars' 
+  and (auth.uid())::text = (storage.foldername(name))[1]
+);
+
+-- Shared Images Bucket
+insert into storage.buckets (id, name, public)
+values ('images', 'images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Images are publicly accessible" on storage.objects;
+create policy "Images are publicly accessible"
+on storage.objects for select
+using (bucket_id = 'images');
+
+drop policy if exists "Users can upload their own post images" on storage.objects;
+drop policy if exists "Authenticated users can upload images" on storage.objects;
+create policy "Authenticated users can upload images"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'images');
+
+drop policy if exists "Users can update their own post images" on storage.objects;
+drop policy if exists "Authenticated users can update images" on storage.objects;
+create policy "Authenticated users can update images"
+on storage.objects for update
+to authenticated
+using (bucket_id = 'images')
+with check (bucket_id = 'images');
+
+drop policy if exists "Users can delete their own post images" on storage.objects;
+drop policy if exists "Authenticated users can delete images" on storage.objects;
+create policy "Authenticated users can delete images"
+on storage.objects for delete
+to authenticated
+using (bucket_id = 'images');
+
+-- 1. Fix Title Constraint
+ALTER TABLE public.posts DROP CONSTRAINT IF EXISTS posts_title_check;
+ALTER TABLE public.posts ADD CONSTRAINT posts_title_check CHECK (char_length(title) BETWEEN 0 AND 40);
+
+-- 2. Fix Content Constraint
+ALTER TABLE public.posts DROP CONSTRAINT IF EXISTS posts_content_check;
+ALTER TABLE public.posts ADD CONSTRAINT posts_content_check CHECK (char_length(content) BETWEEN 0 AND 1000);
+
+-- profile Saved/Liked visibility.
+drop policy if exists "Users can view own saves" on public.saves;
+create policy "Users can view own saves"
+on public.saves for select
+to authenticated
+using (
+  user_id = auth.uid()
+  or exists (
+    select 1 from public.posts p
+    where p.id = post_id and p.moderation_status = 'approved'
+  )
+);

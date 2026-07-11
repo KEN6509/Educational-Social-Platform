@@ -1,5 +1,9 @@
 # Notification Read State and Badge Counts Implementation Plan
 
+> Historical implementation plan. The scoped work is implemented as of
+> 2026-07-11. Unchecked boxes below describe the original execution sequence,
+> not remaining work.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fix notification read-state, Activity unavailable-post behavior, badge counts, per-chat unread counts, and add the Unread messages filter.

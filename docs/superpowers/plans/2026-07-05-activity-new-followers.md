@@ -1,5 +1,8 @@
 # Activity and New Followers Implementation Plan
 
+> Historical implementation plan. The scoped work is implemented as of
+> 2026-07-11. Use `Project_Overview.md` and current source/tests for status.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the redesigned New Followers and Activity notification pages with 30-day follower dedupe, richer activity rows, filter dropdowns, profile/post navigation, and backend support for comment replies/comment likes.

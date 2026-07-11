@@ -8,7 +8,7 @@ AI-Assisted Parent-Supervised Educational Social Platform for Teenagers.
 - Admin dashboard: React, TypeScript, Tailwind
 - Backend service: Node.js, Express
 - Backend platform: Supabase Auth, PostgreSQL, Storage, Realtime
-- AI moderation: Google Perspective API
+- Planned AI moderation: Gemini for text and images
 
 ## Workspace Structure
 
@@ -17,7 +17,7 @@ apps/
   mobile/       Flutter mobile app for teenagers, parents, and creators
   admin/        React admin dashboard
 services/
-  api/          Express API for AI moderation and privileged operations
+  api/          Express API for privileged operations and future Gemini moderation
 supabase/
   auth.sql      Phase 3 auth trigger and admin policies
   README.md     Supabase setup guide
@@ -27,7 +27,7 @@ docs/
   setup.md      Local setup and demo notes
 ```
 
-## Phase 1 Setup
+## Initial Setup
 
 1. Create a Supabase project.
 2. Copy each `.env.example` file to `.env`.
@@ -35,7 +35,9 @@ docs/
 4. Run `supabase/storage.sql` in the Supabase SQL editor to create storage buckets.
 5. Run `supabase/schema.sql` in the Supabase SQL editor to create database tables.
 6. Run `supabase/auth.sql` in the Supabase SQL editor to enable profile auto-create.
-7. Install dependencies for each app when local tooling is available.
+7. Apply the incremental SQL required by current modules, especially
+   `follow.sql`, `comment_mentions.sql`, and `chat.sql`; see `docs/setup.md`.
+8. Install dependencies for each app when local tooling is available.
 
 ## Applications
 
@@ -47,6 +49,11 @@ flutter pub get
 flutter run
 ```
 
+The mobile app currently includes the educational feed, post creation/detail,
+profiles/search, parent-child foundations, direct/group chat, chat media and
+shared posts, Activity/New Followers, unread badges, and offline-oriented media
+caching. See `Project_Overview.md` for the current code-level handoff.
+
 ### API
 
 ```powershell
@@ -54,6 +61,9 @@ cd services/api
 npm install
 npm run dev
 ```
+
+`GEMINI_API_KEY` is optional until the Gemini moderation workflow is
+implemented. The current health and admin-bootstrap routes do not require it.
 
 Create the first admin after running `supabase/auth.sql`.
 
@@ -94,3 +104,12 @@ CyanZone prioritizes a polished prototype over broad unfinished scope:
 - AI-assisted moderation
 - Educational Rednote-style feed
 - Admin creator approval and moderation workflow
+
+## Current Implementation Boundary
+
+- Supabase-backed in-app chat notifications and badges are implemented.
+- External Android/iOS push delivery is not implemented yet.
+- Gemini text/image moderation is selected but not connected yet.
+- Chat is intentionally excluded from AI moderation.
+- Parent-child linking and supervision flows remain incomplete and are a next
+  implementation priority.

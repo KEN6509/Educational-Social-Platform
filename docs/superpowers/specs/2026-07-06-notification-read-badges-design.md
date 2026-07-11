@@ -2,6 +2,11 @@
 
 Date: 2026-07-06
 
+Status: **Implemented as of 2026-07-11.** Activity/System/New Followers section
+read state, per-row unread indicators, chat unread counts, filter counts, and
+bottom navigation badge refresh are present. System notification product
+content and external device push remain future work.
+
 ## Scope
 
 This spec covers fixes and refinements for the chat notification module:

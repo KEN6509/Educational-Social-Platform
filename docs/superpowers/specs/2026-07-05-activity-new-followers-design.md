@@ -2,6 +2,10 @@
 
 Date: 2026-07-05
 
+Status: **Implemented as of 2026-07-11.** Later read-state, badge, refresh,
+navigation, deduplication, and row-polish changes are recorded in the July 6
+spec and current source. System notification content remains deferred.
+
 ## Scope
 
 This spec covers the next notification-module pass for:
