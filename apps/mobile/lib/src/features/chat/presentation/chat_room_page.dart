@@ -10,15 +10,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../media/presentation/device_photo_picker_page.dart';
 import '../../posts/presentation/post_detail_page.dart';
+import '../../profile/presentation/profile_page.dart';
 import '../data/chat_models.dart';
+import '../data/chat_mention.dart';
 import '../data/chat_repository.dart';
 import 'chat_details_page.dart';
 import 'chat_widgets.dart';
+import 'chat_mention_controller.dart';
 
 typedef MessageLoader = Future<List<ChatMessage>> Function();
 typedef MessageSender = Future<void> Function(
     String conversationId, String body);
 typedef ConversationAction = Future<void> Function(String conversationId);
+typedef MentionVisitAction = Future<void> Function(String messageId);
 
 class ChatRoomPage extends StatefulWidget {
   const ChatRoomPage({
@@ -27,12 +31,20 @@ class ChatRoomPage extends StatefulWidget {
     this.loadMessages,
     this.sendMessage,
     this.markRead,
+    this.mentionParticipants,
+    this.canMentionAll = false,
+    this.initialUnvisitedMentionMessageIds = const [],
+    this.markMentionVisited,
   });
 
   final ChatConversation conversation;
   final MessageLoader? loadMessages;
   final MessageSender? sendMessage;
   final ConversationAction? markRead;
+  final List<ChatParticipant>? mentionParticipants;
+  final bool canMentionAll;
+  final List<String> initialUnvisitedMentionMessageIds;
+  final MentionVisitAction? markMentionVisited;
 
   @override
   State<ChatRoomPage> createState() => _ChatRoomPageState();
@@ -49,6 +61,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   late Future<List<ChatMessage>> _messagesFuture;
   late ChatConversation _conversation = widget.conversation;
   final _controller = TextEditingController();
+  final _mentionController = ChatMentionController();
   final _messageScrollController = ScrollController();
   final _inputFocusNode = FocusNode();
   final List<Timer> _scrollTimers = <Timer>[];
@@ -58,6 +71,11 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   bool _isPickingImage = false;
   bool _initialScrollDone = false;
   bool _showJumpToBottom = false;
+  List<ChatParticipant> _mentionParticipants = const [];
+  List<String> _unvisitedMentionMessageIds = const [];
+  String? _mentionQuery;
+  String _previousComposerText = '';
+  bool _canMentionAll = false;
   final Set<String> _selectedMessageIds = <String>{};
   final Map<String, ChatMessage> _selectedMessagesById =
       <String, ChatMessage>{};
@@ -72,6 +90,14 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     _messageScrollController.addListener(_handleMessageScrollChanged);
     _inputFocusNode.addListener(_handleInputFocusChanged);
     _messagesFuture = _load();
+    _mentionParticipants = widget.mentionParticipants ?? const [];
+    _canMentionAll = widget.canMentionAll;
+    _unvisitedMentionMessageIds = widget.initialUnvisitedMentionMessageIds;
+    if (_conversation.isGroup &&
+        widget.loadMessages == null &&
+        widget.mentionParticipants == null) {
+      _loadMentionParticipants();
+    }
     (widget.markRead ?? _repo.markConversationRead)(_conversation.id);
     if (widget.loadMessages == null) {
       _channel = _repo.subscribeToChatChanges(
@@ -156,6 +182,10 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     _initialScrollDone = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (_unvisitedMentionMessageIds.isNotEmpty) {
+        _visitNextMention();
+        return;
+      }
       _scrollToUnreadDividerOrLatest(messages);
     });
   }
@@ -239,6 +269,14 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     try {
       final messages = await (widget.loadMessages?.call() ??
           _repo.fetchMessages(_conversation.id));
+      if (widget.loadMessages == null &&
+          widget.initialUnvisitedMentionMessageIds.isEmpty) {
+        final mentions = await _repo.fetchUnvisitedMentions(
+          conversationId: _conversation.id,
+        );
+        _unvisitedMentionMessageIds =
+            mentions.map((mention) => mention.messageId).toSet().toList();
+      }
       messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
       _cachedMessages[_conversation.id] = messages.length <= 10
           ? messages
@@ -248,6 +286,63 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     } catch (_) {
       return _cachedMessages[_conversation.id] ?? const <ChatMessage>[];
     }
+  }
+
+  Future<void> _loadMentionParticipants() async {
+    try {
+      final participants =
+          await _repo.fetchConversationParticipants(_conversation.id);
+      final currentId = _currentUserId;
+      if (!mounted) return;
+      setState(() {
+        _canMentionAll = participants.any(
+          (person) => person.id == currentId && person.isAdmin,
+        );
+        _mentionParticipants =
+            participants.where((person) => person.id != currentId).toList();
+      });
+    } catch (_) {}
+  }
+
+  void _handleComposerChanged(String text) {
+    _mentionController.reconcile(
+      previousText: _previousComposerText,
+      text: text,
+    );
+    _previousComposerText = text;
+    final query = _mentionController.queryFor(
+      text,
+      _controller.selection.baseOffset,
+    );
+    if (query != _mentionQuery && mounted) {
+      setState(() => _mentionQuery = query);
+    }
+  }
+
+  void _insertMention(ChatParticipant? participant, {bool all = false}) {
+    final result = _mentionController.insertMention(
+      text: _controller.text,
+      selectionOffset: _controller.selection.baseOffset,
+      userId: participant?.id ?? '',
+      displayName: participant?.name ?? 'all',
+      isAll: all,
+    );
+    _controller.value = TextEditingValue(
+      text: result.text,
+      selection: TextSelection.collapsed(offset: result.selectionOffset),
+    );
+    _previousComposerText = result.text;
+    setState(() => _mentionQuery = null);
+    _inputFocusNode.requestFocus();
+  }
+
+  List<ChatParticipant> get _filteredMentionParticipants {
+    final query = (_mentionQuery ?? '').trim().toLowerCase();
+    if (query == 'all') return const [];
+    return _mentionParticipants
+        .where((person) => person.name.toLowerCase().contains(query))
+        .take(6)
+        .toList();
   }
 
   List<ChatMessage> get _cachedRoomMessages =>
@@ -300,6 +395,11 @@ class _ChatRoomPageState extends State<ChatRoomPage>
               deletedAt: DateTime.tryParse('${map['deleted_at'] ?? ''}'),
               senderName: map['sender_name']?.toString(),
               senderAvatarUrl: map['sender_avatar_url']?.toString(),
+              mentions: (map['mentions'] as List?)
+                      ?.whereType<Map>()
+                      .map(ChatMention.fromMap)
+                      .toList() ??
+                  const [],
             );
           })
           .where((message) => !message.isDeleted)
@@ -321,6 +421,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       'is_mine': message.isMine,
       'sender_name': message.senderName,
       'sender_avatar_url': message.senderAvatarUrl,
+      'mentions': message.mentions.map((mention) => mention.toJson()).toList(),
     };
   }
 
@@ -332,10 +433,29 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     try {
       final action = widget.sendMessage ??
           (String id, String text) async {
-            await _repo.sendMessage(conversationId: id, body: text);
+            final leading =
+                _controller.text.length - _controller.text.trimLeft().length;
+            final mentions = _mentionController.mentions
+                .map((mention) => ChatMention(
+                      userId: mention.userId,
+                      displayText: mention.displayText,
+                      start: mention.start - leading,
+                      end: mention.end - leading,
+                      isAll: mention.isAll,
+                    ))
+                .where((mention) => mention.matches(text))
+                .toList();
+            await _repo.sendMessage(
+              conversationId: id,
+              body: text,
+              mentions: mentions,
+            );
           };
       await action(_conversation.id, body);
       _controller.clear();
+      _mentionController.clear();
+      _previousComposerText = '';
+      _mentionQuery = null;
       final nextMessages = _load();
       if (mounted) {
         setState(() {
@@ -363,6 +483,35 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
+  }
+
+  Future<void> _visitNextMention() async {
+    if (_unvisitedMentionMessageIds.isEmpty) return;
+    final messageId = _unvisitedMentionMessageIds.first;
+    final context = _messageKeys[messageId]?.currentContext;
+    if (context != null) {
+      await Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+        alignment: 0.2,
+      );
+    }
+    if (mounted) {
+      setState(() {
+        _unvisitedMentionMessageIds =
+            _unvisitedMentionMessageIds.skip(1).toList();
+      });
+    }
+    try {
+      await (widget.markMentionVisited ?? _repo.markMentionVisited)(messageId);
+    } catch (_) {}
+  }
+
+  void _openMentionProfile(String userId) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ProfilePage(userId: userId)),
+    );
   }
 
   Future<void> _sendImage() async {
@@ -840,6 +989,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                               onMessageTap: _toggleSelectedMessage,
                               onMessageLongPress: _selectMessage,
                               onSharedPostTap: _openSharedPost,
+                              onMentionTap: _openMentionProfile,
                             )
                           : const Center(
                               child: Text('Say hi with a kind message.'),
@@ -861,7 +1011,17 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                           onMessageTap: _toggleSelectedMessage,
                           onMessageLongPress: _selectMessage,
                           onSharedPostTap: _openSharedPost,
+                          onMentionTap: _openMentionProfile,
                         ),
+                        if (_unvisitedMentionMessageIds.isNotEmpty)
+                          Positioned(
+                            key: const ValueKey('mention-navigation-button'),
+                            right: 16,
+                            bottom: _showJumpToBottom ? 66 : 14,
+                            child: _MentionNavigationButton(
+                              onTap: _visitNextMention,
+                            ),
+                          ),
                         if (_showJumpToBottom)
                           Positioned(
                             key: const ValueKey('jump-to-bottom-button'),
@@ -881,55 +1041,71 @@ class _ChatRoomPageState extends State<ChatRoomPage>
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox.square(
-                      dimension: 44,
-                      child: IconButton(
-                        onPressed: _isPickingImage ? null : _sendImage,
-                        icon: Icon(
-                          _isPickingImage
-                              ? Icons.hourglass_empty_rounded
-                              : Icons.image_outlined,
-                        ),
+                    if (_mentionQuery != null && _conversation.isGroup)
+                      _MentionSuggestionsPanel(
+                        participants: _filteredMentionParticipants,
+                        showAll: _canMentionAll &&
+                            ('all'.startsWith(
+                              (_mentionQuery ?? '').toLowerCase(),
+                            )),
+                        onMemberTap: _insertMention,
+                        onAllTap: () => _insertMention(null, all: true),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        focusNode: _inputFocusNode,
-                        minLines: 1,
-                        maxLines: 4,
-                        decoration: InputDecoration(
-                          hintText: 'Message...',
-                          filled: true,
-                          fillColor: chatInput,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(22),
-                            borderSide: BorderSide.none,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        SizedBox.square(
+                          dimension: 44,
+                          child: IconButton(
+                            onPressed: _isPickingImage ? null : _sendImage,
+                            icon: Icon(
+                              _isPickingImage
+                                  ? Icons.hourglass_empty_rounded
+                                  : Icons.image_outlined,
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox.square(
-                      dimension: 44,
-                      child: IconButton(
-                        onPressed: _isSending ? null : _send,
-                        color: const Color(0xFF128C7E),
-                        icon: Icon(
-                          _isSending
-                              ? Icons.hourglass_empty_rounded
-                              : Icons.send_rounded,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _inputFocusNode,
+                            minLines: 1,
+                            maxLines: 4,
+                            onChanged: _handleComposerChanged,
+                            decoration: InputDecoration(
+                              hintText: 'Message...',
+                              filled: true,
+                              fillColor: chatInput,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(22),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        SizedBox.square(
+                          dimension: 44,
+                          child: IconButton(
+                            onPressed: _isSending ? null : _send,
+                            color: const Color(0xFF128C7E),
+                            icon: Icon(
+                              _isSending
+                                  ? Icons.hourglass_empty_rounded
+                                  : Icons.send_rounded,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -954,6 +1130,7 @@ class _MessageList extends StatelessWidget {
     required this.onMessageTap,
     required this.onMessageLongPress,
     required this.onSharedPostTap,
+    required this.onMentionTap,
   });
 
   final List<ChatMessage> messages;
@@ -966,6 +1143,7 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<ChatMessage> onMessageTap;
   final ValueChanged<ChatMessage> onMessageLongPress;
   final ValueChanged<ChatSharedPost> onSharedPostTap;
+  final ValueChanged<String> onMentionTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1026,6 +1204,8 @@ class _MessageList extends StatelessWidget {
           onTap: () => onMessageTap(message),
           onLongPress: () => onMessageLongPress(message),
           onSharedPostTap: onSharedPostTap,
+          mentions: message.mentions,
+          onMentionTap: onMentionTap,
         ),
       );
     }
@@ -1082,6 +1262,94 @@ class _JumpToBottomButton extends StatelessWidget {
             size: 28,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MentionNavigationButton extends StatelessWidget {
+  const _MentionNavigationButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 3,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: const SizedBox.square(
+          dimension: 42,
+          child: Center(
+            child: Text(
+              '@',
+              style: TextStyle(
+                color: Color(0xFF166534),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MentionSuggestionsPanel extends StatelessWidget {
+  const _MentionSuggestionsPanel({
+    required this.participants,
+    required this.showAll,
+    required this.onMemberTap,
+    required this.onAllTap,
+  });
+
+  final List<ChatParticipant> participants;
+  final bool showAll;
+  final ValueChanged<ChatParticipant> onMemberTap;
+  final VoidCallback onAllTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!showAll && participants.isEmpty) return const SizedBox.shrink();
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 250),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: chatBorder),
+      ),
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        children: [
+          if (showAll)
+            ListTile(
+              key: const ValueKey('mention-all-suggestion'),
+              dense: true,
+              leading: const CircleAvatar(child: Text('@')),
+              title: const Text('@all',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: const Text('Notify every group member'),
+              onTap: onAllTap,
+            ),
+          ...participants.map((person) => ListTile(
+                key: ValueKey('mention-suggestion-${person.id}'),
+                dense: true,
+                leading: ChatAvatar(
+                  name: person.name,
+                  avatarUrl: person.avatarUrl,
+                  size: 36,
+                ),
+                title: Text(person.name,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                onTap: () => onMemberTap(person),
+              )),
+        ],
       ),
     );
   }

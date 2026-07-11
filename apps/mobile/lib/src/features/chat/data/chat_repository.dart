@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../posts/data/feed_post.dart';
 import '../../posts/data/posts_repository.dart';
 import 'chat_models.dart';
+import 'chat_mention.dart';
 
 enum NotificationActivityFilter {
   all('Activity'),
@@ -58,9 +59,12 @@ class ChatRepository {
   static const markNotificationReadRpc = 'mark_notification_read';
   static const markNotificationSectionReadRpc =
       'mark_notification_section_read';
+  static const fetchUnvisitedChatMentionsRpc = 'fetch_unvisited_chat_mentions';
+  static const markChatMentionVisitedRpc = 'mark_chat_mention_visited';
 
   static const sendConversationIdParam = 'p_conversation_id';
   static const sendBodyParam = 'p_body';
+  static const sendMentionsParam = 'p_mentions';
   static const conversationIdParam = 'p_conversation_id';
   static const messageIdParam = 'p_message_id';
   static const memberIdParam = 'p_member_id';
@@ -81,7 +85,9 @@ class ChatRepository {
 
   static const _messageSelectColumns =
       'id, conversation_id, sender_id, body, created_at, deleted_at, deleted_for, '
-      'profiles!chat_messages_sender_id_fkey(name, avatar_url)';
+      'profiles!chat_messages_sender_id_fkey(name, avatar_url), '
+      'chat_message_mentions(mentioned_user_id, display_text, start_offset, '
+      'end_offset, is_all_source, visited_at)';
 
   static const _notificationSelectColumns =
       'id, type, actor_id, post_id, comment_id, title, body, created_at, read_at, '
@@ -242,13 +248,49 @@ class ChatRepository {
   Future<void> sendMessage({
     required String conversationId,
     required String body,
+    List<ChatMention> mentions = const [],
   }) async {
     await _client.rpc<Object?>(
       sendChatMessageRpc,
       params: {
         sendConversationIdParam: conversationId,
         sendBodyParam: body,
+        sendMentionsParam: mentions
+            .where((mention) => mention.matches(body))
+            .map((mention) => mention.toRpcMap())
+            .toList(),
       },
+    );
+  }
+
+  Future<List<UnvisitedChatMention>> fetchUnvisitedMentions({
+    String? conversationId,
+  }) async {
+    final response = await _client.rpc<List<dynamic>>(
+      fetchUnvisitedChatMentionsRpc,
+      params: {'p_conversation_id': conversationId},
+    );
+    return response
+        .whereType<Map>()
+        .map((row) => UnvisitedChatMention.fromMap(
+              Map<String, dynamic>.from(row),
+            ))
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
+  Future<List<UnvisitedChatMention>> _tryFetchUnvisitedMentions() async {
+    try {
+      return await fetchUnvisitedMentions();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> markMentionVisited(String messageId) async {
+    await _client.rpc<void>(
+      markChatMentionVisitedRpc,
+      params: {messageIdParam: messageId},
     );
   }
 
@@ -820,6 +862,9 @@ class ChatRepository {
             conversationIds,
             currentUserId,
           );
+    final mentionConversationIds = (await _tryFetchUnvisitedMentions())
+        .map((mention) => mention.conversationId)
+        .toSet();
 
     return conversationRows.map((row) {
       final conversationId = _string(row['id']);
@@ -837,6 +882,8 @@ class ChatRepository {
       );
       final enriched = Map<String, dynamic>.from(row)
         ..['unread_count'] = unreadCount
+        ..['has_unvisited_mention'] =
+            mentionConversationIds.contains(conversationId)
         ..['last_message_body'] =
             lastMessagesByConversation[conversationId]?['body']
         ..['last_message_at'] =

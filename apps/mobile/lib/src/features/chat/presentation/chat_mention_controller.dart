@@ -45,9 +45,11 @@ class ChatMentionController {
     final replacement = '$displayText ';
     final removedLength = selectionOffset - tokenStart;
     final delta = replacement.length - removedLength;
-    final next = '${text.substring(0, tokenStart)}$replacement${text.substring(selectionOffset)}';
+    final next =
+        '${text.substring(0, tokenStart)}$replacement${text.substring(selectionOffset)}';
     final adjusted = _mentions
-        .where((mention) => mention.end <= tokenStart || mention.start >= selectionOffset)
+        .where((mention) =>
+            mention.end <= tokenStart || mention.start >= selectionOffset)
         .map((mention) => mention.start >= selectionOffset
             ? ChatMention(
                 userId: mention.userId,

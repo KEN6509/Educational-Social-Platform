@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'chat_mention.dart';
+
 enum ChatConversationType { direct, group }
 
 enum ChatRequestStatus { none, pending, accepted, blocked }
@@ -78,6 +80,7 @@ class ChatConversation {
     this.createdBy,
     this.createdByName,
     this.createdAt,
+    this.hasUnvisitedMention = false,
   });
 
   final String id;
@@ -93,6 +96,7 @@ class ChatConversation {
   final String? createdBy;
   final String? createdByName;
   final DateTime? createdAt;
+  final bool hasUnvisitedMention;
 
   bool get isGroup => type == ChatConversationType.group;
 
@@ -126,6 +130,7 @@ class ChatConversation {
     String? createdBy,
     String? createdByName,
     DateTime? createdAt,
+    bool? hasUnvisitedMention,
   }) {
     return ChatConversation(
       id: id ?? this.id,
@@ -141,6 +146,7 @@ class ChatConversation {
       createdBy: createdBy ?? this.createdBy,
       createdByName: createdByName ?? this.createdByName,
       createdAt: createdAt ?? this.createdAt,
+      hasUnvisitedMention: hasUnvisitedMention ?? this.hasUnvisitedMention,
     );
   }
 
@@ -179,6 +185,9 @@ class ChatConversation {
         map['created_by_name'] ?? map['createdByName'],
       ),
       createdAt: _dateTimeValue(map['created_at'] ?? map['createdAt']),
+      hasUnvisitedMention: _boolValue(
+        map['has_unvisited_mention'] ?? map['hasUnvisitedMention'],
+      ),
     );
   }
 }
@@ -198,6 +207,7 @@ class ChatMessage {
     this.deletedAt,
     this.senderName,
     this.senderAvatarUrl,
+    this.mentions = const [],
   });
 
   final String id;
@@ -209,6 +219,7 @@ class ChatMessage {
   final DateTime? deletedAt;
   final String? senderName;
   final String? senderAvatarUrl;
+  final List<ChatMention> mentions;
 
   bool get isDeleted => deletedAt != null;
 
@@ -393,6 +404,35 @@ class ChatMessage {
             map['sender_avatar_url'] ??
             map['senderAvatarUrl'],
       ),
+      mentions: ((map['chat_message_mentions'] ?? map['mentions']) as List?)
+              ?.whereType<Map>()
+              .map(ChatMention.fromMap)
+              .where((mention) => mention.matches(
+                    _stringValue(map['body']).trim(),
+                  ))
+              .toList() ??
+          const [],
+    );
+  }
+}
+
+class UnvisitedChatMention {
+  const UnvisitedChatMention({
+    required this.messageId,
+    required this.conversationId,
+    required this.createdAt,
+  });
+
+  final String messageId;
+  final String conversationId;
+  final DateTime createdAt;
+
+  factory UnvisitedChatMention.fromMap(Map<String, dynamic> map) {
+    return UnvisitedChatMention(
+      messageId: _stringValue(map['message_id']),
+      conversationId: _stringValue(map['conversation_id']),
+      createdAt: _dateTimeValue(map['created_at']) ??
+          DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
 }

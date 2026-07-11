@@ -77,6 +77,27 @@ void main() {
     });
   });
 
+  test('ChatMessage parses structured mention entities', () {
+    final message = ChatMessage.fromMap({
+      'id': 'm1',
+      'conversation_id': 'c1',
+      'sender_id': 'u2',
+      'body': 'Hi @Ava',
+      'created_at': '2026-07-12T00:00:00Z',
+      'chat_message_mentions': [
+        {
+          'mentioned_user_id': 'u1',
+          'display_text': '@Ava',
+          'start_offset': 3,
+          'end_offset': 7,
+        }
+      ],
+    }, currentUserId: 'u1');
+
+    expect(message.mentions.single.userId, 'u1');
+    expect(message.mentions.single.matches(message.body), isTrue);
+  });
+
   group('ChatMessage', () {
     test('trims body and detects current user ownership', () {
       final message = ChatMessage.fromMap(

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:cyanzone_mobile/src/features/chat/data/chat_models.dart';
+import 'package:cyanzone_mobile/src/features/chat/data/chat_mention.dart';
 import 'package:cyanzone_mobile/src/features/chat/data/chat_repository.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_details_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_page.dart';
@@ -15,6 +16,141 @@ import 'package:cyanzone_mobile/src/features/chat/presentation/create_group_chat
 import 'package:cyanzone_mobile/src/features/chat/presentation/notification_sections_page.dart';
 
 void main() {
+  testWidgets('ChatMessageBubble renders tappable structured mentions',
+      (tester) async {
+    String? openedId;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ChatMessageBubble(
+          body: 'Hi @Ava and @Ava',
+          isMine: false,
+          mentions: const [
+            ChatMention(
+              userId: 'u1',
+              displayText: '@Ava',
+              start: 3,
+              end: 7,
+            ),
+            ChatMention(
+              userId: 'u1',
+              displayText: '@Ava',
+              start: 12,
+              end: 16,
+            ),
+          ],
+          onMentionTap: (id) => openedId = id,
+        ),
+      ),
+    ));
+
+    expect(find.text('@Ava'), findsNWidgets(2));
+    await tester.tap(find.byKey(const ValueKey('chat-mention-u1-3')));
+    expect(openedId, 'u1');
+  });
+
+  testWidgets('conversation row shows chat mention indicator', (tester) async {
+    const conversation = ChatConversation(
+      id: 'group-mention',
+      type: ChatConversationType.group,
+      requestStatus: ChatRequestStatus.none,
+      unreadCount: 0,
+      title: 'Study Group',
+      hasUnvisitedMention: true,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ConversationTile(conversation: conversation, onTap: () {}),
+      ),
+    ));
+
+    expect(find.byKey(const ValueKey('conversation-mention-indicator')),
+        findsOneWidget);
+  });
+
+  testWidgets('group composer shows admin @all before member suggestions',
+      (tester) async {
+    const conversation = ChatConversation(
+      id: 'group-autocomplete',
+      type: ChatConversationType.group,
+      requestStatus: ChatRequestStatus.none,
+      unreadCount: 0,
+      title: 'Study Group',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: ChatRoomPage(
+        conversation: conversation,
+        loadMessages: () async => const [],
+        markRead: (_) async {},
+        canMentionAll: true,
+        mentionParticipants: const [
+          ChatParticipant(id: 'u1', name: 'Ava'),
+        ],
+      ),
+    ));
+
+    await tester.enterText(find.byType(TextField), '@');
+    await tester.pump();
+
+    expect(
+        find.byKey(const ValueKey('mention-all-suggestion')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mention-suggestion-u1')), findsOneWidget);
+    final allTop = tester.getTopLeft(
+      find.byKey(const ValueKey('mention-all-suggestion')),
+    );
+    final memberTop = tester.getTopLeft(
+      find.byKey(const ValueKey('mention-suggestion-u1')),
+    );
+    expect(allTop.dy, lessThan(memberTop.dy));
+  });
+
+  testWidgets('room enters oldest mention then @ button visits the next',
+      (tester) async {
+    final visited = <String>[];
+    final messages = [
+      ChatMessage(
+        id: 'm1',
+        conversationId: 'c1',
+        senderId: 'u2',
+        body: 'first',
+        createdAt: DateTime(2026, 7, 12, 10),
+        isMine: false,
+      ),
+      ChatMessage(
+        id: 'm2',
+        conversationId: 'c1',
+        senderId: 'u2',
+        body: 'second',
+        createdAt: DateTime(2026, 7, 12, 11),
+        isMine: false,
+      ),
+    ];
+    await tester.pumpWidget(MaterialApp(
+      home: ChatRoomPage(
+        conversation: const ChatConversation(
+          id: 'c1',
+          type: ChatConversationType.group,
+          requestStatus: ChatRequestStatus.none,
+          unreadCount: 2,
+          title: 'Study Group',
+        ),
+        loadMessages: () async => messages,
+        markRead: (_) async {},
+        initialUnvisitedMentionMessageIds: const ['m1', 'm2'],
+        markMentionVisited: (id) async => visited.add(id),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(visited, ['m1']);
+    expect(find.byKey(const ValueKey('mention-navigation-button')),
+        findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('mention-navigation-button')),
+    );
+    await tester.pumpAndSettle();
+    expect(visited, ['m1', 'm2']);
+  });
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });

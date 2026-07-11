@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 import '../data/chat_models.dart';
+import '../data/chat_mention.dart';
 
 const chatNavy = Color(0xFF0B1F3E);
 const chatCyan = Color(0xFF4490AD);
@@ -207,6 +208,8 @@ class ChatMessageBubble extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.onSharedPostTap,
+    this.mentions = const [],
+    this.onMentionTap,
   });
 
   final String body;
@@ -221,6 +224,8 @@ class ChatMessageBubble extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final ValueChanged<ChatSharedPost>? onSharedPostTap;
+  final List<ChatMention> mentions;
+  final ValueChanged<String>? onMentionTap;
 
   @override
   Widget build(BuildContext context) {
@@ -307,6 +312,8 @@ class ChatMessageBubble extends StatelessWidget {
                       body: body,
                       time: time,
                       maxWidth: bubbleMaxWidth - 26,
+                      mentions: mentions,
+                      onMentionTap: isSelectionMode ? null : onMentionTap,
                     )
                   else
                     _ImageBubbleContent(
@@ -1293,11 +1300,15 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
     required this.body,
     required this.time,
     required this.maxWidth,
+    required this.mentions,
+    this.onMentionTap,
   });
 
   final String body;
   final String? time;
   final double maxWidth;
+  final List<ChatMention> mentions;
+  final ValueChanged<String>? onMentionTap;
 
   static const _bodyStyle = TextStyle(
     color: Color(0xFF1F2937),
@@ -1308,6 +1319,21 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mentionSpans = _mentionSpans();
+    if (mentionSpans != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child:
+                Text.rich(TextSpan(style: _bodyStyle, children: mentionSpans)),
+          ),
+          if (time != null) Text(time!, style: _bubbleTimestampStyle()),
+        ],
+      );
+    }
     if (time == null) {
       return Text(body, style: _bodyStyle);
     }
@@ -1364,6 +1390,48 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
         Text(time!, style: timeStyle),
       ],
     );
+  }
+
+  List<InlineSpan>? _mentionSpans() {
+    final valid = mentions.where((mention) => mention.matches(body)).toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+    final unique = <ChatMention>[];
+    final seen = <String>{};
+    for (final mention in valid) {
+      final key = '${mention.start}:${mention.end}:${mention.displayText}';
+      if (seen.add(key)) unique.add(mention);
+    }
+    if (unique.isEmpty) return null;
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final mention in unique) {
+      if (mention.start < cursor) continue;
+      if (mention.start > cursor) {
+        spans.add(TextSpan(text: body.substring(cursor, mention.start)));
+      }
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: GestureDetector(
+          key: ValueKey(
+            'chat-mention-${mention.isAll ? 'all' : mention.userId}-${mention.start}',
+          ),
+          onTap: mention.isAll || onMentionTap == null
+              ? null
+              : () => onMentionTap!(mention.userId),
+          child: Text(
+            mention.displayText,
+            style: _bodyStyle.copyWith(
+              color: const Color(0xFF166534),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ));
+      cursor = mention.end;
+    }
+    if (cursor < body.length) spans.add(TextSpan(text: body.substring(cursor)));
+    return spans;
   }
 }
 
@@ -1492,6 +1560,7 @@ class _ConversationTileState extends State<ConversationTile> {
                           ? 'Message request'
                           : 'Start chatting',
                       unreadCount: conversation.unreadCount,
+                      hasMention: conversation.hasUnvisitedMention,
                     ),
                   ],
                 ),
@@ -1509,11 +1578,13 @@ class _ConversationPreviewLine extends StatelessWidget {
     required this.body,
     required this.fallback,
     required this.unreadCount,
+    required this.hasMention,
   });
 
   final String? body;
   final String fallback;
   final int unreadCount;
+  final bool hasMention;
 
   @override
   Widget build(BuildContext context) {
@@ -1539,10 +1610,19 @@ class _ConversationPreviewLine extends StatelessWidget {
               style: textStyle,
             ),
           ),
-          if (unreadCount > 0) ...[
-            const SizedBox(width: 8),
-            UnreadBadge(count: unreadCount),
+          if (hasMention || unreadCount > 0) const SizedBox(width: 8),
+          if (hasMention) ...[
+            const Text(
+              '@',
+              key: ValueKey('conversation-mention-indicator'),
+              style: TextStyle(
+                color: Color(0xFF166534),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            if (unreadCount > 0) const SizedBox(width: 6),
           ],
+          if (unreadCount > 0) UnreadBadge(count: unreadCount),
         ],
       );
     }
@@ -1563,10 +1643,19 @@ class _ConversationPreviewLine extends StatelessWidget {
             style: textStyle,
           ),
         ),
-        if (unreadCount > 0) ...[
-          const SizedBox(width: 8),
-          UnreadBadge(count: unreadCount),
+        if (hasMention || unreadCount > 0) const SizedBox(width: 8),
+        if (hasMention) ...[
+          const Text(
+            '@',
+            key: ValueKey('conversation-mention-indicator'),
+            style: TextStyle(
+              color: Color(0xFF166534),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          if (unreadCount > 0) const SizedBox(width: 6),
         ],
+        if (unreadCount > 0) UnreadBadge(count: unreadCount),
       ],
     );
   }
