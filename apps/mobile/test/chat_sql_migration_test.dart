@@ -51,6 +51,22 @@ void main() {
     expect(sql, contains("'new_follower'"));
   });
 
+  test('chat SQL marks notification sections read through RPC', () {
+    final sql = File('../../supabase/chat.sql').readAsStringSync();
+
+    expect(sql, contains('mark_notification_section_read'));
+    expect(sql, contains('p_section text'));
+    expect(sql, contains("p_section = 'activity'"));
+    expect(sql, contains("p_section = 'followers'"));
+    expect(sql, contains("p_section = 'system'"));
+    expect(
+      sql,
+      contains(
+        'grant execute on function public.mark_notification_section_read(text) to authenticated',
+      ),
+    );
+  });
+
   test('chat SQL supports per-message deletion and group member removal', () {
     final sql = File('../../supabase/chat.sql').readAsStringSync();
 
@@ -120,6 +136,22 @@ void main() {
     expect(sql, contains('comment_likes'));
     expect(sql, contains('liked your comment'));
     expect(sql, contains('replied to your comment'));
+  });
+
+  test('chat SQL keeps only latest follower notification per actor', () {
+    final sql = File('../../supabase/chat.sql').readAsStringSync();
+    final start =
+        sql.indexOf('create or replace function public.notify_new_follower()');
+    final end =
+        sql.indexOf('create or replace function public.notify_post_like()');
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+
+    final followerSql = sql.substring(start, end);
+    expect(followerSql, contains('delete from public.notifications'));
+    expect(followerSql, contains("type = 'new_follower'"));
+    expect(followerSql, contains('actor_id = new.follower_id'));
+    expect(followerSql, contains('user_id = new.following_id'));
   });
 
   test('Supabase README documents applying chat SQL for activity triggers', () {

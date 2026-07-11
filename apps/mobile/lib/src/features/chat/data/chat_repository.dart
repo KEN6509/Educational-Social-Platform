@@ -56,6 +56,8 @@ class ChatRepository {
   static const unsendChatMessageRpc = 'unsend_chat_message';
   static const markConversationReadRpc = 'mark_conversation_read';
   static const markNotificationReadRpc = 'mark_notification_read';
+  static const markNotificationSectionReadRpc =
+      'mark_notification_section_read';
 
   static const sendConversationIdParam = 'p_conversation_id';
   static const sendBodyParam = 'p_body';
@@ -102,7 +104,7 @@ class ChatRepository {
   }) {
     final reference = now ?? DateTime.now();
     final cutoff = reference.subtract(const Duration(days: 30));
-    final byActorDay = <String, ChatNotification>{};
+    final byActor = <String, ChatNotification>{};
 
     for (final notification in notifications) {
       if (notification.section != NotificationSection.followers ||
@@ -110,17 +112,15 @@ class ChatRepository {
           notification.actorId == null) {
         continue;
       }
-      final local = notification.createdAt;
-      final key =
-          '${notification.actorId}-${local.year}-${local.month}-${local.day}';
-      final existing = byActorDay[key];
+      final key = notification.actorId!;
+      final existing = byActor[key];
       if (existing == null ||
           notification.createdAt.isAfter(existing.createdAt)) {
-        byActorDay[key] = notification;
+        byActor[key] = notification;
       }
     }
 
-    final result = byActorDay.values.toList()
+    final result = byActor.values.toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return result;
   }
@@ -165,6 +165,34 @@ class ChatRepository {
         .where((conversation) => conversation.unreadCount > 0)
         .length;
     return notificationSources + unreadConversations;
+  }
+
+  static Map<NotificationSection, int> countUnreadNotificationSections(
+    List<ChatNotification> notifications, {
+    DateTime? now,
+  }) {
+    final counts = {
+      for (final section in NotificationSection.values) section: 0,
+    };
+    final reference = now ?? DateTime.now();
+    final followers = visibleNewFollowerNotifications(
+      notifications
+          .where((notification) =>
+              notification.section == NotificationSection.followers)
+          .toList(),
+      now: reference,
+    );
+
+    counts[NotificationSection.followers] = followers.length;
+
+    for (final notification in notifications) {
+      if (notification.section == NotificationSection.followers) {
+        continue;
+      }
+      counts[notification.section] = (counts[notification.section] ?? 0) + 1;
+    }
+
+    return counts;
   }
 
   static int calculateUnreadConversationCount({
@@ -463,11 +491,13 @@ class ChatRepository {
         .from('chat_messages')
         .select(_messageSelectColumns)
         .eq('conversation_id', conversationId)
-        .order('created_at');
+        .order('created_at', ascending: false)
+        .limit(50);
 
     return _mapListFromResponse(response)
         .map((row) => ChatMessage.fromMap(row, currentUserId: currentUserId))
-        .toList();
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
   Future<List<ChatNotification>> fetchNotifications(
@@ -505,23 +535,11 @@ class ChatRepository {
   Future<void> markNotificationsReadForSection(
     NotificationSection section,
   ) async {
-    var query = _client
-        .from('notifications')
-        .update({'read_at': DateTime.now().toUtc().toIso8601String()}).isFilter(
-            'read_at', null);
-
-    switch (section) {
-      case NotificationSection.activity:
-        query = query.not('type', 'in', '(system,new_follower,chat_message)');
-      case NotificationSection.system:
-        query = query.eq('type', 'system');
-      case NotificationSection.followers:
-        query = query.eq('type', 'new_follower');
-      case NotificationSection.chat:
-        return;
-    }
-
-    await query;
+    if (section == NotificationSection.chat) return;
+    await _client.rpc<void>(
+      markNotificationSectionReadRpc,
+      params: {'p_section': section.name},
+    );
   }
 
   Future<FeedPost> fetchPostForNotification(String postId) {
@@ -553,22 +571,8 @@ class ChatRepository {
         .select(_notificationSelectColumns)
         .isFilter('read_at', null);
 
-    final counts = {
-      for (final section in NotificationSection.values) section: 0,
-    };
-
-    for (final notification in _notificationListFromResponse(response)) {
-      if (notification.section == NotificationSection.followers &&
-          notification.createdAt.isBefore(
-            DateTime.now().subtract(const Duration(days: 30)),
-          )) {
-        continue;
-      }
-
-      counts[notification.section] = (counts[notification.section] ?? 0) + 1;
-    }
-
-    return counts;
+    return countUnreadNotificationSections(
+        _notificationListFromResponse(response));
   }
 
   Future<List<ChatParticipant>> searchPeopleAndChats(String term) async {
@@ -648,10 +652,16 @@ class ChatRepository {
     if (currentUserId == null || userId.isEmpty || currentUserId == userId) {
       return;
     }
-    await _client.from('follows').insert({
-      'follower_id': currentUserId,
-      'following_id': userId,
-    });
+    if (await isFollowing(userId)) return;
+    try {
+      await _client.from('follows').insert({
+        'follower_id': currentUserId,
+        'following_id': userId,
+      });
+    } catch (_) {
+      if (await isFollowing(userId)) return;
+      rethrow;
+    }
   }
 
   Future<List<ChatParticipant>> fetchSuggestedGroupMembers() async {
@@ -804,6 +814,12 @@ class ChatRepository {
     final profilesById = await _fetchProfilesById(profileIds.toList());
     final lastMessagesByConversation =
         await _fetchLastMessagesByConversation(conversationIds);
+    final unreadMessagesByConversation = currentUserId == null
+        ? const <String, List<Map<String, dynamic>>>{}
+        : await _fetchUnreadMessagesByConversation(
+            conversationIds,
+            currentUserId,
+          );
 
     return conversationRows.map((row) {
       final conversationId = _string(row['id']);
@@ -813,9 +829,8 @@ class ChatRepository {
           .firstOrNull;
       final lastReadAt = _dateTimeFromObject(currentMember?['last_read_at']);
       final clearedAt = _dateTimeFromObject(currentMember?['cleared_at']);
-      final lastMessage = lastMessagesByConversation[conversationId];
       final unreadCount = calculateUnreadConversationCount(
-        messages: lastMessage == null ? const [] : [lastMessage],
+        messages: unreadMessagesByConversation[conversationId] ?? const [],
         currentUserId: currentUserId ?? '',
         lastReadAt: lastReadAt,
         clearedAt: clearedAt,
@@ -824,6 +839,8 @@ class ChatRepository {
         ..['unread_count'] = unreadCount
         ..['last_message_body'] =
             lastMessagesByConversation[conversationId]?['body']
+        ..['last_message_at'] =
+            lastMessagesByConversation[conversationId]?['created_at']
         ..['created_by_name'] =
             profilesById[_string(row['created_by'])]?['name'];
 
@@ -920,6 +937,32 @@ class ChatRepository {
       if (conversationId.isNotEmpty && !messages.containsKey(conversationId)) {
         messages[conversationId] = row;
       }
+    }
+
+    return messages;
+  }
+
+  Future<Map<String, List<Map<String, dynamic>>>>
+      _fetchUnreadMessagesByConversation(
+    List<String> conversationIds,
+    String currentUserId,
+  ) async {
+    if (conversationIds.isEmpty || currentUserId.isEmpty) {
+      return const {};
+    }
+
+    final response = await _client
+        .from('chat_messages')
+        .select('id, conversation_id, sender_id, created_at, deleted_at')
+        .inFilter('conversation_id', conversationIds)
+        .neq('sender_id', currentUserId)
+        .isFilter('deleted_at', null);
+
+    final messages = <String, List<Map<String, dynamic>>>{};
+    for (final row in _mapListFromResponse(response)) {
+      final conversationId = _string(row['conversation_id']);
+      if (conversationId.isEmpty) continue;
+      messages.putIfAbsent(conversationId, () => []).add(row);
     }
 
     return messages;

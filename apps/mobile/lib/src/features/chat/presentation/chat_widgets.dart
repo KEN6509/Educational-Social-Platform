@@ -206,6 +206,7 @@ class ChatMessageBubble extends StatelessWidget {
     this.showSenderName = false,
     this.onTap,
     this.onLongPress,
+    this.onSharedPostTap,
   });
 
   final String body;
@@ -219,6 +220,7 @@ class ChatMessageBubble extends StatelessWidget {
   final bool showSenderName;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final ValueChanged<ChatSharedPost>? onSharedPostTap;
 
   @override
   Widget build(BuildContext context) {
@@ -226,7 +228,9 @@ class ChatMessageBubble extends StatelessWidget {
         isDeleted ? const <String>[] : ChatMessage.imageUrlsFor(body);
     final imageAspectRatios =
         isDeleted ? const <double>[] : ChatMessage.imageAspectRatiosFor(body);
+    final sharedPost = isDeleted ? null : ChatMessage.sharedPostFor(body);
     final hasImage = imageUrls.isNotEmpty;
+    final hasRichContent = hasImage || sharedPost != null;
     final time = createdAt == null ? null : _formatBubbleTime(createdAt!);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final bubbleMaxWidth = screenWidth * 0.74;
@@ -245,14 +249,16 @@ class ChatMessageBubble extends StatelessWidget {
         child: Align(
           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
           child: GestureDetector(
-            onTap: onTap,
+            onTap: sharedPost != null && !isSelectionMode
+                ? () => onSharedPostTap?.call(sharedPost)
+                : onTap,
             onLongPress: onLongPress,
             behavior: HitTestBehavior.opaque,
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 3),
               padding: EdgeInsets.symmetric(
-                horizontal: hasImage ? 4 : 13,
-                vertical: hasImage ? 4 : 8,
+                horizontal: hasRichContent ? 4 : 13,
+                vertical: hasRichContent ? 4 : 8,
               ),
               constraints: BoxConstraints(
                 maxWidth: bubbleMaxWidth,
@@ -275,8 +281,8 @@ class ChatMessageBubble extends StatelessWidget {
                   if (showSenderName && !isMine && senderName != null) ...[
                     Padding(
                       padding: EdgeInsets.only(
-                        left: hasImage ? 9 : 0,
-                        right: hasImage ? 9 : 0,
+                        left: hasRichContent ? 9 : 0,
+                        right: hasRichContent ? 9 : 0,
                         bottom: 3,
                       ),
                       child: Text(
@@ -289,7 +295,14 @@ class ChatMessageBubble extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (!hasImage)
+                  if (sharedPost != null)
+                    _SharedPostBubbleContent(
+                      post: sharedPost,
+                      time: time,
+                      timeStyle: timestampStyle,
+                      maxWidth: bubbleMaxWidth - 8,
+                    )
+                  else if (!hasImage)
                     _InlineBubbleTextWithTime(
                       body: body,
                       time: time,
@@ -312,6 +325,223 @@ class ChatMessageBubble extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SharedPostBubbleContent extends StatelessWidget {
+  const _SharedPostBubbleContent({
+    required this.post,
+    required this.time,
+    required this.timeStyle,
+    required this.maxWidth,
+  });
+
+  final ChatSharedPost post;
+  final String? time;
+  final TextStyle timeStyle;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cardWidth = math.min(maxWidth, 248.0);
+    final hasImage = post.imageUrl != null && post.imageUrl!.isNotEmpty;
+    return SizedBox(
+      width: cardWidth,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Card(
+            elevation: 2,
+            shadowColor: const Color(0x160B1F3E),
+            clipBehavior: Clip.antiAlias,
+            margin: EdgeInsets.zero,
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: const BorderSide(color: Color(0xFFE6F0F1)),
+            ),
+            child: hasImage
+                ? _SharedPostImageCardBody(post: post, theme: theme)
+                : _SharedPostTextCardBody(post: post, theme: theme),
+          ),
+          if (time != null) ...[
+            const SizedBox(height: 3),
+            Padding(
+              padding: const EdgeInsets.only(right: 5),
+              child: Text(time!, style: timeStyle),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SharedPostImageCardBody extends StatelessWidget {
+  const _SharedPostImageCardBody({
+    required this.post,
+    required this.theme,
+  });
+
+  final ChatSharedPost post;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AspectRatio(
+          aspectRatio: 1,
+          child: Image.network(
+            post.imageUrl!,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => const ColoredBox(
+              color: Color(0xFFE7F4F6),
+              child: Icon(
+                Icons.broken_image_outlined,
+                color: chatCyan,
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                post.title.isEmpty ? 'Shared post' : post.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: chatNavy,
+                  fontWeight: FontWeight.w600,
+                  height: 1.18,
+                ),
+              ),
+              const SizedBox(height: 6),
+              _SharedPostAuthorRow(post: post, theme: theme),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SharedPostTextCardBody extends StatelessWidget {
+  const _SharedPostTextCardBody({
+    required this.post,
+    required this.theme,
+  });
+
+  final ChatSharedPost post;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
+          child: Text(
+            post.title.isEmpty ? 'Shared post' : post.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: chatNavy,
+              fontWeight: FontWeight.w600,
+              height: 1.18,
+            ),
+          ),
+        ),
+        if (post.content.trim().isNotEmpty)
+          Container(
+            constraints: const BoxConstraints(maxHeight: 86),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            child: Text(
+              post.content,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF536A74),
+                height: 1.42,
+              ),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+          child: _SharedPostAuthorRow(post: post, theme: theme),
+        ),
+      ],
+    );
+  }
+}
+
+class _SharedPostAuthorRow extends StatelessWidget {
+  const _SharedPostAuthorRow({
+    required this.post,
+    required this.theme,
+  });
+
+  final ChatSharedPost post;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarUrl = post.authorAvatarUrl;
+    final hasAvatar = avatarUrl != null && avatarUrl.trim().isNotEmpty;
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 10,
+          backgroundColor: const Color(0xFFE7F8F5),
+          backgroundImage: hasAvatar ? NetworkImage(avatarUrl.trim()) : null,
+          onBackgroundImageError: hasAvatar ? (_, __) {} : null,
+          child: hasAvatar ? null : _SharedPostFallbackAvatar(post: post),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            post.authorName.isEmpty ? 'CyanZone' : post.authorName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: const Color(0xFF536A74),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SharedPostFallbackAvatar extends StatelessWidget {
+  const _SharedPostFallbackAvatar({required this.post});
+
+  final ChatSharedPost post;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = post.authorName.trim().isEmpty
+        ? 'C'
+        : post.authorName.trim().characters.first.toUpperCase();
+    return Text(
+      initial,
+      style: const TextStyle(
+        color: Color(0xFF2C7189),
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
       ),
     );
   }
@@ -1198,15 +1428,13 @@ class _ConversationTileState extends State<ConversationTile> {
   Widget build(BuildContext context) {
     final conversation = widget.conversation;
     final avatar = conversation.isGroup
-        ? _GroupAvatarWithBadge(
+        ? GroupAvatar(
             seed: conversation.id,
-            count: conversation.unreadCount,
             size: 54,
           )
-        : ChatAvatarWithBadge(
+        : ChatAvatar(
             name: conversation.displayTitle,
             avatarUrl: conversation.otherUserAvatarUrl,
-            count: conversation.unreadCount,
             size: 54,
           );
     return GestureDetector(
@@ -1263,6 +1491,7 @@ class _ConversationTileState extends State<ConversationTile> {
                       fallback: conversation.isRequest
                           ? 'Message request'
                           : 'Start chatting',
+                      unreadCount: conversation.unreadCount,
                     ),
                   ],
                 ),
@@ -1279,10 +1508,12 @@ class _ConversationPreviewLine extends StatelessWidget {
   const _ConversationPreviewLine({
     required this.body,
     required this.fallback,
+    required this.unreadCount,
   });
 
   final String? body;
   final String fallback;
+  final int unreadCount;
 
   @override
   Widget build(BuildContext context) {
@@ -1298,11 +1529,21 @@ class _ConversationPreviewLine extends StatelessWidget {
     );
 
     if (!hasImage) {
-      return Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: textStyle,
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: textStyle,
+            ),
+          ),
+          if (unreadCount > 0) ...[
+            const SizedBox(width: 8),
+            UnreadBadge(count: unreadCount),
+          ],
+        ],
       );
     }
 
@@ -1322,6 +1563,10 @@ class _ConversationPreviewLine extends StatelessWidget {
             style: textStyle,
           ),
         ),
+        if (unreadCount > 0) ...[
+          const SizedBox(width: 8),
+          UnreadBadge(count: unreadCount),
+        ],
       ],
     );
   }
@@ -1422,34 +1667,6 @@ class _AdminBadge extends StatelessWidget {
           fontWeight: FontWeight.w800,
         ),
       ),
-    );
-  }
-}
-
-class _GroupAvatarWithBadge extends StatelessWidget {
-  const _GroupAvatarWithBadge({
-    required this.seed,
-    required this.count,
-    required this.size,
-  });
-
-  final String seed;
-  final int count;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        GroupAvatar(seed: seed, size: size),
-        if (count > 0)
-          Positioned(
-            right: -2,
-            top: -4,
-            child: UnreadBadge(count: count),
-          ),
-      ],
     );
   }
 }

@@ -51,6 +51,8 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>CyanZone needs photo library access so you can attach images to learning posts.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>CyanZone needs camera access so you can take photos for posts and your profile.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

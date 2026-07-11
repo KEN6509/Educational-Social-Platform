@@ -229,7 +229,7 @@ class _BrandMark extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Image.asset(
-              'assets/images/logo.png',
+              'assets/images/logo_transparent.png',
               semanticLabel: 'CyanZone logo',
               fit: BoxFit.contain,
             ),

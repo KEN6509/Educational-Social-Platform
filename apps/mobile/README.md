@@ -1,17 +1,32 @@
-# cyanzone_mobile
+# CyanZone Mobile
 
-A new Flutter project.
+Flutter application for CyanZone's educational social, chat, and family-safety experience.
 
-## Getting Started
+## Implemented Modules
 
-This project is a starting point for a Flutter application.
+- Authentication and profile management
+- Educational waterfall feed, search, post creation/editing, and post details
+- Comments, replies, mentions, reactions, saves, reports, and sharing
+- Direct/group chat, message requests, text/images, shared-post messages, unread state, group management, and local recent-history caches
+- Activity, System, and New Followers pages with in-app badges/read state
+- Parent-child repository and safety-center foundations
 
-A few resources to get you started if this is your first Flutter project:
+External device push notifications, Gemini moderation, and the complete parent-child supervision workflow are not implemented yet.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Run
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Create `.env` from `.env.example`, set `SUPABASE_URL` and `SUPABASE_ANON_KEY`, then run:
+
+```powershell
+flutter pub get
+flutter run
+```
+
+## Verify
+
+```powershell
+flutter analyze
+flutter test
+```
+
+For current implementation details, database script order, and next-work handoff, read the repository root `Project_Overview.md` and `docs/setup.md`.

@@ -96,6 +96,11 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  void _handleChatBadgeCountChanged(int count) {
+    if (!mounted || _chatBadgeCount == count) return;
+    setState(() => _chatBadgeCount = count);
+  }
+
   Future<void> _openFilterPage() async {
     final result = await Navigator.of(context).push<Set<String>>(
       MaterialPageRoute(
@@ -173,7 +178,7 @@ class _MainShellState extends State<MainShell> {
       ),
       const ParentChildPage(),
       CreatePostPage(onPostCreated: _handlePostCreated),
-      const ChatPage(),
+      ChatPage(onBadgeCountChanged: _handleChatBadgeCountChanged),
       ProfilePage(refreshSignal: _profileRefreshSignal),
     ];
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -39,6 +40,152 @@ void main() {
     expect(find.text('Hello'), findsOneWidget);
     final align = tester.widget<Align>(find.byType(Align).first);
     expect(align.alignment, Alignment.centerRight);
+  });
+
+  testWidgets('ChatMessageBubble renders shared posts as compact post cards',
+      (tester) async {
+    final body = ChatMessage.sharedPostBody(
+      postId: 'post-1',
+      authorName: 'Chan',
+      title: 'Weekend hiking',
+      content: 'A short trail guide.',
+      imageUrl: 'https://example.com/post.jpg',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ChatMessageBubble(
+            body: body,
+            isMine: true,
+            createdAt: DateTime(2026, 7, 8, 12, 38),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Weekend hiking'), findsOneWidget);
+    expect(find.text('Chan'), findsOneWidget);
+    expect(find.byType(Card), findsOneWidget);
+    expect(find.textContaining(ChatMessage.sharedPostPrefix), findsNothing);
+  });
+
+  testWidgets('ChatMessageBubble opens shared post through tap callback',
+      (tester) async {
+    final body = ChatMessage.sharedPostBody(
+      postId: 'post-1',
+      authorName: 'Chan',
+      title: 'Weekend hiking',
+      content: 'A short trail guide.',
+    );
+    ChatSharedPost? opened;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ChatMessageBubble(
+            body: body,
+            isMine: false,
+            onSharedPostTap: (post) => opened = post,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Weekend hiking'));
+    await tester.pump();
+
+    expect(opened?.postId, 'post-1');
+  });
+
+  test('post detail image preview uses preview transition and download action',
+      () {
+    final source =
+        File('lib/src/features/posts/presentation/post_detail_page.dart')
+            .readAsStringSync();
+    final carouselStart = source.indexOf('PageView.builder');
+    final carouselEnd = source.indexOf('if (visibleImageUrls.length > 1)');
+    expect(carouselStart, greaterThanOrEqualTo(0));
+    expect(carouselEnd, greaterThan(carouselStart));
+
+    final carouselSource = source.substring(carouselStart, carouselEnd);
+    expect(carouselSource, isNot(contains('InteractiveViewer')));
+    expect(carouselSource, contains('Listener('));
+    expect(carouselSource, contains('_handleImagePointerDown'));
+    expect(carouselSource, isNot(contains('_handleImagePointerMove')));
+    expect(carouselSource, contains('onTap'));
+    expect(
+        carouselSource, contains('final heroTag = _postImageHeroTag(index);'));
+
+    expect(source, contains('String _postImageHeroTag(int index)'));
+    expect(source, contains('heroTags: List.generate'));
+    expect(source, contains('Hero(tag: widget.heroTags[index], child: image)'));
+    expect(source, contains('onClosing: _alignImagePreviewPage'));
+    expect(source, contains('widget.onClosing(_index)'));
+    expect(source, isNot(contains('widget.onIndexChanged(value)')));
+    expect(source, contains('_isOfflineMode && post.imageUrls.isNotEmpty'));
+    expect(source, contains('post.imageUrls.take(1).toList()'));
+    expect(carouselSource, contains('NeverScrollableScrollPhysics'));
+    expect(carouselSource, contains('previewEnabled: !_isOfflineMode'));
+    expect(carouselSource, contains('onTap: _isOfflineMode'));
+    expect(source, contains('_pageController.jumpToPage(0)'));
+    expect(source, contains('if (visibleImageUrls.length > 1)'));
+    expect(source, contains('visibleImageUrls.length,'));
+    expect(source, contains('_pageController.jumpToPage(safeIndex)'));
+    expect(source, isNot(contains('final oldController = _pageController')));
+    expect(
+        source, contains('_pageController = PageController(keepPage: false)'));
+    expect(source, isNot(contains('index == _currentPage) return')));
+    expect(source, isNot(contains('_PostDetailPreviewPinchBridge')));
+    expect(source, isNot(contains('_buildSourcePinchSurface')));
+    expect(source, isNot(contains('_postImageRect')));
+    expect(source, contains('maxScale: 4.8'));
+    expect(source, contains('boundaryMargin: const EdgeInsets.all(160)'));
+    expect(source, contains('panEnabled: _canPanImage'));
+    expect(source, contains('_canPanImage = scale > 1.01'));
+    expect(source, contains('_settleToScale(4)'));
+    expect(source, contains('_matrixWithPreservedViewportPoint'));
+    expect(source, contains('targetTranslation'));
+    expect(source, isNot(contains('end: _matrixForScale(scale, focalPoint)')));
+    expect(source, contains('Curves.easeOutCubic'));
+    expect(source, contains('minScale: 0.85'));
+    expect(source, contains('backgroundColor: Colors.black'));
+    expect(source, contains('_PostDetailPreviewHeader'));
+    expect(source, contains('Color(0xB3000000)'));
+    expect(source, isNot(contains('closeOnZoomOut')));
+    expect(source, contains('onInteractionEnd:'));
+    expect(source, contains('scale < 0.97'));
+    expect(source, contains('onTap: _closePreview'));
+    expect(source, contains('Icons.download_rounded'));
+    expect(source, contains(r"'${_index + 1}/$total'"));
+    expect(source, isNot(contains(r'${widget.title} ·')));
+  });
+
+  test('share sheet reuses Message page group avatar styling', () {
+    final source =
+        File('lib/src/features/posts/presentation/post_detail_page.dart')
+            .readAsStringSync();
+
+    expect(source, contains('GroupAvatar('));
+    expect(source, isNot(contains('_groupPalette')));
+    expect(source, contains('SliverGridDelegateWithFixedCrossAxisCount'));
+    expect(source, contains('crossAxisCount: 3'));
+    expect(
+        source, contains('double _defaultSheetHeight(BuildContext context)'));
+    expect(source, contains('screenHeight * 0.5'));
+    expect(
+      source,
+      contains('view.padding.top / view.devicePixelRatio'),
+    );
+    expect(source, contains('onVerticalDragStart:'));
+    expect(source, contains('onVerticalDragUpdate:'));
+    expect(source, contains('onVerticalDragEnd: _handleSheetDragEnd'));
+    expect(source, contains('_sheetDragHeight'));
+    expect(source, contains('Duration.zero'));
+    expect(source, contains('_isSheetExpanded = shouldExpand'));
+    expect(source, contains('int get _recentContactRows'));
+    expect(source, contains('height: gridHeight'));
+    expect(source, contains('_recentShareContactsCache'));
   });
 
   testWidgets('ChatMessageBubble highlights selected message row',
@@ -409,6 +556,90 @@ void main() {
     expect(groupsX, lessThan(requestsX));
   });
 
+  testWidgets('ChatPage filter chips show unread chat counts', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async => [
+            ChatConversation.fromMap({
+              'id': 'direct-unread',
+              'type': 'direct',
+              'request_status': 'accepted',
+              'unread_count': 2,
+              'other_user_name': 'Chan',
+            }),
+            ChatConversation.fromMap({
+              'id': 'group-unread',
+              'type': 'group',
+              'request_status': 'accepted',
+              'unread_count': 1,
+              'title': 'Study group',
+            }),
+          ],
+          loadRequests: () async => [
+            ChatConversation.fromMap({
+              'id': 'request-unread',
+              'type': 'direct',
+              'request_status': 'pending',
+              'unread_count': 1,
+              'other_user_name': 'Request user',
+            }),
+          ],
+          loadCounts: () async => const {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unread'), findsOneWidget);
+    expect(find.text('Groups'), findsOneWidget);
+    expect(find.text('Requests'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('message-filter-count-unread')),
+          )
+          .data,
+      '2',
+    );
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('message-filter-count-groups')),
+          )
+          .data,
+      '1',
+    );
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('message-filter-count-requests')),
+          )
+          .data,
+      '1',
+    );
+  });
+
+  testWidgets('ChatPage filter chips hide zero unread counts', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async => const [],
+          loadRequests: () async => const [],
+          loadCounts: () async => const {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('message-filter-count-unread')),
+        findsNothing);
+    expect(find.byKey(const ValueKey('message-filter-count-groups')),
+        findsNothing);
+    expect(find.byKey(const ValueKey('message-filter-count-requests')),
+        findsNothing);
+  });
+
   testWidgets('Unread filter empty state can switch back to all chats',
       (tester) async {
     await tester.pumpWidget(
@@ -435,11 +666,94 @@ void main() {
 
     expect(find.text('No chats in Unread'), findsOneWidget);
     expect(find.text('View all chats'), findsOneWidget);
+    final viewAll = tester.widget<Text>(find.text('View all chats'));
+    expect(viewAll.style?.color, const Color(0xFF128C7E));
 
     await tester.tap(find.text('View all chats'));
     await tester.pumpAndSettle();
 
     expect(find.text('Alicia'), findsOneWidget);
+  });
+
+  testWidgets('Requests empty state keeps recent request helper copy',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async => const [],
+          loadRequests: () async => const [],
+          loadCounts: () async => const {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Requests'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No recent message requests'), findsOneWidget);
+    expect(
+      find.text("Requests older than 30 days aren't shown."),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Notification section waits to mark read before system back pop',
+      (tester) async {
+    final readCompleter = Completer<void>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => NotificationSectionsPage(
+                        initialSection: NotificationSection.activity,
+                        loadNotifications: (_) async => const [],
+                        markSectionRead: (_) => readCompleter.future,
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Open activity'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open activity'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No activity'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+
+    expect(find.text('No activity'), findsOneWidget);
+
+    readCompleter.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open activity'), findsOneWidget);
+  });
+
+  test('ChatPage exposes badge callback for shell refreshes', () {
+    final chatPageSource =
+        File('lib/src/features/chat/presentation/chat_page.dart')
+            .readAsStringSync();
+    final shellSource =
+        File('lib/src/features/shell/presentation/main_shell.dart')
+            .readAsStringSync();
+
+    expect(chatPageSource, contains('onBadgeCountChanged'));
+    expect(shellSource, contains('ChatPage('));
+    expect(shellSource, contains('onBadgeCountChanged'));
   });
 
   testWidgets('ChatRoomPage keeps text when send fails', (tester) async {
@@ -545,6 +859,59 @@ void main() {
       tester.getTopLeft(find.text('old message')).dy,
       lessThan(tester.getTopLeft(find.text('latest message')).dy),
     );
+  });
+
+  testWidgets('ChatRoomPage shows unread divider before first unread message',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'unread-divider-test',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 2,
+      'other_user_name': 'Ming',
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => [
+            ChatMessage.fromMap({
+              'id': 'm1',
+              'conversation_id': 'unread-divider-test',
+              'sender_id': 'u2',
+              'body': 'older message',
+              'created_at': '2026-06-29T10:00:00Z',
+            }, currentUserId: 'u1'),
+            ChatMessage.fromMap({
+              'id': 'm2',
+              'conversation_id': 'unread-divider-test',
+              'sender_id': 'u2',
+              'body': 'first unread',
+              'created_at': '2026-06-29T10:01:00Z',
+            }, currentUserId: 'u1'),
+            ChatMessage.fromMap({
+              'id': 'm3',
+              'conversation_id': 'unread-divider-test',
+              'sender_id': 'u2',
+              'body': 'newest unread',
+              'created_at': '2026-06-29T10:02:00Z',
+            }, currentUserId: 'u1'),
+          ],
+          sendMessage: (_, __) async {},
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 unread messages'), findsOneWidget);
+    final olderY = tester.getTopLeft(find.text('older message')).dy;
+    final dividerY = tester.getTopLeft(find.text('2 unread messages')).dy;
+    final firstUnreadY = tester.getTopLeft(find.text('first unread')).dy;
+
+    expect(olderY, lessThan(dividerY));
+    expect(dividerY, lessThan(firstUnreadY));
   });
 
   testWidgets('ChatRoomPage allows selecting multiple message bubbles',
@@ -752,6 +1119,250 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(openedNotification?.actorId, 'user-follower-1');
+  });
+
+  testWidgets('notification rows show unread dot and clear it after opening',
+      (tester) async {
+    final marked = <String>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSectionsPage(
+          initialSection: NotificationSection.followers,
+          openFollowerProfile: (_) {},
+          markNotificationRead: (notificationId) async {
+            marked.add(notificationId);
+          },
+          loadNotifications: (_) async => [
+            ChatNotification.fromMap({
+              'id': 'follower-unread',
+              'type': 'new_follower',
+              'actor_id': 'user-follower-1',
+              'title': 'New follower',
+              'body': 'Someone started following you',
+              'created_at': '2026-07-05T08:30:00',
+              'profiles': {'name': 'Alicia'},
+            }),
+            ChatNotification.fromMap({
+              'id': 'follower-read',
+              'type': 'new_follower',
+              'actor_id': 'user-follower-2',
+              'title': 'New follower',
+              'body': 'Someone started following you',
+              'created_at': '2026-07-05T08:00:00',
+              'read_at': '2026-07-05T09:00:00',
+              'profiles': {'name': 'Ming'},
+            }),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const ValueKey('notification-unread-dot-follower-unread')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('notification-unread-dot-follower-read')),
+        findsNothing);
+
+    await tester.tap(find.text('Alicia'));
+    await tester.pumpAndSettle();
+
+    expect(marked, ['follower-unread']);
+    expect(
+        find.byKey(const ValueKey('notification-unread-dot-follower-unread')),
+        findsNothing);
+  });
+
+  testWidgets('notification unread dot sits beside avatar without row shift',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSectionsPage(
+          initialSection: NotificationSection.followers,
+          openFollowerProfile: (_) {},
+          loadNotifications: (_) async => [
+            ChatNotification.fromMap({
+              'id': 'follower-unread',
+              'type': 'new_follower',
+              'actor_id': 'user-follower-1',
+              'title': 'New follower',
+              'body': 'Someone started following you',
+              'created_at': '2026-07-05T08:30:00',
+              'profiles': {'name': 'Alicia'},
+            }),
+            ChatNotification.fromMap({
+              'id': 'follower-read',
+              'type': 'new_follower',
+              'actor_id': 'user-follower-2',
+              'title': 'New follower',
+              'body': 'Someone started following you',
+              'created_at': '2026-07-05T08:00:00',
+              'read_at': '2026-07-05T09:00:00',
+              'profiles': {'name': 'Ming'},
+            }),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final dotFinder =
+        find.byKey(const ValueKey('notification-unread-dot-follower-unread'));
+    final dotRight = tester.getTopRight(dotFinder).dx;
+    final unreadAvatarLeft =
+        tester.getTopLeft(find.byType(ChatAvatar).first).dx;
+    final readAvatarLeft = tester.getTopLeft(find.byType(ChatAvatar).last).dx;
+
+    expect(unreadAvatarLeft, readAvatarLeft);
+    expect(unreadAvatarLeft, lessThanOrEqualTo(24));
+    expect(unreadAvatarLeft - dotRight, lessThanOrEqualTo(4));
+    expect(find.text('New'), findsNothing);
+    expect(find.byType(Divider), findsWidgets);
+  });
+
+  test('notification divider aligns with notification row text', () {
+    final source = File(
+      'lib/src/features/chat/presentation/notification_sections_page.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('indent: 62'));
+    expect(source, isNot(contains('indent: 78')));
+    expect(source, isNot(contains('indent: 82')));
+  });
+
+  test('conversation rows place unread badge on preview line', () {
+    final source = File('lib/src/features/chat/presentation/chat_widgets.dart')
+        .readAsStringSync();
+    final start = source.indexOf('class _ConversationTileState');
+    final end = source.indexOf('class _ConversationPreviewLine', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+
+    final tileSource = source.substring(start, end);
+    expect(tileSource, isNot(contains('ChatAvatarWithBadge')));
+    expect(tileSource, isNot(contains('_GroupAvatarWithBadge')));
+    expect(tileSource, isNot(contains('UnreadBadge(count: unreadCount)')));
+    expect(tileSource, isNot(contains('EdgeInsets.only(right: 8)')));
+    expect(tileSource, contains('unreadCount: conversation.unreadCount'));
+    expect(tileSource, contains('_ConversationPreviewLine'));
+  });
+
+  test('chat room supports initial unread target and jump to bottom button',
+      () {
+    final source =
+        File('lib/src/features/chat/presentation/chat_room_page.dart')
+            .readAsStringSync();
+
+    expect(source, contains('_initialScrollDone'));
+    expect(source, contains('_scrollToUnreadDividerOrLatest'));
+    expect(source, contains('jump-to-bottom-button'));
+    expect(source, contains('conversation.unreadCount'));
+    expect(source, contains('_handleInputFocusChanged'));
+    expect(source, contains('void didChangeMetrics()'));
+    expect(source, contains('Duration(milliseconds: 300)'));
+    expect(source, contains('_UnreadMessagesDivider'));
+    expect(source, contains('color: Colors.white'));
+    expect(source, contains('color: Color(0xFF111827)'));
+    expect(source, isNot(contains('color: Color(0xFFB7D8CF)')));
+    expect(source, contains('_scrollToUnreadDividerOrLatest'));
+    expect(source, contains('_setJumpToBottomVisible(false)'));
+    expect(source, contains('hasContentDimensions'));
+    expect(source, contains('reverse: true'));
+    expect(source, contains('position.minScrollExtent'));
+    expect(source,
+        isNot(contains('position.maxScrollExtent - position.pixels > 160')));
+    expect(source, isNot(contains('setState(() => _messagesFuture')));
+  });
+
+  test('notification page refresh resets follower action state', () {
+    final source = File(
+      'lib/src/features/chat/presentation/notification_sections_page.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('int _refreshGeneration = 0;'));
+    expect(source, contains('_refreshGeneration += 1;'));
+    expect(
+      source,
+      contains('follower-action-\${notification.id}-\$refreshGeneration'),
+    );
+  });
+
+  test('follow back uses follow-only profile flow and not toggle helper', () {
+    final source = File(
+      'lib/src/features/chat/presentation/notification_sections_page.dart',
+    ).readAsStringSync();
+    final start = source.indexOf('Future<void> _follow()');
+    final end = source.indexOf('Future<void> _message()', start);
+
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+
+    final followSource = source.substring(start, end);
+    expect(followSource, contains('_profileRepo.followUser'));
+    expect(followSource, isNot(contains('_profileRepo.toggleFollow')));
+    expect(followSource, isNot(contains('_repo.followUser')));
+    expect(followSource, isNot(contains("Text('No internet connection')")));
+    expect(followSource, isNot(contains('setState(() => _future')));
+    expect(followSource, contains('_future = Future.value(true);'));
+    expect(
+      followSource,
+      matches(
+        RegExp(
+          r'try\s*\{\s*await widget\.onNotificationRead\(\);\s*\} catch \(_\) \{\}',
+        ),
+      ),
+    );
+    expect(
+      followSource.indexOf('_profileRepo.followUser'),
+      lessThan(followSource.indexOf('await widget.onNotificationRead')),
+    );
+  });
+
+  test('activity notifications pass comment id into post detail page', () {
+    final source = File(
+      'lib/src/features/chat/presentation/notification_sections_page.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('initialCommentId: notification.commentId'));
+  });
+
+  testWidgets('NotificationSectionsPage refreshes when app resumes',
+      (tester) async {
+    var loadCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSectionsPage(
+          initialSection: NotificationSection.followers,
+          openFollowerProfile: (_) {},
+          loadNotifications: (_) async {
+            loadCount += 1;
+            if (loadCount == 1) return const <ChatNotification>[];
+            return [
+              ChatNotification.fromMap({
+                'id': 'follower-resumed',
+                'type': 'new_follower',
+                'actor_id': 'user-follower-1',
+                'title': 'New follower',
+                'body': 'Someone started following you',
+                'created_at': '2026-07-05T08:30:00',
+                'profiles': {'name': 'Alicia'},
+              }),
+            ];
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No recent followers'), findsOneWidget);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(loadCount, 2);
+    expect(find.text('Alicia'), findsOneWidget);
   });
 
   testWidgets('Activity page shows filter dropdown and rich activity row',

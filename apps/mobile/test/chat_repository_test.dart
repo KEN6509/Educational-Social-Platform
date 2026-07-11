@@ -48,6 +48,10 @@ void main() {
         ChatRepository.markNotificationReadRpc,
         'mark_notification_read',
       );
+      expect(
+        ChatRepository.markNotificationSectionReadRpc,
+        'mark_notification_section_read',
+      );
     });
 
     test('exposes SQL function argument parameter keys', () {
@@ -97,7 +101,7 @@ void main() {
       expect(exitSource, contains('deleteImageStoragePaths'));
     });
 
-    test('filters new followers to latest 30 days and one actor per local day',
+    test('filters new followers to latest 30 days and one latest per actor',
         () {
       final now = DateTime(2026, 7, 5, 12);
       final notifications = [
@@ -126,7 +130,7 @@ void main() {
           'created_at': '2026-07-05T11:00:00',
         }),
         ChatNotification.fromMap({
-          'id': 'different-day',
+          'id': 'same-actor-previous-day',
           'type': 'new_follower',
           'actor_id': 'u2',
           'title': 'New follower',
@@ -142,8 +146,93 @@ void main() {
 
       expect(filtered.map((item) => item.id), [
         'same-day-new',
-        'different-day',
       ]);
+    });
+
+    test('unread conversation count includes every unread message', () {
+      final messages = [
+        {
+          'id': 'm1',
+          'sender_id': 'other',
+          'created_at': '2026-07-05T10:01:00',
+        },
+        {
+          'id': 'm2',
+          'sender_id': 'other',
+          'created_at': '2026-07-05T10:02:00',
+        },
+        {
+          'id': 'mine',
+          'sender_id': 'me',
+          'created_at': '2026-07-05T10:03:00',
+        },
+        {
+          'id': 'old',
+          'sender_id': 'other',
+          'created_at': '2026-07-05T09:59:00',
+        },
+        {
+          'id': 'deleted',
+          'sender_id': 'other',
+          'created_at': '2026-07-05T10:04:00',
+          'deleted_at': '2026-07-05T10:05:00',
+        },
+      ];
+
+      expect(
+        ChatRepository.calculateUnreadConversationCount(
+          messages: messages,
+          currentUserId: 'me',
+          lastReadAt: DateTime.parse('2026-07-05T10:00:00'),
+        ),
+        2,
+      );
+    });
+
+    test('repository fetches unread message candidates beyond latest message',
+        () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+
+      expect(source, contains('_fetchUnreadMessagesByConversation'));
+      expect(source, contains('unreadMessagesByConversation'));
+      expect(source,
+          isNot(contains('lastMessage == null ? const [] : [lastMessage]')));
+    });
+
+    test('conversation row time is hydrated from latest visible message', () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+      final start = source
+          .indexOf('Future<List<ChatConversation>> _hydrateConversations');
+      final end = source.indexOf('static List<ChatNotification>', start);
+      expect(start, greaterThanOrEqualTo(0));
+      expect(end, greaterThan(start));
+
+      final hydrateSource = source.substring(start, end);
+      expect(
+        hydrateSource,
+        contains("..['last_message_at'] ="),
+      );
+      expect(
+        hydrateSource,
+        contains("lastMessagesByConversation[conversationId]?['created_at']"),
+      );
+    });
+
+    test('repository fetches latest chat message page instead of full history',
+        () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+      final start = source.indexOf('Future<List<ChatMessage>> fetchMessages');
+      final end = source.indexOf('Future<List<ChatNotification>>', start);
+      expect(start, greaterThanOrEqualTo(0));
+      expect(end, greaterThan(start));
+
+      final fetchSource = source.substring(start, end);
+      expect(fetchSource, contains(".order('created_at', ascending: false)"));
+      expect(fetchSource, contains('.limit(50)'));
+      expect(fetchSource, contains('a.createdAt.compareTo(b.createdAt)'));
     });
 
     test('filters activity notifications by category', () {
@@ -245,14 +334,68 @@ void main() {
       );
     });
 
+    test('unread notification counts dedupe visible new followers', () {
+      final now = DateTime(2026, 7, 5, 12);
+      final notifications = [
+        ChatNotification.fromMap({
+          'id': 'follower-latest',
+          'type': 'new_follower',
+          'actor_id': 'u1',
+          'title': 'New follower',
+          'body': 'followed',
+          'created_at': '2026-07-05T11:00:00',
+        }),
+        ChatNotification.fromMap({
+          'id': 'follower-older',
+          'type': 'new_follower',
+          'actor_id': 'u1',
+          'title': 'New follower',
+          'body': 'followed',
+          'created_at': '2026-07-04T11:00:00',
+        }),
+        ChatNotification.fromMap({
+          'id': 'activity',
+          'type': 'like',
+          'title': 'Like',
+          'body': 'liked',
+          'created_at': '2026-07-05T11:00:00',
+        }),
+      ];
+
+      final counts = ChatRepository.countUnreadNotificationSections(
+        notifications,
+        now: now,
+      );
+
+      expect(counts[NotificationSection.followers], 1);
+      expect(counts[NotificationSection.activity], 1);
+    });
+
     test('source contains section read marker and unread calculation', () {
       final source = File('lib/src/features/chat/data/chat_repository.dart')
           .readAsStringSync();
 
       expect(source, contains('markNotificationsReadForSection'));
+      expect(source, contains('markNotificationSectionReadRpc'));
+      expect(source, contains('section.name'));
       expect(source, contains('calculateUnreadConversationCount'));
       expect(source, contains('last_read_at'));
       expect(source, contains('cleared_at'));
+    });
+
+    test('follow back uses same insert pattern as profile follow', () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+      final start = source.indexOf('Future<void> followUser');
+      final end = source.indexOf('Future<List<ChatParticipant>>', start);
+      expect(start, greaterThanOrEqualTo(0));
+      expect(end, greaterThan(start));
+
+      final followSource = source.substring(start, end);
+      expect(followSource, contains('.insert({'));
+      expect(followSource, isNot(contains('.upsert(')));
+      expect(followSource,
+          isNot(contains("onConflict: 'follower_id,following_id'")));
     });
 
     test('main shell uses total chat badge count instead of chat message only',

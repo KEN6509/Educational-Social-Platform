@@ -139,6 +139,28 @@ void main() {
       expect(message.isDeleted, isTrue);
       expect(message.hasImage, isFalse);
     });
+
+    test(
+        'encodes shared post messages without exposing raw payload in previews',
+        () {
+      final body = ChatMessage.sharedPostBody(
+        postId: 'post-1',
+        authorName: 'Chan',
+        authorAvatarUrl: 'https://example.com/avatar.jpg',
+        title: 'Weekend hiking',
+        content: 'A short trail guide.',
+        imageUrl: 'https://example.com/post.jpg',
+      );
+
+      final sharedPost = ChatMessage.sharedPostFor(body);
+
+      expect(sharedPost, isNotNull);
+      expect(sharedPost!.postId, 'post-1');
+      expect(sharedPost.title, 'Weekend hiking');
+      expect(sharedPost.content, 'A short trail guide.');
+      expect(sharedPost.imageUrl, 'https://example.com/post.jpg');
+      expect(ChatMessage.displayBodyFor(body), 'Post');
+    });
   });
 
   group('ChatNotification', () {

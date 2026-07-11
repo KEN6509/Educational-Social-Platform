@@ -19,14 +19,14 @@ class AppTheme {
       scaffoldBackgroundColor: const Color(0xFFFAFCFC),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF8FCFC),
+        fillColor: const Color(0xFFF1F5F9), // Changed from light green (0xFFF8FCFC) to neutral grey
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFFD8E8EA)),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)), // More neutral border
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFFD8E8EA)),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),

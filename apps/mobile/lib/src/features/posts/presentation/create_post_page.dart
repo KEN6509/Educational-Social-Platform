@@ -4,15 +4,25 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/theme/app_input_decoration.dart';
+import '../data/feed_post.dart';
 import '../data/posts_repository.dart';
+import '../data/tag_catalog.dart';
+import '../data/tags_repository.dart';
+import '../../media/presentation/device_photo_picker_page.dart';
+import 'filter_page.dart';
+import 'create_post_validation.dart';
+import 'post_submission_error.dart';
 
 class CreatePostPage extends StatefulWidget {
   const CreatePostPage({
     required this.onPostCreated,
+    this.editPost,
     super.key,
   });
 
   final VoidCallback onPostCreated;
+  final FeedPost? editPost;
 
   @override
   State<CreatePostPage> createState() => _CreatePostPageState();
@@ -22,49 +32,88 @@ class _CreatePostPageState extends State<CreatePostPage> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
-  final _tagsController = TextEditingController();
-  final _picker = ImagePicker();
 
   late final PostsRepository _repository;
+  late final TagsRepository _tagsRepository;
+  late Future<List<TagCategory>> _tagsFuture;
 
+  final Set<String> _selectedTags = {};
   final List<_DraftImage> _images = [];
   bool _isSubmitting = false;
-  String? _message;
-  bool _isSuccess = false;
+  bool get _isEditing => widget.editPost != null;
 
   @override
   void initState() {
     super.initState();
     _repository = PostsRepository(Supabase.instance.client);
+    _tagsRepository = TagsRepository(Supabase.instance.client);
+    _tagsFuture = _tagsRepository.fetchCatalog();
+    final post = widget.editPost;
+    if (post != null) {
+      _titleController.text = post.title;
+      _contentController.text = post.content;
+      _selectedTags.addAll(post.tags.take(5));
+      for (var index = 0; index < post.imageUrls.length; index += 1) {
+        final storagePath = index < post.imageStoragePaths.length
+            ? post.imageStoragePaths[index]
+            : null;
+        if (storagePath == null) continue;
+        _images.add(
+          _DraftImage.existing(
+            url: post.imageUrls[index],
+            storagePath: storagePath,
+          ),
+        );
+      }
+    }
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
-    _tagsController.dispose();
     super.dispose();
   }
 
   Future<void> _pickImages() async {
     final remaining = 9 - _images.length;
     if (remaining <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Maximum 9 images allowed')),
+        );
+      }
       return;
     }
 
-    final picked = await _picker.pickMultiImage(
-      imageQuality: 86,
-      limit: remaining,
+    final picked = await Navigator.of(context).push<List<XFile>>(
+      MaterialPageRoute(
+        builder: (_) => DevicePhotoPickerPage(
+          maxSelection: remaining,
+          allowCamera: true,
+        ),
+      ),
     );
 
-    if (picked.isEmpty || !mounted) {
+    if (picked == null || picked.isEmpty || !mounted) {
       return;
+    }
+
+    if (picked.length > remaining) {
+      if (mounted) {
+        final message = _images.isEmpty
+            ? 'Only 9 images can be selected'
+            : 'Only $remaining more images can be added';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
     }
 
     final drafts = <_DraftImage>[];
     for (final image in picked.take(remaining)) {
       drafts.add(
-        _DraftImage(
+        _DraftImage.picked(
           file: image,
           bytes: await image.readAsBytes(),
         ),
@@ -73,8 +122,45 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
     setState(() {
       _images.addAll(drafts);
-      _message = null;
     });
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      _images.removeAt(index);
+    });
+  }
+
+  Future<void> _openTagSelection() async {
+    final result = await Navigator.of(context).push<Set<String>>(
+      MaterialPageRoute(
+        builder: (context) => FilterPage(
+          initialSelectedTags: _selectedTags,
+          tagsFuture: _tagsFuture,
+          isSelectionMode: true,
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _selectedTags.clear();
+        // Limit to 5 tags
+        _selectedTags.addAll(result.take(5));
+      });
+    }
+  }
+
+  String? _findTagNameFromCatalog(String slug) {
+    if (slug == 'others') return 'Others';
+    // This is a bit inefficient but fine for small lists
+    for (final category in TagCatalog.fallback) {
+      for (final tag in category.tags) {
+        if (tag.slug == slug) return tag.name;
+      }
+    }
+    return null;
   }
 
   Future<void> _submit() async {
@@ -83,33 +169,77 @@ class _CreatePostPageState extends State<CreatePostPage> {
       return;
     }
 
+    if (!canSubmitPostBody(
+      content: _contentController.text,
+      imageCount: _images.length,
+    )) {
+      _showSubmissionError(
+        'Add an image or write some content before posting.',
+      );
+      return;
+    }
+
+    if (!await hasInternetConnection()) {
+      if (!mounted) return;
+      _showSubmissionError(
+        'No internet connection. Connect to the internet before posting.',
+      );
+      return;
+    }
+
+    if (_isEditing) {
+      final confirmed = await _showEditConfirmation();
+      if (confirmed != true || !mounted) return;
+    }
+
     setState(() {
       _isSubmitting = true;
-      _message = null;
-      _isSuccess = false;
     });
 
     try {
-      await _repository.createPost(
-        CreatePostInput(
-          title: _titleController.text,
-          content: _contentController.text,
-          tags: _parseTags(_tagsController.text),
-          images: _images
-              .map(
-                (image) => PickedPostImage(
-                  name: image.file.name,
-                  bytes: image.bytes,
-                  contentType: image.file.mimeType ?? _contentTypeFor(image),
-                ),
-              )
-              .toList(),
-        ),
-      );
+      final pickedImages = _images
+          .where((image) => image.isPicked)
+          .map(
+            (image) => PickedPostImage(
+              name: image.file!.name,
+              bytes: image.bytes!,
+              contentType: image.file!.mimeType ?? _contentTypeFor(image),
+            ),
+          )
+          .toList();
+
+      if (_isEditing) {
+        await _repository.updatePost(
+          widget.editPost!.id,
+          UpdatePostInput(
+            title: _titleController.text,
+            content: _contentController.text,
+            tags: _selectedTags.toList(),
+            keptImages: _images
+                .where((image) => image.isExisting)
+                .map(
+                  (image) => ExistingPostImage(
+                    storagePath: image.storagePath!,
+                    publicUrl: image.url!,
+                  ),
+                )
+                .toList(),
+            newImages: pickedImages,
+          ),
+        );
+      } else {
+        await _repository.createPost(
+          CreatePostInput(
+            title: _titleController.text,
+            content: _contentController.text,
+            tags: _selectedTags.toList(),
+            images: pickedImages,
+          ),
+        );
+      }
 
       _titleController.clear();
       _contentController.clear();
-      _tagsController.clear();
 
       if (!mounted) {
         return;
@@ -117,18 +247,48 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
       setState(() {
         _images.clear();
-        _message = 'Posted. It will stay visible to you while pending review.';
-        _isSuccess = true;
+        _selectedTags.clear();
       });
+
+      // Show SnackBar like "Post sent." in post_detail_page.dart
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.white,
+            elevation: 8,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded,
+                    color: Color(0xFF10B981), size: 20),
+                const SizedBox(width: 12),
+                Text(
+                  _isEditing ? 'Post updated for review' : 'Posted for review',
+                  style: const TextStyle(
+                    color: Color(0xFF1E293B),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
       widget.onPostCreated();
+      if (_isEditing && mounted) {
+        Navigator.of(context).pop(true);
+      }
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _message = error.toString();
-        _isSuccess = false;
-      });
+      _showSubmissionError(postSubmissionErrorMessage(error));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -136,18 +296,19 @@ class _CreatePostPageState extends State<CreatePostPage> {
     }
   }
 
-  List<String> _parseTags(String raw) {
-    return raw
-        .split(RegExp(r'[,\s]+'))
-        .map((tag) => tag.trim().replaceFirst('#', '').toLowerCase())
-        .where((tag) => tag.isNotEmpty)
-        .toSet()
-        .take(8)
-        .toList();
+  void _showSubmissionError(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(message),
+        ),
+      );
   }
 
   String _contentTypeFor(_DraftImage image) {
-    final lowerName = image.file.name.toLowerCase();
+    final lowerName = image.file!.name.toLowerCase();
     if (lowerName.endsWith('.png')) {
       return 'image/png';
     }
@@ -157,270 +318,570 @@ class _CreatePostPageState extends State<CreatePostPage> {
     return 'image/jpeg';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
-        children: [
-          Text(
-            'Create learning post',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
+  Future<bool?> _showEditConfirmation() {
+    return showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.42),
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.14),
+                  blurRadius: 28,
+                  offset: const Offset(0, 14),
                 ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Images, notes, questions, and study tips work best here.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF536A74),
-                ),
-          ),
-          const SizedBox(height: 18),
-          _ImagePickerPanel(
-            images: _images,
-            onPickImages: _isSubmitting ? null : _pickImages,
-            onRemove: _isSubmitting
-                ? null
-                : (index) => setState(() => _images.removeAt(index)),
-          ),
-          const SizedBox(height: 18),
-          Form(
-            key: _formKey,
+              ],
+            ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                TextFormField(
-                  controller: _titleController,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'Title',
-                    prefixIcon: Icon(Icons.title_rounded),
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE7F8F5),
+                    shape: BoxShape.circle,
                   ),
-                  validator: (value) {
-                    final title = value?.trim() ?? '';
-                    if (title.length < 3) {
-                      return 'Use at least 3 characters.';
-                    }
-                    if (title.length > 120) {
-                      return 'Keep the title under 120 characters.';
-                    }
-                    return null;
-                  },
+                  child: const Icon(
+                    Icons.edit_note_rounded,
+                    color: Color(0xFF2C7189),
+                    size: 30,
+                  ),
                 ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _contentController,
-                  minLines: 5,
-                  maxLines: 9,
-                  decoration: const InputDecoration(
-                    labelText: 'Content',
-                    alignLabelWithHint: true,
-                    prefixIcon: Padding(
-                      padding: EdgeInsets.only(bottom: 92),
-                      child: Icon(Icons.notes_rounded),
+                const SizedBox(height: 16),
+                const Text(
+                  'Update this post?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Updating will send this post back to pending review before it appears publicly again.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 14,
+                    height: 1.42,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(true),
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0B1F3E),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Text(
+                        'Update post',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ),
-                  validator: (value) {
-                    final content = value?.trim() ?? '';
-                    if (content.isEmpty) {
-                      return 'Write something educational.';
-                    }
-                    if (content.length > 5000) {
-                      return 'Keep the post under 5000 characters.';
-                    }
-                    return null;
-                  },
                 ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _tagsController,
-                  textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(
-                    labelText: 'Tags',
-                    helperText: 'Separate with commas or spaces.',
-                    prefixIcon: Icon(Icons.tag_rounded),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  height: 42,
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(false),
+                    behavior: HitTestBehavior.opaque,
+                    child: const Center(
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Color(0xFF475569),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: _isSubmitting ? null : _submit,
-            icon: _isSubmitting
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.publish_rounded),
-            label: Text(_isSubmitting ? 'Posting...' : 'Post to CyanZone'),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(
+            _isEditing ? Icons.arrow_back_ios_new_rounded : Icons.close_rounded,
+            color: const Color(0xFF0B1F3E),
+            size: _isEditing ? 20 : 24,
           ),
-          if (_message != null) ...[
-            const SizedBox(height: 14),
-            _CreateMessage(message: _message!, isSuccess: _isSuccess),
-          ],
-        ],
+          onPressed: () {
+            if (_isEditing) {
+              Navigator.of(context).pop();
+            } else {
+              // Redirect to home (which is index 0 in MainShell)
+              widget.onPostCreated();
+            }
+          },
+        ),
+        title: Text(
+          _isEditing ? 'Edit post' : 'New post',
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF0B1F3E),
+            fontSize: 20,
+          ),
+        ),
+        centerTitle: false,
+        actions: const [SizedBox(width: 8)],
+      ),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _isEditing
+                    ? 'Update your post and send it back for review.'
+                    : 'Share your notes, questions, or just a happy moment today!',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF64748B),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Image Section
+              Row(
+                children: [
+                  const Icon(Icons.image_outlined,
+                      size: 20, color: Color(0xFF4490AD)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Images',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0B1F3E),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${_images.length}/9 selected',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _ModernImageGrid(
+                images: _images,
+                onPick: _pickImages,
+                onRemove: _removeImage,
+              ),
+
+              const SizedBox(height: 32),
+
+              // Form Section
+              Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.title_rounded,
+                            size: 20, color: Color(0xFF4490AD)),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Title',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0B1F3E),
+                          ),
+                        ),
+                        const Spacer(),
+                        ListenableBuilder(
+                          listenable: _titleController,
+                          builder: (context, _) => Text(
+                            '${_titleController.text.length}/40',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _titleController,
+                      textInputAction: TextInputAction.next,
+                      maxLength: 40,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600),
+                      decoration: appInputDecoration(
+                        hintText: 'Add a title',
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                      ),
+                      validator: (value) {
+                        final title = value?.trim() ?? '';
+                        if (title.length > 40) {
+                          return 'Keep the title under 40 characters.';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        const Icon(Icons.notes_rounded,
+                            size: 20, color: Color(0xFF4490AD)),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Content',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0B1F3E),
+                          ),
+                        ),
+                        const Spacer(),
+                        ListenableBuilder(
+                          listenable: _contentController,
+                          builder: (context, _) => Text(
+                            '${_contentController.text.length}/1000',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _contentController,
+                      minLines: 4,
+                      maxLines: 12,
+                      maxLength: 1000,
+                      style: const TextStyle(fontSize: 15),
+                      decoration: appInputDecoration(
+                        hintText: 'Add text',
+                        contentPadding: const EdgeInsets.all(16),
+                      ),
+                      validator: (value) {
+                        final content = value?.trim() ?? '';
+                        if (content.length > 1000) {
+                          return 'Keep the content under 1000 characters.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Tags Section
+              Row(
+                children: [
+                  const Icon(Icons.tag_rounded,
+                      size: 20, color: Color(0xFF4490AD)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Tags',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0B1F3E),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${_selectedTags.length}/5 selected',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _ModernTagField(
+                selectedTags: _selectedTags,
+                onAdd: _openTagSelection,
+                onRemove: (tag) => setState(() => _selectedTags.remove(tag)),
+                tagLabelProvider: _findTagNameFromCatalog,
+              ),
+
+              const SizedBox(height: 30),
+
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _isSubmitting ? null : _submit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0B1F3E),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          _isEditing ? 'Update post' : 'Post',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
 class _DraftImage {
-  const _DraftImage({
-    required this.file,
-    required this.bytes,
-  });
+  const _DraftImage.picked({
+    required XFile this.file,
+    required Uint8List this.bytes,
+  })  : url = null,
+        storagePath = null;
 
-  final XFile file;
-  final Uint8List bytes;
+  const _DraftImage.existing({
+    required String this.url,
+    required String this.storagePath,
+  })  : file = null,
+        bytes = null;
+
+  final XFile? file;
+  final Uint8List? bytes;
+  final String? url;
+  final String? storagePath;
+
+  bool get isPicked => file != null && bytes != null;
+  bool get isExisting => url != null && storagePath != null;
 }
 
-class _ImagePickerPanel extends StatelessWidget {
-  const _ImagePickerPanel({
+class _ModernImageGrid extends StatelessWidget {
+  const _ModernImageGrid({
     required this.images,
-    required this.onPickImages,
+    required this.onPick,
     required this.onRemove,
   });
 
   final List<_DraftImage> images;
-  final VoidCallback? onPickImages;
-  final ValueChanged<int>? onRemove;
+  final VoidCallback onPick;
+  final ValueChanged<int> onRemove;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDDEBED)),
+    final count = images.length;
+    // Calculate how many items to show in the grid
+    // If < 9, show images + 1 plus icon
+    // If = 9, only show images
+    final gridCount = count < 9 ? count + 1 : 9;
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1,
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Images (${images.length}/9)',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
+      itemCount: gridCount,
+      itemBuilder: (context, index) {
+        if (index == count) {
+          // Plus button
+          return InkWell(
+            onTap: onPick,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F8F9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF4490AD).withValues(alpha: 0.2),
+                  width: 1.5,
+                  style: BorderStyle.solid,
                 ),
-                IconButton.filledTonal(
-                  tooltip: 'Add images',
-                  onPressed: onPickImages,
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                ),
-              ],
+              ),
+              child: const Icon(
+                Icons.add_rounded,
+                color: Color(0xFF4490AD),
+                size: 32,
+              ),
             ),
-            const SizedBox(height: 10),
-            if (images.isEmpty)
-              InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: onPickImages,
+          );
+        }
+
+        return Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: ColoredBox(
+                color: const Color(0xFFF1F5F9),
+                child: Image(
+                  image: images[index].isPicked
+                      ? MemoryImage(images[index].bytes!)
+                      : NetworkImage(images[index].url!) as ImageProvider,
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: () => onRemove(index),
                 child: Container(
-                  height: 132,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F8F9),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFD8E8EA)),
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.add_photo_alternate_outlined,
-                    size: 38,
-                    color: Color(0xFF4490AD),
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 14,
                   ),
                 ),
-              )
-            else
-              GridView.builder(
-                itemCount: images.length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                ),
-                itemBuilder: (context, index) {
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.memory(
-                          images[index].bytes,
-                          fit: BoxFit.cover,
-                        ),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: IconButton.filled(
-                            visualDensity: VisualDensity.compact,
-                            tooltip: 'Remove image',
-                            onPressed: onRemove == null
-                                ? null
-                                : () => onRemove!(index),
-                            icon: const Icon(Icons.close_rounded, size: 16),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
               ),
+            ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
 
-class _CreateMessage extends StatelessWidget {
-  const _CreateMessage({
-    required this.message,
-    required this.isSuccess,
+class _ModernTagField extends StatelessWidget {
+  const _ModernTagField({
+    required this.selectedTags,
+    required this.onAdd,
+    required this.onRemove,
+    required this.tagLabelProvider,
   });
 
-  final String message;
-  final bool isSuccess;
+  final Set<String> selectedTags;
+  final VoidCallback onAdd;
+  final ValueChanged<String> onRemove;
+  final String? Function(String) tagLabelProvider;
 
   @override
   Widget build(BuildContext context) {
-    final color = isSuccess ? const Color(0xFF087F5B) : const Color(0xFFB42318);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isSuccess ? const Color(0xFFEAF8F1) : const Color(0xFFFFF1F0),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(
-              isSuccess ? Icons.check_circle_outline : Icons.error_outline,
-              color: color,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        ...selectedTags.map((slug) {
+          final label = tagLabelProvider(slug) ?? slug;
+          return Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE7F8F5),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: color,
-                      height: 1.35,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF087F5B),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () => onRemove(slug),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 14,
+                    color: Color(0xFF087F5B),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+        if (selectedTags.length < 5)
+          InkWell(
+            onTap: onAdd,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F8F9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF4490AD).withValues(alpha: 0.2),
+                  width: 1.5,
+                ),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add_rounded, size: 18, color: Color(0xFF4490AD)),
+                  SizedBox(width: 4),
+                  Text(
+                    'Add',
+                    style: TextStyle(
+                      color: Color(0xFF4490AD),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
                     ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 }

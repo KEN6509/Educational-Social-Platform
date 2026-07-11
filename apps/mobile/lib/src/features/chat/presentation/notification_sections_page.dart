@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../posts/presentation/post_detail_page.dart';
+import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_page.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
@@ -18,6 +19,8 @@ typedef NotificationSectionReadMarker = Future<void> Function(
   NotificationSection section,
 );
 
+typedef NotificationReadMarker = Future<void> Function(String notificationId);
+
 typedef ActivityPostOpener = Future<void> Function(
   ChatNotification notification,
 );
@@ -29,6 +32,7 @@ class NotificationSectionsPage extends StatefulWidget {
     this.loadNotifications,
     this.openFollowerProfile,
     this.markSectionRead,
+    this.markNotificationRead,
     this.openActivityPost,
   });
 
@@ -36,6 +40,7 @@ class NotificationSectionsPage extends StatefulWidget {
   final NotificationLoader? loadNotifications;
   final FollowerProfileOpener? openFollowerProfile;
   final NotificationSectionReadMarker? markSectionRead;
+  final NotificationReadMarker? markNotificationRead;
   final ActivityPostOpener? openActivityPost;
 
   @override
@@ -43,13 +48,18 @@ class NotificationSectionsPage extends StatefulWidget {
       _NotificationSectionsPageState();
 }
 
-class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
+class _NotificationSectionsPageState extends State<NotificationSectionsPage>
+    with WidgetsBindingObserver {
   late NotificationSection _section;
   ChatRepository? _repository;
   late Future<List<ChatNotification>> _future;
   NotificationActivityFilter _activityFilter = NotificationActivityFilter.all;
   bool _showActivityFilters = false;
   bool _markedRead = false;
+  bool _isClosing = false;
+  bool _allowPop = false;
+  int _refreshGeneration = 0;
+  final Set<String> _locallyReadNotificationIds = <String>{};
 
   ChatRepository get _repo =>
       _repository ??= ChatRepository(Supabase.instance.client);
@@ -57,13 +67,35 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _section = widget.initialSection;
     _future = _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _refreshNotifications();
+    }
   }
 
   Future<List<ChatNotification>> _load() {
     return widget.loadNotifications?.call(_section) ??
         _repo.fetchNotifications(_section);
+  }
+
+  void _refreshNotifications() {
+    if (!mounted) return;
+    setState(() {
+      _refreshGeneration += 1;
+      _future = _load();
+    });
   }
 
   String get _title {
@@ -79,15 +111,37 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
     }
   }
 
-  void _openFollowerProfile(ChatNotification notification) {
+  bool _isNotificationUnread(ChatNotification notification) {
+    return notification.isUnread &&
+        !_locallyReadNotificationIds.contains(notification.id);
+  }
+
+  Future<void> _markNotificationReadLocally(
+    ChatNotification notification,
+  ) async {
+    if (!_isNotificationUnread(notification)) return;
+    setState(() => _locallyReadNotificationIds.add(notification.id));
+    try {
+      final marker = widget.markNotificationRead;
+      if (marker != null) {
+        await marker(notification.id);
+      } else {
+        await _repo.markNotificationRead(notification.id);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _openFollowerProfile(ChatNotification notification) async {
+    _markNotificationReadLocally(notification);
     final injected = widget.openFollowerProfile;
     if (injected != null) {
       injected(notification);
+      _refreshNotifications();
       return;
     }
     final actorId = notification.actorId;
     if (actorId == null) return;
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ProfilePage(
           userId: actorId,
@@ -96,6 +150,7 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
         ),
       ),
     );
+    _refreshNotifications();
   }
 
   Future<void> _markCurrentSectionRead() async {
@@ -109,11 +164,23 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
     await _repo.markNotificationsReadForSection(_section);
   }
 
+  Future<void> _close() async {
+    if (_isClosing) return;
+    setState(() => _isClosing = true);
+    try {
+      await _markCurrentSectionRead();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    Navigator.of(context).pop(true);
+  }
+
   Future<void> _openActivityPost(ChatNotification notification) async {
     try {
       final injected = widget.openActivityPost;
       if (injected != null) {
         await injected(notification);
+        _refreshNotifications();
         return;
       }
       final postId = notification.postId;
@@ -126,8 +193,14 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
       }
       if (!mounted) return;
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => PostDetailPage(post: post)),
+        MaterialPageRoute(
+          builder: (_) => PostDetailPage(
+            post: post,
+            initialCommentId: notification.commentId,
+          ),
+        ),
       );
+      _refreshNotifications();
     } on ChatNotificationPostUnavailableException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -172,8 +245,10 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      onPopInvokedWithResult: (_, __) {
-        _markCurrentSectionRead();
+      canPop: _allowPop,
+      onPopInvokedWithResult: (didPop, __) {
+        if (didPop) return;
+        _close();
       },
       child: ChatNoSplash(
         child: Scaffold(
@@ -184,10 +259,7 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
             scrolledUnderElevation: 0,
             centerTitle: true,
             leading: IconButton(
-              onPressed: () async {
-                await _markCurrentSectionRead();
-                if (context.mounted) Navigator.pop(context, true);
-              },
+              onPressed: _close,
               icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             ),
             title: _section == NotificationSection.activity
@@ -233,18 +305,30 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage> {
                   return ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                     itemCount: notifications.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      indent: 62,
+                      color: Color(0xFFE2E8F0),
+                    ),
                     itemBuilder: (context, index) {
                       final notification = notifications[index];
                       if (_section == NotificationSection.activity) {
                         return _ActivityNotificationTile(
                           notification: notification,
-                          onTap: () => _openActivityPost(notification),
+                          isUnread: _isNotificationUnread(notification),
+                          onTap: () {
+                            _markNotificationReadLocally(notification);
+                            _openActivityPost(notification);
+                          },
                         );
                       }
                       return _FollowerOrGenericNotificationTile(
                         notification: notification,
                         section: _section,
+                        isUnread: _isNotificationUnread(notification),
+                        refreshGeneration: _refreshGeneration,
+                        onNotificationRead: () =>
+                            _markNotificationReadLocally(notification),
                         onFollowerTap: () => _openFollowerProfile(notification),
                       );
                     },
@@ -275,11 +359,17 @@ class _FollowerOrGenericNotificationTile extends StatelessWidget {
   const _FollowerOrGenericNotificationTile({
     required this.notification,
     required this.section,
+    required this.isUnread,
+    required this.refreshGeneration,
+    required this.onNotificationRead,
     required this.onFollowerTap,
   });
 
   final ChatNotification notification;
   final NotificationSection section;
+  final bool isUnread;
+  final int refreshGeneration;
+  final Future<void> Function() onNotificationRead;
   final VoidCallback onFollowerTap;
 
   @override
@@ -291,36 +381,148 @@ class _FollowerOrGenericNotificationTile extends StatelessWidget {
     final displaySubtitle =
         isFollower ? 'Started following you' : notification.body;
 
-    return ListTile(
+    return InkWell(
       onTap: isFollower ? onFollowerTap : null,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      leading: isFollower
-          ? ChatAvatar(
-              name: displayTitle,
-              avatarUrl: notification.actorAvatarUrl,
-            )
-          : CircleAvatar(
-              backgroundColor: (notification.isUnread ? chatDanger : chatCyan)
-                  .withValues(alpha: 0.12),
-              child: Icon(
-                notification.isUnread
-                    ? Icons.circle_notifications_rounded
-                    : Icons.notifications_none_rounded,
-                color: notification.isUnread ? chatDanger : chatCyan,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 10, 4, 10),
+        child: Row(
+          children: [
+            _NotificationLeadingAvatar(
+              isUnread: isUnread,
+              notificationId: notification.id,
+              child: isFollower
+                  ? ChatAvatar(
+                      name: displayTitle,
+                      avatarUrl: notification.actorAvatarUrl,
+                    )
+                  : CircleAvatar(
+                      backgroundColor: (isUnread ? chatDanger : chatCyan)
+                          .withValues(alpha: 0.12),
+                      child: Icon(
+                        isUnread
+                            ? Icons.circle_notifications_rounded
+                            : Icons.notifications_none_rounded,
+                        color: isUnread ? chatDanger : chatCyan,
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NotificationRowText(
+                title: displayTitle,
+                subtitle: displaySubtitle,
+                createdAt: notification.createdAt,
               ),
             ),
-      title: Text(
-        displayTitle,
-        style: const TextStyle(fontWeight: FontWeight.w800),
+            if (isFollower && notification.actorId != null) ...[
+              const SizedBox(width: 10),
+              _FollowerActionButton(
+                key: ValueKey(
+                  'follower-action-${notification.id}-$refreshGeneration',
+                ),
+                notification: notification,
+                onNotificationRead: onNotificationRead,
+              ),
+            ],
+          ],
+        ),
       ),
-      subtitle: Text(
-        isFollower
-            ? '$displaySubtitle · ${_formatNotificationTime(notification.createdAt)}'
-            : displaySubtitle,
+    );
+  }
+}
+
+class _NotificationRowText extends StatelessWidget {
+  const _NotificationRowText({
+    required this.title,
+    required this.subtitle,
+    required this.createdAt,
+  });
+
+  final String title;
+  final String subtitle;
+  final DateTime createdAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFF475569),
+            fontSize: 14,
+            height: 1.25,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          _formatNotificationTime(createdAt),
+          style: const TextStyle(
+            color: Color(0xFF94A3B8),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NotificationUnreadDot extends StatelessWidget {
+  const _NotificationUnreadDot({required this.notificationId});
+
+  final String notificationId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: ValueKey('notification-unread-dot-$notificationId'),
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
+        color: chatDanger,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
       ),
-      trailing: isFollower && notification.actorId != null
-          ? _FollowerActionButton(notification: notification)
-          : null,
+    );
+  }
+}
+
+class _NotificationLeadingAvatar extends StatelessWidget {
+  const _NotificationLeadingAvatar({
+    required this.child,
+    required this.isUnread,
+    required this.notificationId,
+  });
+
+  final Widget child;
+  final bool isUnread;
+  final String notificationId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        child,
+        if (isUnread)
+          Positioned(
+            left: -8,
+            child: _NotificationUnreadDot(notificationId: notificationId),
+          ),
+      ],
     );
   }
 }
@@ -439,10 +641,12 @@ class _ActivityFilterDropdown extends StatelessWidget {
 class _ActivityNotificationTile extends StatelessWidget {
   const _ActivityNotificationTile({
     required this.notification,
+    required this.isUnread,
     required this.onTap,
   });
 
   final ChatNotification notification;
+  final bool isUnread;
   final VoidCallback onTap;
 
   @override
@@ -454,7 +658,14 @@ class _ActivityNotificationTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
         child: Row(
           children: [
-            _ActivityAvatar(notification: notification, name: actorName),
+            _NotificationLeadingAvatar(
+              isUnread: isUnread,
+              notificationId: notification.id,
+              child: _ActivityAvatar(
+                notification: notification,
+                name: actorName,
+              ),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -502,7 +713,10 @@ class _ActivityNotificationTile extends StatelessWidget {
 }
 
 class _ActivityAvatar extends StatelessWidget {
-  const _ActivityAvatar({required this.notification, required this.name});
+  const _ActivityAvatar({
+    required this.notification,
+    required this.name,
+  });
 
   final ChatNotification notification;
   final String name;
@@ -600,9 +814,14 @@ class _ActivityPostPreview extends StatelessWidget {
 }
 
 class _FollowerActionButton extends StatefulWidget {
-  const _FollowerActionButton({required this.notification});
+  const _FollowerActionButton({
+    super.key,
+    required this.notification,
+    required this.onNotificationRead,
+  });
 
   final ChatNotification notification;
+  final Future<void> Function() onNotificationRead;
 
   @override
   State<_FollowerActionButton> createState() => _FollowerActionButtonState();
@@ -610,15 +829,19 @@ class _FollowerActionButton extends StatefulWidget {
 
 class _FollowerActionButtonState extends State<_FollowerActionButton> {
   ChatRepository? _repository;
+  ProfileRepository? _profileRepository;
   late Future<bool> _future = _loadFollowingState();
   bool _isBusy = false;
 
   ChatRepository get _repo =>
       _repository ??= ChatRepository(Supabase.instance.client);
 
+  ProfileRepository get _profileRepo =>
+      _profileRepository ??= ProfileRepository(Supabase.instance.client);
+
   Future<bool> _loadFollowingState() async {
     try {
-      return await _repo.isFollowing(widget.notification.actorId!);
+      return await _profileRepo.isFollowing(widget.notification.actorId!);
     } catch (_) {
       return false;
     }
@@ -627,12 +850,22 @@ class _FollowerActionButtonState extends State<_FollowerActionButton> {
   Future<void> _follow() async {
     setState(() => _isBusy = true);
     try {
-      await _repo.followUser(widget.notification.actorId!);
-      if (mounted) setState(() => _future = Future.value(true));
-    } catch (_) {
+      final actorId = widget.notification.actorId!;
+      await _profileRepo.followUser(actorId);
+      try {
+        await widget.onNotificationRead();
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _future = Future.value(true);
+        });
+      }
+    } catch (error) {
+      debugPrint('Follow back failed: $error');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
+          const SnackBar(
+              content: Text('Could not follow back. Please try again.')),
         );
       }
     } finally {
@@ -644,6 +877,9 @@ class _FollowerActionButtonState extends State<_FollowerActionButton> {
     setState(() => _isBusy = true);
     try {
       final actorId = widget.notification.actorId!;
+      try {
+        await widget.onNotificationRead();
+      } catch (_) {}
       final conversationId = await _repo.createDirectConversation(actorId);
       if (!mounted) return;
       await Navigator.of(context).push(
@@ -683,15 +919,15 @@ class _FollowerActionButtonState extends State<_FollowerActionButton> {
           onPressed: _isBusy ? null : (following ? _message : _follow),
           style: OutlinedButton.styleFrom(
             foregroundColor: following ? chatCyan : Colors.white,
-            backgroundColor: following ? Colors.white : chatCyan,
-            side: BorderSide(color: following ? chatCyan : Colors.transparent),
+            backgroundColor: following ? const Color(0xFFF1F5F9) : chatCyan,
+            side: const BorderSide(color: Colors.transparent),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             minimumSize: const Size(78, 36),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(18),
             ),
           ),
-          child: Text(following ? 'Message' : 'Follow'),
+          child: Text(following ? 'Message' : 'Follow back'),
         );
       },
     );

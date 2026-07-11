@@ -186,6 +186,7 @@ class ChatConversation {
 class ChatMessage {
   static const imagePrefix = 'cz-image:';
   static const multiImagePrefix = 'cz-images:';
+  static const sharedPostPrefix = 'cz-post:';
 
   const ChatMessage({
     required this.id,
@@ -212,6 +213,13 @@ class ChatMessage {
   bool get isDeleted => deletedAt != null;
 
   bool get hasImage => !isDeleted && imageUrls.isNotEmpty;
+
+  bool get hasSharedPost => !isDeleted && sharedPost != null;
+
+  ChatSharedPost? get sharedPost {
+    if (isDeleted) return null;
+    return sharedPostFor(body);
+  }
 
   String? get imageUrl {
     final urls = imageUrls;
@@ -306,14 +314,56 @@ class ChatMessage {
     return null;
   }
 
-  String get displayBody => hasImage ? 'Photo' : body;
+  String get displayBody {
+    if (hasImage) return 'Photo';
+    if (hasSharedPost) return 'Post';
+    return body;
+  }
 
   static bool bodyHasImage(String value) {
     return value.startsWith(imagePrefix) || value.startsWith(multiImagePrefix);
   }
 
+  static bool bodyHasSharedPost(String value) {
+    return value.startsWith(sharedPostPrefix);
+  }
+
   static String displayBodyFor(String value) {
-    return bodyHasImage(value) ? 'Photo' : value;
+    if (bodyHasImage(value)) return 'Photo';
+    if (bodyHasSharedPost(value)) return 'Post';
+    return value;
+  }
+
+  static String sharedPostBody({
+    required String postId,
+    required String authorName,
+    String? authorAvatarUrl,
+    required String title,
+    required String content,
+    String? imageUrl,
+  }) {
+    return '$sharedPostPrefix${jsonEncode({
+          'postId': postId,
+          'authorName': authorName,
+          if (_trimmedOrNull(authorAvatarUrl) != null)
+            'authorAvatarUrl': authorAvatarUrl!.trim(),
+          'title': title,
+          'content': content,
+          if (_trimmedOrNull(imageUrl) != null) 'imageUrl': imageUrl!.trim(),
+        })}';
+  }
+
+  static ChatSharedPost? sharedPostFor(String value) {
+    if (!value.startsWith(sharedPostPrefix)) return null;
+    final raw = value.substring(sharedPostPrefix.length).trim();
+    if (raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      return ChatSharedPost.fromMap(decoded);
+    } catch (_) {
+      return null;
+    }
   }
 
   factory ChatMessage.fromMap(
@@ -343,6 +393,37 @@ class ChatMessage {
             map['sender_avatar_url'] ??
             map['senderAvatarUrl'],
       ),
+    );
+  }
+}
+
+class ChatSharedPost {
+  const ChatSharedPost({
+    required this.postId,
+    required this.authorName,
+    required this.title,
+    required this.content,
+    this.authorAvatarUrl,
+    this.imageUrl,
+  });
+
+  final String postId;
+  final String authorName;
+  final String title;
+  final String content;
+  final String? authorAvatarUrl;
+  final String? imageUrl;
+
+  factory ChatSharedPost.fromMap(Map<dynamic, dynamic> map) {
+    return ChatSharedPost(
+      postId: _stringValue(map['postId'] ?? map['post_id']),
+      authorName: _stringValue(map['authorName'] ?? map['author_name']),
+      title: _stringValue(map['title']),
+      content: _stringValue(map['content']),
+      authorAvatarUrl: _nullableStringValue(
+        map['authorAvatarUrl'] ?? map['author_avatar_url'],
+      ),
+      imageUrl: _nullableStringValue(map['imageUrl'] ?? map['image_url']),
     );
   }
 }

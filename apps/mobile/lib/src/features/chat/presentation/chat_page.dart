@@ -22,11 +22,13 @@ class ChatPage extends StatefulWidget {
     this.loadConversations,
     this.loadRequests,
     this.loadCounts,
+    this.onBadgeCountChanged,
   });
 
   final ConversationLoader? loadConversations;
   final ConversationLoader? loadRequests;
   final CountLoader? loadCounts;
+  final ValueChanged<int>? onBadgeCountChanged;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -119,11 +121,18 @@ class _ChatPageState extends State<ChatPage> {
       await _saveCountsCache(counts);
     } catch (_) {}
 
-    return _ChatHomeState(
+    final homeState = _ChatHomeState(
       conversations: conversations,
       requests: requests,
       counts: counts,
     );
+    widget.onBadgeCountChanged?.call(
+      ChatRepository.bottomChatBadgeCount(
+        notificationCounts: counts,
+        conversations: conversations,
+      ),
+    );
+    return homeState;
   }
 
   Future<void> _restoreCachedHome() async {
@@ -363,6 +372,26 @@ class _ChatPageState extends State<ChatPage> {
           builder: (context, snapshot) {
             final state = snapshot.data ?? const _ChatHomeState();
             final conversations = state.conversations;
+            final now = DateTime.now();
+            final recentRequests = state.requests.where((request) {
+              final at = request.lastMessageAt ?? request.createdAt;
+              if (at == null) return true;
+              return at.isAfter(
+                now.subtract(const Duration(days: 30)),
+              );
+            }).toList();
+            final unreadFilterCount = conversations
+                .where((conversation) => conversation.unreadCount > 0)
+                .length;
+            final groupUnreadCount = conversations
+                .where(
+                  (conversation) =>
+                      conversation.isGroup && conversation.unreadCount > 0,
+                )
+                .length;
+            final requestUnreadCount = recentRequests
+                .where((request) => request.unreadCount > 0)
+                .length;
             final searching =
                 ChatRepository.normalizeSearchTerm(_query).isNotEmpty;
             return RefreshIndicator(
@@ -463,20 +492,15 @@ class _ChatPageState extends State<ChatPage> {
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                       child: _MessageFilterBar(
                         selected: _messageFilter,
+                        unreadCount: unreadFilterCount,
+                        groupUnreadCount: groupUnreadCount,
+                        requestUnreadCount: requestUnreadCount,
                         onChanged: (value) =>
                             setState(() => _messageFilter = value),
                       ),
                     ),
                     Builder(
                       builder: (context) {
-                        final now = DateTime.now();
-                        final recentRequests = state.requests.where((request) {
-                          final at = request.lastMessageAt ?? request.createdAt;
-                          if (at == null) return true;
-                          return at.isAfter(
-                            now.subtract(const Duration(days: 30)),
-                          );
-                        }).toList();
                         final visibleConversations = switch (_messageFilter) {
                           _MessageFilter.all => conversations,
                           _MessageFilter.unread => conversations
@@ -516,7 +540,7 @@ class _ChatPageState extends State<ChatPage> {
                                 child: const Text(
                                   'View all chats',
                                   style: TextStyle(
-                                    color: chatNavy,
+                                    color: Color(0xFF128C7E),
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
@@ -590,7 +614,9 @@ class _ChatPageState extends State<ChatPage> {
       ),
     );
     if (!mounted) return;
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+    });
   }
 
   Future<void> _openRoom(ChatConversation conversation) async {
@@ -605,10 +631,16 @@ class _ChatPageState extends State<ChatPage> {
 class _MessageFilterBar extends StatelessWidget {
   const _MessageFilterBar({
     required this.selected,
+    required this.unreadCount,
+    required this.groupUnreadCount,
+    required this.requestUnreadCount,
     required this.onChanged,
   });
 
   final _MessageFilter selected;
+  final int unreadCount;
+  final int groupUnreadCount;
+  final int requestUnreadCount;
   final ValueChanged<_MessageFilter> onChanged;
 
   @override
@@ -625,18 +657,24 @@ class _MessageFilterBar extends StatelessWidget {
           const SizedBox(width: 8),
           _MessageFilterChip(
             label: 'Unread',
+            count: unreadCount,
+            countKey: const ValueKey('message-filter-count-unread'),
             selected: selected == _MessageFilter.unread,
             onTap: () => onChanged(_MessageFilter.unread),
           ),
           const SizedBox(width: 8),
           _MessageFilterChip(
             label: 'Groups',
+            count: groupUnreadCount,
+            countKey: const ValueKey('message-filter-count-groups'),
             selected: selected == _MessageFilter.groups,
             onTap: () => onChanged(_MessageFilter.groups),
           ),
           const SizedBox(width: 8),
           _MessageFilterChip(
             label: 'Requests',
+            count: requestUnreadCount,
+            countKey: const ValueKey('message-filter-count-requests'),
             selected: selected == _MessageFilter.requests,
             onTap: () => onChanged(_MessageFilter.requests),
           ),
@@ -649,11 +687,15 @@ class _MessageFilterBar extends StatelessWidget {
 class _MessageFilterChip extends StatelessWidget {
   const _MessageFilterChip({
     required this.label,
+    this.count,
+    this.countKey,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
+  final int? count;
+  final Key? countKey;
   final bool selected;
   final VoidCallback onTap;
 
@@ -672,12 +714,32 @@ class _MessageFilterChip extends StatelessWidget {
             color: selected ? const Color(0xFF128C7E) : const Color(0xFFE2E8F0),
           ),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? const Color(0xFF128C7E) : const Color(0xFF64748B),
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected
+                    ? const Color(0xFF128C7E)
+                    : const Color(0xFF64748B),
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
+            if (count != null && count! > 0) ...[
+              const SizedBox(width: 6),
+              Text(
+                count.toString(),
+                key: countKey,
+                style: TextStyle(
+                  color: selected
+                      ? const Color(0xFF128C7E)
+                      : const Color(0xFF64748B),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

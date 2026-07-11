@@ -1,27 +1,87 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/errors/friendly_error.dart';
+import '../data/feed_mode.dart';
 import '../data/feed_post.dart';
+import '../data/post_interaction_sync.dart';
+import '../data/post_image_disk_cache.dart';
 import '../data/posts_repository.dart';
+import 'feed_card.dart';
+import 'feed_message.dart';
+import 'post_card_ratio_preloader.dart';
+import 'post_card_skeleton.dart';
+import 'post_waterfall_layout.dart';
 
 class HomeFeedPage extends StatefulWidget {
-  const HomeFeedPage({super.key});
+  const HomeFeedPage({
+    this.feedMode = FeedMode.feeds,
+    this.tagFilters,
+    this.onClearFilters,
+    this.onCreatePost,
+    super.key,
+  });
+
+  final FeedMode feedMode;
+  final List<String>? tagFilters;
+  final VoidCallback? onClearFilters;
+  final VoidCallback? onCreatePost;
 
   @override
   State<HomeFeedPage> createState() => HomeFeedPageState();
 }
 
 class HomeFeedPageState extends State<HomeFeedPage> {
-  late final PostsRepository _repository;
-  late Future<List<FeedPost>> _future;
-  List<FeedPost> _cachedPosts = const [];
+  late PostsRepository _repository;
+  Future<List<FeedPost>>? _future;
+  List<FeedPost> _allPosts = [];
   bool _isRefreshing = false;
+  String? _activePostId;
 
   @override
   void initState() {
     super.initState();
     _repository = PostsRepository(Supabase.instance.client);
-    _future = _repository.fetchFeed();
+    _future = _fetchPosts();
+    PostInteractionSync.latest.addListener(_handlePostInteractionUpdate);
+  }
+
+  @override
+  void dispose() {
+    PostInteractionSync.latest.removeListener(_handlePostInteractionUpdate);
+    super.dispose();
+  }
+
+  void _handlePostInteractionUpdate() {
+    final update = PostInteractionSync.latest.value;
+    if (!mounted || update == null) return;
+    final index = _allPosts.indexWhere((post) => post.id == update.postId);
+    if (index == -1) return;
+    setState(() {
+      _allPosts[index] = update.post;
+    });
+  }
+
+  Future<List<FeedPost>> _fetchPosts() async {
+    final posts = switch (widget.feedMode) {
+      FeedMode.feeds => await _repository.fetchFeed(),
+      FeedMode.following => await _repository.fetchFollowingPosts(),
+      FeedMode.saves => await _repository.fetchSavedPosts(),
+    };
+
+    if (widget.feedMode == FeedMode.feeds) {
+      posts.shuffle(Random());
+    }
+    unawaited(PostCardRatioPreloader.preload(posts));
+    unawaited(
+      PostImageDiskCache.cacheUrls(
+        posts.take(12).expand((post) => post.imageUrls),
+      ),
+    );
+    return posts;
   }
 
   Future<void> refresh() async {
@@ -30,15 +90,51 @@ class HomeFeedPageState extends State<HomeFeedPage> {
     }
     setState(() {
       _isRefreshing = true;
-      _future = _repository.fetchFeed();
+      _future = _fetchPosts();
     });
     try {
-      await _future;
+      final posts = await _future;
+      if (mounted && posts != null) {
+        setState(() {
+          _allPosts = posts;
+        });
+      }
+    } catch (_) {
+      // FutureBuilder renders the offline/error state for the failed fetch.
     } finally {
       if (mounted) {
         setState(() => _isRefreshing = false);
       }
     }
+  }
+
+  Future<void> revealRefreshAndRefresh() async {
+    if (_isRefreshing) return;
+    await Future<void>.delayed(const Duration(milliseconds: 260));
+    await refresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeFeedPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.feedMode != widget.feedMode) {
+      refresh();
+    }
+  }
+
+  List<FeedPost> _getFilteredPosts(List<FeedPost> posts) {
+    final filters = widget.tagFilters;
+    if (filters == null || filters.isEmpty) {
+      return posts;
+    }
+
+    final hasOthers = filters.contains('others');
+    final activeFilters = filters.where((t) => t != 'others').toSet();
+
+    return posts.where((post) {
+      if (post.tags.isEmpty && hasOthers) return true;
+      return post.tags.any((tag) => activeFilters.contains(tag));
+    }).toList();
   }
 
   @override
@@ -47,33 +143,80 @@ class HomeFeedPageState extends State<HomeFeedPage> {
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.hasData) {
-          _cachedPosts = snapshot.data!;
+          _allPosts = snapshot.data ?? [];
         }
 
         if (snapshot.connectionState == ConnectionState.waiting &&
-            _cachedPosts.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
+            _allPosts.isEmpty) {
+          return const _HomeFeedSkeleton();
         }
 
-        if (snapshot.hasError && _cachedPosts.isEmpty) {
-          return _FeedMessage(
+        if (snapshot.hasError) {
+          return FeedMessage(
             icon: Icons.cloud_off_outlined,
-            title: 'Feed needs a quick refresh',
-            message: snapshot.error.toString(),
+            title: friendlyErrorTitle(snapshot.error),
+            message: friendlyErrorMessage(snapshot.error),
             actionLabel: 'Try again',
+            actionIcon: Icons.refresh_rounded,
             onAction: refresh,
+            onRefresh: refresh,
           );
         }
 
-        final posts = snapshot.data ?? _cachedPosts;
-        if (posts.isEmpty) {
-          return _FeedMessage(
-            icon: Icons.auto_stories_outlined,
-            title: 'Create your first learning post',
-            message:
-                'Share notes, questions, diagrams, or study tips. Your post will appear here while it waits for review.',
-            actionLabel: 'Refresh',
-            onAction: refresh,
+        final posts = _getFilteredPosts(_allPosts);
+        if (posts.isEmpty && _allPosts.isNotEmpty) {
+          return FeedMessage(
+            icon: Icons.search_off_rounded,
+            title: 'No posts found for the selected topics',
+            message: 'Try selecting different topics or clear filters.',
+            actionLabel: 'Clear all',
+            actionIcon: Icons.refresh_rounded,
+            onAction: () {
+              widget.onClearFilters?.call();
+            },
+            onRefresh: refresh,
+          );
+        }
+
+        if (_allPosts.isEmpty &&
+            snapshot.connectionState == ConnectionState.done) {
+          String title;
+          String message;
+          IconData icon;
+          String actionLabel = 'Refresh';
+          IconData actionIcon = Icons.refresh_rounded;
+          VoidCallback? onActionOverride;
+
+          switch (widget.feedMode) {
+            case FeedMode.following:
+              title = 'No posts from people you follow';
+              message = 'Follow some users to see their posts here.';
+              icon = Icons.people_outline_rounded;
+              break;
+            case FeedMode.saves:
+              title = 'No saved posts yet';
+              message = 'Explore "Feeds" to find and save interesting content.';
+              icon = Icons.bookmark_border_rounded;
+              break;
+            case FeedMode.feeds:
+              title = 'Create your first post';
+              message =
+                  "Share your notes, questions, or just a happy moment today!";
+              icon = Icons.auto_stories_outlined;
+              actionLabel = 'Create';
+              actionIcon = Icons.add_rounded;
+              onActionOverride = widget.onCreatePost;
+              break;
+          }
+
+          return FeedMessage(
+            icon: icon,
+            title: title,
+            message: message,
+            actionLabel: actionLabel,
+            actionIcon: actionIcon,
+            onAction: onActionOverride ?? refresh,
+            onRefresh: refresh,
           );
         }
 
@@ -82,28 +225,53 @@ class HomeFeedPageState extends State<HomeFeedPage> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              if (snapshot.hasError)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                    child: _InlineWarning(message: snapshot.error.toString()),
-                  ),
-                ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
-                sliver: SliverGrid.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.7,
-                  ),
-                  itemCount: posts.length,
-                  itemBuilder: (context, index) => _FeedCard(
-                    key: ValueKey(posts[index].id),
-                    post: posts[index],
-                  ),
-                ),
+              SliverPostWaterfallGrid(
+                posts: posts,
+                cardBuilder: (context, post) {
+                  return FeedCard(
+                    key: ValueKey('home_post_${post.id}'),
+                    post: post,
+                    heroTag: 'home_post_${post.id}',
+                    showQuickActions: _activePostId == post.id,
+                    onToggleQuickActions: () {
+                      setState(() {
+                        _activePostId =
+                            _activePostId == post.id ? null : post.id;
+                      });
+                    },
+                    onResult: (result) {
+                      setState(() {
+                        final index =
+                            _allPosts.indexWhere((p) => p.id == post.id);
+                        if (index != -1) {
+                          if (result['deleted'] == true) {
+                            _allPosts.removeAt(index);
+                            return;
+                          }
+                          if (result['removeFromDiscovery'] == true) {
+                            _allPosts.removeAt(index);
+                            return;
+                          }
+                          final p = _allPosts[index];
+                          _allPosts[index] = p.copyWith(
+                            likeCount: result['likeCount'] ?? p.likeCount,
+                            dislikeCount:
+                                result['dislikeCount'] ?? p.dislikeCount,
+                            commentCount:
+                                result['commentCount'] ?? p.commentCount,
+                            saveCount: result['saveCount'] ?? p.saveCount,
+                            shareCount: result['shareCount'] ?? p.shareCount,
+                            isLiked: result['isLiked'] ?? p.isLiked,
+                            isDisliked: result['isDisliked'] ?? p.isDisliked,
+                            isSaved: result['isSaved'] ?? p.isSaved,
+                            dislikeHiddenUntil: result['dislikeHiddenUntil'] ??
+                                p.dislikeHiddenUntil,
+                          );
+                        }
+                      });
+                    },
+                  );
+                },
               ),
             ],
           ),
@@ -113,395 +281,16 @@ class HomeFeedPageState extends State<HomeFeedPage> {
   }
 }
 
-class _InlineWarning extends StatelessWidget {
-  const _InlineWarning({required this.message});
-
-  final String message;
+class _HomeFeedSkeleton extends StatelessWidget {
+  const _HomeFeedSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF7E8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFFD89A)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            const Icon(Icons.info_outline_rounded, color: Color(0xFF9A5B00)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Showing cached posts. Refresh issue: $message',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF7A4A00),
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ),
-          ],
-        ),
+    return const SingleChildScrollView(
+      physics: AlwaysScrollableScrollPhysics(),
+      child: PostWaterfallSkeleton(
+        padding: EdgeInsets.fromLTRB(14, 12, 14, 24),
       ),
     );
   }
-}
-
-class _FeedCard extends StatefulWidget {
-  const _FeedCard({required this.post, super.key});
-
-  final FeedPost post;
-
-  @override
-  State<_FeedCard> createState() => _FeedCardState();
-}
-
-class _FeedCardState extends State<_FeedCard> {
-  bool _showQuickActions = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final post = widget.post;
-
-    return Card(
-      elevation: 2,
-      shadowColor: const Color(0x160B1F3E),
-      clipBehavior: Clip.antiAlias,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: Color(0xFFE6F0F1)),
-      ),
-      child: InkWell(
-        onLongPress: () {
-          setState(() => _showQuickActions = !_showQuickActions);
-        },
-        onTap: () {},
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _PostImage(url: post.imageUrls.firstOrNull),
-                  if (post.isPending)
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: _StatusBadge(
-                        label: 'Pending',
-                        icon: Icons.hourglass_top_rounded,
-                      ),
-                    ),
-                  if (_showQuickActions)
-                    Positioned.fill(
-                      child: _QuickActionsOverlay(
-                        onDismiss: () {
-                          setState(() => _showQuickActions = false);
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    post.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      height: 1.18,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 10,
-                        backgroundColor: const Color(0xFFE7F8F5),
-                        child: Text(
-                          post.authorName.characters.first.toUpperCase(),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: const Color(0xFF2C7189),
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          post.authorName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: const Color(0xFF536A74),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const Icon(
-                        Icons.favorite_border_rounded,
-                        size: 15,
-                        color: Color(0xFF6E828A),
-                      ),
-                    ],
-                  ),
-                  if (post.tags.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 5,
-                      runSpacing: 5,
-                      children: post.tags.take(2).map(_MiniTag.new).toList(),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickActionsOverlay extends StatelessWidget {
-  const _QuickActionsOverlay({required this.onDismiss});
-
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: const Color(0x990B1F3E),
-      child: Center(
-        child: Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.center,
-          children: [
-            _QuickActionButton(
-              icon: Icons.sentiment_dissatisfied_rounded,
-              label: 'Dislike',
-              onTap: onDismiss,
-            ),
-            _QuickActionButton(
-              icon: Icons.flag_outlined,
-              label: 'Report',
-              onTap: onDismiss,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickActionButton extends StatelessWidget {
-  const _QuickActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 17, color: const Color(0xFF0B1F3E)),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: const Color(0xFF0B1F3E),
-                      fontWeight: FontWeight.w900,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PostImage extends StatelessWidget {
-  const _PostImage({required this.url});
-
-  final String? url;
-
-  @override
-  Widget build(BuildContext context) {
-    final imageUrl = url;
-    if (imageUrl == null) {
-      return Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFE7FBF5), Color(0xFFDDEFF5)],
-          ),
-        ),
-        child: const Icon(
-          Icons.menu_book_rounded,
-          color: Color(0xFF4490AD),
-          size: 38,
-        ),
-      );
-    }
-
-    return Image.network(
-      imageUrl,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => const ColoredBox(
-        color: Color(0xFFE7F4F6),
-        child: Icon(Icons.broken_image_outlined, color: Color(0xFF4490AD)),
-      ),
-    );
-  }
-}
-
-class _MiniTag extends StatelessWidget {
-  const _MiniTag(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF8F9),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        '#$label',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: const Color(0xFF2C7189),
-              fontWeight: FontWeight.w800,
-            ),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.label,
-    required this.icon,
-  });
-
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: const Color(0xFF9A5B00)),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: const Color(0xFF7A4A00),
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FeedMessage extends StatelessWidget {
-  const _FeedMessage({
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.actionLabel,
-    required this.onAction,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final String actionLabel;
-  final Future<void> Function() onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: onAction,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(28),
-        children: [
-          const SizedBox(height: 72),
-          Icon(icon, size: 54, color: const Color(0xFF4490AD)),
-          const SizedBox(height: 18),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF536A74),
-                  height: 1.45,
-                ),
-          ),
-          const SizedBox(height: 18),
-          Center(
-            child: OutlinedButton.icon(
-              onPressed: onAction,
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text(actionLabel),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-extension _FirstOrNull<T> on List<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }
