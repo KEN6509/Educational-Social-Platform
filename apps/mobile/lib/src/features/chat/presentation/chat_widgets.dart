@@ -1669,14 +1669,18 @@ class _ConversationMentionIndicator extends StatelessWidget {
         color: chatMentionAccent,
         shape: BoxShape.circle,
       ),
-      child: const Text(
-        '@',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 13,
-          height: 1,
-          fontWeight: FontWeight.w900,
+      child: Transform.translate(
+        key: const ValueKey('conversation-mention-glyph'),
+        offset: const Offset(0, -2),
+        child: const Text(
+          '@',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            height: 1,
+            fontWeight: FontWeight.w900,
+          ),
         ),
       ),
     );

@@ -1324,13 +1324,21 @@ class _MentionNavigationButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
-        child: const SizedBox.square(
+        child: SizedBox.square(
           dimension: 42,
           child: Center(
-            child: Icon(
-              Icons.alternate_email_rounded,
-              color: chatMentionAccent,
-              size: 24,
+            child: Transform.translate(
+              key: const ValueKey('mention-navigation-glyph'),
+              offset: const Offset(0, -2),
+              child: const Text(
+                '@',
+                style: TextStyle(
+                  color: chatMentionAccent,
+                  fontSize: 20,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
           ),
         ),
