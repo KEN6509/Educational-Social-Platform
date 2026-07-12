@@ -118,9 +118,9 @@ After implementation and local verification, the user must run the updated `supa
 
 ## Approved Inline-Layout Correction
 
-- The in-room mention-navigation control uses Flutter's vector `alternate_email` icon instead of a text glyph. The icon remains centered inside the existing circular button without font-baseline compensation.
+- The conversation-row mention indicator and in-room mention-navigation control both use a text `@` glyph for a consistent visual language. Each glyph is translated upward by exactly 2 logical pixels for optical centering without moving its circle or touch target.
 - Every structured mention message uses the same inline text-flow behaviour as an ordinary chat message, including `@all`, one or more user mentions, repeated mentions, mentions mixed with ordinary text, and wrapped multi-line content.
 - Mention spans retain their accent styling and tap behaviour while participating in the same line layout as surrounding ordinary text.
 - The timestamp follows the final message content inline when space permits and wraps naturally only when the available bubble width is insufficient.
 - This presentation change does not alter stored mention IDs, recipient deduplication, profile navigation, notification state, or server validation.
-- Widget tests cover the centered vector icon and inline timestamp behaviour for both mention-only and mixed mention/text messages.
+- Widget tests cover the optically centered text glyphs and inline timestamp behaviour for both mention-only and mixed mention/text messages.

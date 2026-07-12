@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Center the room mention-navigation symbol with a vector icon and make all structured mention messages lay out like ordinary text bubbles without losing mention interactions.
+**Goal:** Optically center the shared text `@` symbol in conversation and room navigation controls, and make all structured mention messages lay out like ordinary text bubbles without losing mention interactions.
 
-**Architecture:** Keep mention parsing, persistence, and tap callbacks unchanged. Replace only the structured-mention presentation branch with the ordinary bubble's measured inline timestamp strategy, using `TextPainter` over an equivalent styled `TextSpan`; replace the navigation text glyph with Flutter's centered vector icon.
+**Architecture:** Keep mention parsing, persistence, and tap callbacks unchanged. Replace only the structured-mention presentation branch with the ordinary bubble's measured inline timestamp strategy, using `TextPainter` over an equivalent styled `TextSpan`; render the same text `@` glyph in both mention indicators and translate only the glyph upward by 2 logical pixels.
 
 **Tech Stack:** Flutter, Dart, `flutter_test`
 
@@ -15,18 +15,18 @@
 **Files:**
 - Modify: `apps/mobile/test/chat_widgets_test.dart`
 
-- [ ] **Step 1: Add failing tests for the vector icon and mention layouts**
+- [ ] **Step 1: Add failing tests for the optically centered text glyphs and mention layouts**
 
 Add widget tests that:
 
 ```dart
-expect(
+final transform = tester.widget<Transform>(
   find.descendant(
     of: find.byKey(const ValueKey('mention-navigation-button')),
-    matching: find.byIcon(Icons.alternate_email_rounded),
+    matching: find.byType(Transform),
   ),
-  findsOneWidget,
 );
+expect(transform.transform.getTranslation().y, -2);
 ```
 
 Pump both `@all` and `Hello @Ava again` messages with timestamps and valid `ChatMention` entities. Assert the bubble remains compact, the timestamp shares the mention text's vertical line when space permits, and tapping `@Ava` still invokes the original profile callback.
@@ -39,7 +39,7 @@ Run from `apps/mobile`:
 flutter test test/chat_widgets_test.dart --plain-name "mention"
 ```
 
-Expected: FAIL because the navigation button still renders a text glyph and structured mention timestamps remain in a separate column row.
+Expected: FAIL because neither text glyph has the approved upward translation and structured mention timestamps remain in a separate column row.
 
 - [ ] **Step 3: Commit the failing regression tests**
 
@@ -48,23 +48,24 @@ git add apps/mobile/test/chat_widgets_test.dart
 git commit -m "test: cover inline mention bubble layout"
 ```
 
-### Task 2: Use a centered vector navigation icon
+### Task 2: Optically center the shared text navigation glyph
 
 **Files:**
 - Modify: `apps/mobile/lib/src/features/chat/presentation/chat_room_page.dart:1313`
 - Test: `apps/mobile/test/chat_widgets_test.dart`
 
-- [ ] **Step 1: Replace the text glyph**
+- [ ] **Step 1: Apply the shared text-glyph treatment**
 
-Inside `_MentionNavigationButton`, retain the 42-pixel circular material control and replace its `Text('@')` with:
+Inside `_MentionNavigationButton`, retain the 42-pixel circular material control and render:
 
 ```dart
-const Icon(
-  Icons.alternate_email_rounded,
-  color: chatMentionAccent,
-  size: 24,
+Transform.translate(
+  offset: const Offset(0, -2),
+  child: const Text('@'),
 )
 ```
+
+Apply the same `Transform.translate` to the existing white `@` inside `_ConversationMentionIndicator`, leaving both circles and touch targets unchanged.
 
 - [ ] **Step 2: Run the navigation test**
 
@@ -74,7 +75,7 @@ Run from `apps/mobile`:
 flutter test test/chat_widgets_test.dart --plain-name "room enters oldest mention"
 ```
 
-Expected: PASS, including the vector-icon assertion and existing oldest-first traversal assertion.
+Expected: PASS, including both 2-pixel text-glyph translation assertions and the existing oldest-first traversal assertion.
 
 - [ ] **Step 3: Commit the icon correction**
 
