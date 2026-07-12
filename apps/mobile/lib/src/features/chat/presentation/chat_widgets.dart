@@ -1333,6 +1333,7 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
 
     final timeStyle = _bubbleTimestampStyle();
     final textDirection = Directionality.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
     final measurementMentionSpans =
         mentionSpans == null ? null : _mentionSpans(interactive: false);
     final bodyPainter = TextPainter(
@@ -1342,10 +1343,12 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
         children: measurementMentionSpans,
       ),
       textDirection: textDirection,
+      textScaler: textScaler,
     )..layout(maxWidth: maxWidth);
     final timePainter = TextPainter(
       text: TextSpan(text: time, style: timeStyle),
       textDirection: textDirection,
+      textScaler: textScaler,
     )..layout();
     final lines = bodyPainter.computeLineMetrics();
     final lastLineWidth = lines.isEmpty ? 0.0 : lines.last.width;

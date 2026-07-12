@@ -266,6 +266,48 @@ void main() {
     expect(openedId, 'u1');
   });
 
+  testWidgets('scaled repeated mentions never overlap the timestamp',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(
+          size: Size(280, 600),
+          textScaler: TextScaler.linear(2),
+        ),
+        child: Scaffold(
+          body: ChatMessageBubble(
+            body: '@Ava and @Ava',
+            isMine: false,
+            createdAt: DateTime(2026, 7, 13, 0, 39),
+            mentions: const [
+              ChatMention(
+                userId: 'u1',
+                displayText: '@Ava',
+                start: 0,
+                end: 4,
+              ),
+              ChatMention(
+                userId: 'u1',
+                displayText: '@Ava',
+                start: 9,
+                end: 13,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ));
+
+    final timestampRect = tester.getRect(find.text('12:39 AM'));
+    for (final mention in find.text('@Ava').evaluate()) {
+      expect(
+          tester
+              .getRect(find.byElementPredicate((item) => item == mention))
+              .overlaps(timestampRect),
+          isFalse);
+    }
+  });
+
   testWidgets('conversation mention indicator uses centered theme treatment',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
