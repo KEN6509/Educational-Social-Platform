@@ -332,6 +332,14 @@ void main() {
     final decoration = decorated.decoration! as BoxDecoration;
     expect(decoration.color, const Color(0xFF128C7E));
     expect(decoration.shape, BoxShape.circle);
+    final glyph = tester.widget<Transform>(
+      find.byKey(const ValueKey('conversation-mention-glyph')),
+    );
+    expect(glyph.transform.getTranslation().y, -2);
+    expect(
+      find.descendant(of: indicator, matching: find.text('@')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('room enters oldest mention then @ button visits the next',
@@ -375,10 +383,14 @@ void main() {
     expect(visited, ['m1']);
     expect(find.byKey(const ValueKey('mention-navigation-button')),
         findsOneWidget);
+    final navigationGlyph = tester.widget<Transform>(
+      find.byKey(const ValueKey('mention-navigation-glyph')),
+    );
+    expect(navigationGlyph.transform.getTranslation().y, -2);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('mention-navigation-button')),
-        matching: find.byIcon(Icons.alternate_email_rounded),
+        matching: find.text('@'),
       ),
       findsOneWidget,
     );
