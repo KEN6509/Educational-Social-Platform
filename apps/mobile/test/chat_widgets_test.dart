@@ -44,6 +44,8 @@ void main() {
     ));
 
     expect(find.text('@Ava'), findsNWidgets(2));
+    final mentionText = tester.widget<Text>(find.text('@Ava').first);
+    expect(mentionText.style?.color, const Color(0xFF128C7E));
     await tester.tap(find.byKey(const ValueKey('chat-mention-u1-3')));
     expect(openedId, 'u1');
   });
@@ -101,6 +103,138 @@ void main() {
       find.byKey(const ValueKey('mention-suggestion-u1')),
     );
     expect(allTop.dy, lessThan(memberTop.dy));
+  });
+
+  testWidgets('mention suggestions overlay chat with four-row viewport',
+      (tester) async {
+    const conversation = ChatConversation(
+      id: 'group-overlay',
+      type: ChatConversationType.group,
+      requestStatus: ChatRequestStatus.none,
+      unreadCount: 0,
+      title: 'Study Group',
+    );
+    final participants = List.generate(
+      6,
+      (index) => ChatParticipant(id: 'u$index', name: 'Member $index'),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: ChatRoomPage(
+        conversation: conversation,
+        loadMessages: () async => const [],
+        markRead: (_) async {},
+        canMentionAll: true,
+        mentionParticipants: participants,
+      ),
+    ));
+    final field = find.byType(TextField);
+    final fieldTopBefore = tester.getTopLeft(field).dy;
+
+    await tester.enterText(field, '@');
+    await tester.pump();
+
+    expect(tester.getTopLeft(field).dy, fieldTopBefore);
+    final panel = find.byKey(const ValueKey('mention-suggestions-panel'));
+    expect(panel, findsOneWidget);
+    expect(tester.getSize(panel).height, lessThanOrEqualTo(240));
+    expect(find.byKey(const ValueKey('mention-suggestion-divider-0')),
+        findsOneWidget);
+    final dividerLeft = tester
+        .getTopLeft(find.byKey(const ValueKey('mention-suggestion-divider-0')))
+        .dx;
+    final nameLeft =
+        tester.getTopLeft(find.text('Member 0', skipOffstage: false)).dx;
+    expect(dividerLeft, nameLeft);
+    final allAvatar = tester.widget<CircleAvatar>(
+      find.descendant(
+        of: find.byKey(const ValueKey('mention-all-suggestion')),
+        matching: find.byType(CircleAvatar),
+      ),
+    );
+    expect(allAvatar.backgroundColor, const Color(0xFF128C7E));
+
+    await tester.drag(
+      find.byKey(const ValueKey('mention-suggestions-list')),
+      const Offset(0, -300),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Member 5'), findsOneWidget);
+    await tester.tap(find.text('Member 5'));
+    await tester.pump();
+    expect(tester.widget<TextField>(field).controller?.text, '@Member 5 ');
+
+    await tester.enterText(field, 'First line\nSecond line\nThird line\n@');
+    await tester.pumpAndSettle();
+    final resizedPanel =
+        find.byKey(const ValueKey('mention-suggestions-panel'));
+    expect(
+      tester.getBottomLeft(resizedPanel).dy,
+      lessThanOrEqualTo(tester.getTopLeft(field).dy),
+    );
+
+    expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasFocus,
+        isTrue);
+    await tester.tapAt(const Offset(20, 100));
+    await tester.pump();
+    expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasFocus,
+        isFalse);
+    expect(panel, findsNothing);
+  });
+
+  testWidgets('mention-only bubble shrink-wraps its text', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: ChatMessageBubble(
+          body: '@Ava',
+          isMine: false,
+          mentions: [
+            ChatMention(
+              userId: 'u1',
+              displayText: '@Ava',
+              start: 0,
+              end: 4,
+            ),
+          ],
+        ),
+      ),
+    ));
+
+    final bubble = find.byKey(const ValueKey('chat-message-bubble'));
+    expect(tester.getSize(bubble).width, lessThan(130));
+  });
+
+  testWidgets('conversation mention indicator uses centered theme treatment',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ConversationTile(
+          conversation: const ChatConversation(
+            id: 'styled-indicator',
+            type: ChatConversationType.group,
+            requestStatus: ChatRequestStatus.none,
+            unreadCount: 0,
+            hasUnvisitedMention: true,
+          ),
+          onTap: () {},
+        ),
+      ),
+    ));
+
+    final indicator =
+        find.byKey(const ValueKey('conversation-mention-indicator'));
+    expect(indicator, findsOneWidget);
+    final decorated = tester.widget<Container>(indicator);
+    final decoration = decorated.decoration! as BoxDecoration;
+    expect(decoration.color, const Color(0xFF128C7E));
+    expect(decoration.shape, BoxShape.circle);
   });
 
   testWidgets('room enters oldest mention then @ button visits the next',

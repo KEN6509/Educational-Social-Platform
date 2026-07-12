@@ -67,6 +67,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   final List<Timer> _scrollTimers = <Timer>[];
   final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
   final GlobalKey _unreadDividerKey = GlobalKey();
+  final GlobalKey _composerKey = GlobalKey();
   bool _isSending = false;
   bool _isPickingImage = false;
   bool _initialScrollDone = false;
@@ -76,6 +77,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   String? _mentionQuery;
   String _previousComposerText = '';
   bool _canMentionAll = false;
+  double _composerHeight = 76;
   final Set<String> _selectedMessageIds = <String>{};
   final Map<String, ChatMessage> _selectedMessagesById =
       <String, ChatMessage>{};
@@ -135,6 +137,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   @override
   void didChangeMetrics() {
     _pinToBottomAfterLayout();
+    _scheduleComposerMeasurement();
   }
 
   void _handleInputFocusChanged() {
@@ -312,6 +315,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   }
 
   void _handleComposerChanged(String text) {
+    _scheduleComposerMeasurement();
     _mentionController.reconcile(
       previousText: _previousComposerText,
       text: text,
@@ -324,6 +328,17 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     if (query != _mentionQuery && mounted) {
       setState(() => _mentionQuery = query);
     }
+  }
+
+  void _scheduleComposerMeasurement() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _composerKey.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) return;
+      final height = box.size.height;
+      if ((height - _composerHeight).abs() < 0.5) return;
+      setState(() => _composerHeight = height);
+    });
   }
 
   void _insertMention(ChatParticipant? participant, {bool all = false}) {
@@ -518,6 +533,13 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => ProfilePage(userId: userId)),
     );
+  }
+
+  void _dismissComposer() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (_mentionQuery != null && mounted) {
+      setState(() => _mentionQuery = null);
+    }
   }
 
   Future<void> _sendImage() async {
@@ -971,153 +993,168 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                   const SizedBox(width: 6),
                 ],
               ),
-        body: Column(
-          children: [
-            Expanded(
-              child: FutureBuilder<List<ChatMessage>>(
-                future: _messagesFuture,
-                builder: (context, snapshot) {
-                  final messages = List<ChatMessage>.of(
-                    snapshot.data ?? _cachedRoomMessages,
-                  )..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-                  _scheduleInitialMessagePosition(messages);
-                  if (messages.isEmpty) {
-                    return _WhatsAppRoomBackground(
-                      child: _conversation.isGroup
-                          ? _MessageList(
-                              messages: const [],
-                              conversation: _conversation,
-                              currentUserId: _currentUserId,
-                              scrollController: _messageScrollController,
-                              selectedMessageIds: _selectedMessageIds,
-                              messageKeys: _messageKeys,
-                              unreadDividerKey: _unreadDividerKey,
-                              onMessageTap: _toggleSelectedMessage,
-                              onMessageLongPress: _selectMessage,
-                              onSharedPostTap: _openSharedPost,
-                              onMentionTap: _openMentionProfile,
-                            )
-                          : const Center(
-                              child: Text('Say hi with a kind message.'),
-                            ),
-                    );
-                  }
-
-                  return _WhatsAppRoomBackground(
-                    child: Stack(
-                      children: [
-                        _MessageList(
-                          messages: messages,
-                          conversation: _conversation,
-                          currentUserId: _currentUserId,
-                          scrollController: _messageScrollController,
-                          selectedMessageIds: _selectedMessageIds,
-                          messageKeys: _messageKeys,
-                          unreadDividerKey: _unreadDividerKey,
-                          onMessageTap: _toggleSelectedMessage,
-                          onMessageLongPress: _selectMessage,
-                          onSharedPostTap: _openSharedPost,
-                          onMentionTap: _openMentionProfile,
-                        ),
-                        if (_unvisitedMentionMessageIds.isNotEmpty)
-                          Positioned(
-                            key: const ValueKey('mention-navigation-button'),
-                            right: 16,
-                            bottom: _showJumpToBottom ? 66 : 14,
-                            child: _MentionNavigationButton(
-                              onTap: _visitNextMention,
-                            ),
-                          ),
-                        if (_showJumpToBottom)
-                          Positioned(
-                            key: const ValueKey('jump-to-bottom-button'),
-                            right: 16,
-                            bottom: 14,
-                            child: _JumpToBottomButton(
-                              onTap: () => _scrollToLatest(jump: false),
-                            ),
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: _dismissComposer,
+          child: Stack(
+            children: [
+              Positioned.fill(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (_mentionQuery != null && _conversation.isGroup)
-                      _MentionSuggestionsPanel(
-                        participants: _filteredMentionParticipants,
-                        showAll: _canMentionAll &&
-                            ('all'.startsWith(
-                              (_mentionQuery ?? '').toLowerCase(),
-                            )),
-                        onMemberTap: _insertMention,
-                        onAllTap: () => _insertMention(null, all: true),
+                    Expanded(
+                      child: FutureBuilder<List<ChatMessage>>(
+                        future: _messagesFuture,
+                        builder: (context, snapshot) {
+                          final messages = List<ChatMessage>.of(
+                            snapshot.data ?? _cachedRoomMessages,
+                          )..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+                          _scheduleInitialMessagePosition(messages);
+                          if (messages.isEmpty) {
+                            return _WhatsAppRoomBackground(
+                              child: _conversation.isGroup
+                                  ? _MessageList(
+                                      messages: const [],
+                                      conversation: _conversation,
+                                      currentUserId: _currentUserId,
+                                      scrollController:
+                                          _messageScrollController,
+                                      selectedMessageIds: _selectedMessageIds,
+                                      messageKeys: _messageKeys,
+                                      unreadDividerKey: _unreadDividerKey,
+                                      onMessageTap: _toggleSelectedMessage,
+                                      onMessageLongPress: _selectMessage,
+                                      onSharedPostTap: _openSharedPost,
+                                      onMentionTap: _openMentionProfile,
+                                    )
+                                  : const Center(
+                                      child:
+                                          Text('Say hi with a kind message.'),
+                                    ),
+                            );
+                          }
+
+                          return _WhatsAppRoomBackground(
+                            child: Stack(
+                              children: [
+                                _MessageList(
+                                  messages: messages,
+                                  conversation: _conversation,
+                                  currentUserId: _currentUserId,
+                                  scrollController: _messageScrollController,
+                                  selectedMessageIds: _selectedMessageIds,
+                                  messageKeys: _messageKeys,
+                                  unreadDividerKey: _unreadDividerKey,
+                                  onMessageTap: _toggleSelectedMessage,
+                                  onMessageLongPress: _selectMessage,
+                                  onSharedPostTap: _openSharedPost,
+                                  onMentionTap: _openMentionProfile,
+                                ),
+                                if (_unvisitedMentionMessageIds.isNotEmpty)
+                                  Positioned(
+                                    key: const ValueKey(
+                                        'mention-navigation-button'),
+                                    right: 16,
+                                    bottom: _showJumpToBottom ? 66 : 14,
+                                    child: _MentionNavigationButton(
+                                      onTap: _visitNextMention,
+                                    ),
+                                  ),
+                                if (_showJumpToBottom)
+                                  Positioned(
+                                    key:
+                                        const ValueKey('jump-to-bottom-button'),
+                                    right: 16,
+                                    bottom: 14,
+                                    child: _JumpToBottomButton(
+                                      onTap: () => _scrollToLatest(jump: false),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        SizedBox.square(
-                          dimension: 44,
-                          child: IconButton(
-                            onPressed: _isPickingImage ? null : _sendImage,
-                            icon: Icon(
-                              _isPickingImage
-                                  ? Icons.hourglass_empty_rounded
-                                  : Icons.image_outlined,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            focusNode: _inputFocusNode,
-                            minLines: 1,
-                            maxLines: 4,
-                            onChanged: _handleComposerChanged,
-                            decoration: InputDecoration(
-                              hintText: 'Message...',
-                              filled: true,
-                              fillColor: chatInput,
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(22),
-                                borderSide: BorderSide.none,
+                    ),
+                    SafeArea(
+                      key: _composerKey,
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            SizedBox.square(
+                              dimension: 44,
+                              child: IconButton(
+                                onPressed: _isPickingImage ? null : _sendImage,
+                                icon: Icon(
+                                  _isPickingImage
+                                      ? Icons.hourglass_empty_rounded
+                                      : Icons.image_outlined,
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox.square(
-                          dimension: 44,
-                          child: IconButton(
-                            onPressed: _isSending ? null : _send,
-                            color: const Color(0xFF128C7E),
-                            icon: Icon(
-                              _isSending
-                                  ? Icons.hourglass_empty_rounded
-                                  : Icons.send_rounded,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                controller: _controller,
+                                focusNode: _inputFocusNode,
+                                minLines: 1,
+                                maxLines: 4,
+                                onChanged: _handleComposerChanged,
+                                decoration: InputDecoration(
+                                  hintText: 'Message...',
+                                  filled: true,
+                                  fillColor: chatInput,
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            SizedBox.square(
+                              dimension: 44,
+                              child: IconButton(
+                                onPressed: _isSending ? null : _send,
+                                color: const Color(0xFF128C7E),
+                                icon: Icon(
+                                  _isSending
+                                      ? Icons.hourglass_empty_rounded
+                                      : Icons.send_rounded,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              if (_mentionQuery != null && _conversation.isGroup)
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: _composerHeight,
+                  child: _MentionSuggestionsPanel(
+                    participants: _filteredMentionParticipants,
+                    showAll: _canMentionAll &&
+                        ('all'.startsWith(
+                          (_mentionQuery ?? '').toLowerCase(),
+                        )),
+                    onMemberTap: _insertMention,
+                    onAllTap: () => _insertMention(null, all: true),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -1293,8 +1330,9 @@ class _MentionNavigationButton extends StatelessWidget {
             child: Text(
               '@',
               style: TextStyle(
-                color: Color(0xFF166534),
+                color: chatMentionAccent,
                 fontSize: 20,
+                height: 1,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -1321,41 +1359,131 @@ class _MentionSuggestionsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!showAll && participants.isEmpty) return const SizedBox.shrink();
+    final rowCount = participants.length + (showAll ? 1 : 0);
+    final panelHeight = (rowCount > 4 ? 4 : rowCount) * 60.0;
     return Container(
-      constraints: const BoxConstraints(maxHeight: 250),
-      margin: const EdgeInsets.only(bottom: 8),
+      key: const ValueKey('mention-suggestions-panel'),
+      height: panelHeight,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: chatBorder),
-      ),
-      child: ListView(
-        shrinkWrap: true,
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        children: [
-          if (showAll)
-            ListTile(
-              key: const ValueKey('mention-all-suggestion'),
-              dense: true,
-              leading: const CircleAvatar(child: Text('@')),
-              title: const Text('@all',
-                  style: TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: const Text('Notify every group member'),
-              onTap: onAllTap,
-            ),
-          ...participants.map((person) => ListTile(
-                key: ValueKey('mention-suggestion-${person.id}'),
-                dense: true,
-                leading: ChatAvatar(
-                  name: person.name,
-                  avatarUrl: person.avatarUrl,
-                  size: 36,
-                ),
-                title: Text(person.name,
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                onTap: () => onMemberTap(person),
-              )),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
         ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ListView.separated(
+        key: const ValueKey('mention-suggestions-list'),
+        padding: EdgeInsets.zero,
+        itemCount: rowCount,
+        separatorBuilder: (context, index) => Padding(
+          padding: const EdgeInsets.only(left: 64),
+          child: Divider(
+            key: ValueKey('mention-suggestion-divider-$index'),
+            height: 1,
+            thickness: 1,
+            color: const Color(0xFFF1F5F9),
+          ),
+        ),
+        itemBuilder: (context, index) {
+          if (showAll && index == 0) {
+            return _MentionSuggestionRow(
+              key: const ValueKey('mention-all-suggestion'),
+              avatar: const CircleAvatar(
+                radius: 20,
+                backgroundColor: chatMentionAccent,
+                child: Text(
+                  '@',
+                  style: TextStyle(
+                    color: Colors.white,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              title: '@all',
+              subtitle: 'Notify every group member',
+              onTap: onAllTap,
+            );
+          }
+          final person = participants[index - (showAll ? 1 : 0)];
+          return _MentionSuggestionRow(
+            key: ValueKey('mention-suggestion-${person.id}'),
+            avatar: ChatAvatar(
+              name: person.name,
+              avatarUrl: person.avatarUrl,
+              size: 40,
+            ),
+            title: person.name,
+            onTap: () => onMemberTap(person),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MentionSuggestionRow extends StatelessWidget {
+  const _MentionSuggestionRow({
+    super.key,
+    required this.avatar,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final Widget avatar;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        height: 59,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              SizedBox.square(dimension: 40, child: avatar),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: chatNavy,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (subtitle != null)
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

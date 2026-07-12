@@ -19,6 +19,7 @@ const chatMineBubble = Color(0xFFD9FDD3);
 const chatOtherBubble = Colors.white;
 const chatSoftGrey = Color(0xFFF8FAFC);
 const chatPreviewBackground = Color(0xFFF1F3F5);
+const chatMentionAccent = Color(0xFF128C7E);
 
 const chatAppBarTitleStyle = TextStyle(
   color: chatNavy,
@@ -260,6 +261,7 @@ class ChatMessageBubble extends StatelessWidget {
             onLongPress: onLongPress,
             behavior: HitTestBehavior.opaque,
             child: Container(
+              key: const ValueKey('chat-message-bubble'),
               margin: const EdgeInsets.symmetric(vertical: 3),
               padding: EdgeInsets.symmetric(
                 horizontal: hasRichContent ? 4 : 13,
@@ -293,7 +295,7 @@ class ChatMessageBubble extends StatelessWidget {
                       child: Text(
                         senderName!,
                         style: const TextStyle(
-                          color: Color(0xFF128C7E),
+                          color: chatMentionAccent,
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
@@ -1327,6 +1329,7 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
         children: [
           Align(
             alignment: Alignment.centerLeft,
+            widthFactor: 1,
             child:
                 Text.rich(TextSpan(style: _bodyStyle, children: mentionSpans)),
           ),
@@ -1422,7 +1425,7 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
           child: Text(
             mention.displayText,
             style: _bodyStyle.copyWith(
-              color: const Color(0xFF166534),
+              color: chatMentionAccent,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1612,14 +1615,7 @@ class _ConversationPreviewLine extends StatelessWidget {
           ),
           if (hasMention || unreadCount > 0) const SizedBox(width: 8),
           if (hasMention) ...[
-            const Text(
-              '@',
-              key: ValueKey('conversation-mention-indicator'),
-              style: TextStyle(
-                color: Color(0xFF166534),
-                fontWeight: FontWeight.w900,
-              ),
-            ),
+            const _ConversationMentionIndicator(),
             if (unreadCount > 0) const SizedBox(width: 6),
           ],
           if (unreadCount > 0) UnreadBadge(count: unreadCount),
@@ -1645,18 +1641,39 @@ class _ConversationPreviewLine extends StatelessWidget {
         ),
         if (hasMention || unreadCount > 0) const SizedBox(width: 8),
         if (hasMention) ...[
-          const Text(
-            '@',
-            key: ValueKey('conversation-mention-indicator'),
-            style: TextStyle(
-              color: Color(0xFF166534),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          const _ConversationMentionIndicator(),
           if (unreadCount > 0) const SizedBox(width: 6),
         ],
         if (unreadCount > 0) UnreadBadge(count: unreadCount),
       ],
+    );
+  }
+}
+
+class _ConversationMentionIndicator extends StatelessWidget {
+  const _ConversationMentionIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('conversation-mention-indicator'),
+      width: 20,
+      height: 20,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: chatMentionAccent,
+        shape: BoxShape.circle,
+      ),
+      child: const Text(
+        '@',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 13,
+          height: 1,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 }
