@@ -1322,29 +1322,25 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mentionSpans = _mentionSpans();
-    if (mentionSpans != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            widthFactor: 1,
-            child:
-                Text.rich(TextSpan(style: _bodyStyle, children: mentionSpans)),
-          ),
-          if (time != null) Text(time!, style: _bubbleTimestampStyle()),
-        ],
-      );
-    }
+    final bodySpan = TextSpan(
+      text: mentionSpans == null ? body : null,
+      style: _bodyStyle,
+      children: mentionSpans,
+    );
     if (time == null) {
-      return Text(body, style: _bodyStyle);
+      return Text.rich(bodySpan);
     }
 
     final timeStyle = _bubbleTimestampStyle();
     final textDirection = Directionality.of(context);
+    final measurementMentionSpans =
+        mentionSpans == null ? null : _mentionSpans(interactive: false);
     final bodyPainter = TextPainter(
-      text: TextSpan(text: body, style: _bodyStyle),
+      text: TextSpan(
+        text: measurementMentionSpans == null ? body : null,
+        style: _bodyStyle,
+        children: measurementMentionSpans,
+      ),
       textDirection: textDirection,
     )..layout(maxWidth: maxWidth);
     final timePainter = TextPainter(
@@ -1370,7 +1366,7 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            Text(body, style: _bodyStyle),
+            Text.rich(bodySpan),
             Positioned(
               right: 0,
               bottom: 1,
@@ -1387,7 +1383,7 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: Text(body, style: _bodyStyle),
+          child: Text.rich(bodySpan),
         ),
         const SizedBox(height: 1),
         Text(time!, style: timeStyle),
@@ -1395,7 +1391,7 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
     );
   }
 
-  List<InlineSpan>? _mentionSpans() {
+  List<InlineSpan>? _mentionSpans({bool interactive = true}) {
     final valid = mentions.where((mention) => mention.matches(body)).toList()
       ..sort((a, b) => a.start.compareTo(b.start));
     final unique = <ChatMention>[];
@@ -1412,6 +1408,15 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
       if (mention.start > cursor) {
         spans.add(TextSpan(text: body.substring(cursor, mention.start)));
       }
+      final mentionStyle = _bodyStyle.copyWith(
+        color: chatMentionAccent,
+        fontWeight: FontWeight.w800,
+      );
+      if (!interactive) {
+        spans.add(TextSpan(text: mention.displayText, style: mentionStyle));
+        cursor = mention.end;
+        continue;
+      }
       spans.add(WidgetSpan(
         alignment: PlaceholderAlignment.baseline,
         baseline: TextBaseline.alphabetic,
@@ -1424,10 +1429,7 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
               : () => onMentionTap!(mention.userId),
           child: Text(
             mention.displayText,
-            style: _bodyStyle.copyWith(
-              color: chatMentionAccent,
-              fontWeight: FontWeight.w800,
-            ),
+            style: mentionStyle,
           ),
         ),
       ));
