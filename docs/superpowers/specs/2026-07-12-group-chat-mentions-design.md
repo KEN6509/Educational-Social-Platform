@@ -115,3 +115,12 @@ After implementation and local verification, the user must run the updated `supa
 - The conversation mention indicator is a centered white `@` on a `#128C7E` circular background.
 - The in-room mention-navigation `@` is optically centered.
 - Mention-only message bubbles shrink-wrap their content instead of expanding to the maximum bubble width.
+
+## Approved Inline-Layout Correction
+
+- The in-room mention-navigation control uses Flutter's vector `alternate_email` icon instead of a text glyph. The icon remains centered inside the existing circular button without font-baseline compensation.
+- Every structured mention message uses the same inline text-flow behaviour as an ordinary chat message, including `@all`, one or more user mentions, repeated mentions, mentions mixed with ordinary text, and wrapped multi-line content.
+- Mention spans retain their accent styling and tap behaviour while participating in the same line layout as surrounding ordinary text.
+- The timestamp follows the final message content inline when space permits and wraps naturally only when the available bubble width is insufficient.
+- This presentation change does not alter stored mention IDs, recipient deduplication, profile navigation, notification state, or server validation.
+- Widget tests cover the centered vector icon and inline timestamp behaviour for both mention-only and mixed mention/text messages.
