@@ -211,6 +211,61 @@ void main() {
     expect(tester.getSize(bubble).width, lessThan(130));
   });
 
+  testWidgets('mention-only timestamp shares the final text line',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ChatMessageBubble(
+          body: '@all',
+          isMine: false,
+          createdAt: DateTime(2026, 7, 13, 0, 37),
+          mentions: const [
+            ChatMention(
+              userId: '',
+              displayText: '@all',
+              start: 0,
+              end: 4,
+              isAll: true,
+            ),
+          ],
+        ),
+      ),
+    ));
+
+    final mentionTop = tester.getTopLeft(find.text('@all')).dy;
+    final timestampTop = tester.getTopLeft(find.text('12:37 AM')).dy;
+    expect((timestampTop - mentionTop).abs(), lessThan(8));
+  });
+
+  testWidgets('mixed mention text uses normal inline layout and stays tappable',
+      (tester) async {
+    String? openedId;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ChatMessageBubble(
+          body: 'Hello @Ava again',
+          isMine: false,
+          createdAt: DateTime(2026, 7, 13, 0, 38),
+          mentions: const [
+            ChatMention(
+              userId: 'u1',
+              displayText: '@Ava',
+              start: 6,
+              end: 10,
+            ),
+          ],
+          onMentionTap: (id) => openedId = id,
+        ),
+      ),
+    ));
+
+    final messageTop = tester.getTopLeft(find.text('@Ava')).dy;
+    final timestampTop = tester.getTopLeft(find.text('12:38 AM')).dy;
+    expect((timestampTop - messageTop).abs(), lessThan(8));
+    await tester.tap(find.byKey(const ValueKey('chat-mention-u1-6')));
+    expect(openedId, 'u1');
+  });
+
   testWidgets('conversation mention indicator uses centered theme treatment',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
@@ -278,6 +333,13 @@ void main() {
     expect(visited, ['m1']);
     expect(find.byKey(const ValueKey('mention-navigation-button')),
         findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('mention-navigation-button')),
+        matching: find.byIcon(Icons.alternate_email_rounded),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(
       find.byKey(const ValueKey('mention-navigation-button')),
     );
