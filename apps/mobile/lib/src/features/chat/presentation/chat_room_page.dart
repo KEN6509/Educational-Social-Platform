@@ -1327,14 +1327,10 @@ class _MentionNavigationButton extends StatelessWidget {
         child: const SizedBox.square(
           dimension: 42,
           child: Center(
-            child: Text(
-              '@',
-              style: TextStyle(
-                color: chatMentionAccent,
-                fontSize: 20,
-                height: 1,
-                fontWeight: FontWeight.w900,
-              ),
+            child: Icon(
+              Icons.alternate_email_rounded,
+              color: chatMentionAccent,
+              size: 24,
             ),
           ),
         ),
