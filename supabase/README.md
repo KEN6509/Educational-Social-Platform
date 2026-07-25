@@ -121,12 +121,17 @@ Run `follow.sql` after `schema.sql`, then run `comment_mentions.sql`, then run `
 - Chat RPC helpers for conversations, messages, read state, and clearing chats
 - Notification preferences and notifications
 - Activity notification triggers for follows, likes, saves, comments, and mentions
+- System notification triggers for creator badges and rejected posts
+- Rejected-post appeal storage and submission validation
 - RLS policies and realtime publication entries for chat/notification tables
 - Structured group-chat mentions, admin-only `@all`, and per-recipient mention visit state
 
-After pulling the group-mention implementation, run the updated
-`supabase/chat.sql` in the Supabase SQL Editor. The script is idempotent for
-schema objects, but inspect any SQL Editor error before rerunning it.
+After pulling the group-mention or MVP System Notification implementation, run
+the full updated `supabase/chat.sql` in the Supabase SQL Editor. Apply it only
+after `schema.sql`, `follow.sql`, and `comment_mentions.sql`. The script is
+idempotent for schema objects, but inspect any SQL Editor error before rerunning
+it. Do not run only a copied fragment because the functions, policies, grants,
+and triggers are designed to be applied together.
 
 Verify the mention objects:
 
@@ -146,6 +151,48 @@ where routine_schema = 'public'
   )
 order by routine_name;
 ```
+
+Verify the MVP System Notification and appeal objects:
+
+```sql
+select to_regclass('public.post_appeals') as post_appeals_table;
+
+select trigger_name, event_object_table
+from information_schema.triggers
+where trigger_schema = 'public'
+  and trigger_name in (
+    'notify_content_creator_awarded_on_update',
+    'notify_post_rejected_on_update'
+  )
+order by trigger_name;
+
+select policyname, tablename, cmd
+from pg_policies
+where schemaname = 'public'
+  and (
+    policyname = 'Users delete own notifications'
+    or policyname = 'Users view own post appeals'
+  )
+order by policyname;
+
+select routine_name
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name = 'submit_post_appeal';
+```
+
+Expected results:
+
+- `post_appeals_table` is `public.post_appeals`.
+- Both notification triggers are present, one on `profiles` and one on `posts`.
+- The notification Delete and appeal Select policies are present.
+- `submit_post_appeal` returns one routine row.
+
+Existing creator badges and rejected posts are not backfilled. To verify live
+generation, use a test account and create a new state transition after applying
+the SQL: change `is_content_creator` from false to true, or change a post from a
+non-rejected status to `rejected`. Re-saving the same final state does not create
+another notification.
 
 ### Chat activity notification triggers
 
