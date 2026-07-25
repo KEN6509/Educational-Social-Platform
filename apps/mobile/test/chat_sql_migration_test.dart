@@ -179,4 +179,29 @@ void main() {
     expect(sql, contains("cm.status = 'active'"));
     expect(sql, contains('on delete cascade'));
   });
+
+  test('chat SQL defines MVP system notifications and post appeals', () {
+    final sql = File('../../supabase/chat.sql').readAsStringSync();
+
+    expect(
+      sql,
+      contains('create table if not exists public.post_appeals'),
+    );
+    expect(
+      sql,
+      contains('char_length(btrim(reason)) between 20 and 500'),
+    );
+    expect(sql, contains('unique (post_id, user_id)'));
+    expect(sql, contains('submit_post_appeal'));
+    expect(sql, contains("new.moderation_status = 'rejected'"));
+    expect(
+      sql,
+      contains('old.is_content_creator is distinct from true'),
+    );
+    expect(sql, contains('system_enabled'));
+    expect(sql, contains('Users delete own notifications'));
+    expect(sql, contains("'creator_badge_awarded'"));
+    expect(sql, contains("'post_rejected'"));
+    expect(sql, contains("'scheduled_deletion_at'"));
+  });
 }

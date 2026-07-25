@@ -113,6 +113,22 @@ create table if not exists public.notifications (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.post_appeals (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  reason text not null
+    check (char_length(btrim(reason)) between 20 and 500),
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'rejected')),
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  admin_note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (post_id, user_id)
+);
+
 alter table public.notification_preferences add column if not exists in_app_enabled boolean not null default true;
 
 alter table public.notification_preferences add column if not exists chat_enabled boolean not null default true;
@@ -200,6 +216,9 @@ create index if not exists notifications_user_unread_idx
 on public.notifications (user_id, created_at desc)
 where read_at is null;
 
+create index if not exists post_appeals_status_created_idx
+on public.post_appeals (status, created_at desc);
+
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
@@ -218,6 +237,11 @@ for each row execute function public.touch_updated_at();
 drop trigger if exists touch_notification_preferences_updated_at on public.notification_preferences;
 create trigger touch_notification_preferences_updated_at
 before update on public.notification_preferences
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists touch_post_appeals_updated_at on public.post_appeals;
+create trigger touch_post_appeals_updated_at
+before update on public.post_appeals
 for each row execute function public.touch_updated_at();
 
 create or replace function public.chat_users_have_relationship(left_user uuid, right_user uuid)
@@ -1507,6 +1531,178 @@ begin
 end;
 $$;
 
+create or replace function public.submit_post_appeal(
+  p_post_id uuid,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_current_user uuid := auth.uid();
+  v_reason text := btrim(coalesce(p_reason, ''));
+begin
+  if v_current_user is null then
+    raise exception 'Authentication required';
+  end if;
+
+  if char_length(v_reason) not between 20 and 500 then
+    raise exception 'Appeal reason must be between 20 and 500 characters';
+  end if;
+
+  if not exists (
+    select 1
+    from public.posts p
+    where p.id = p_post_id
+      and p.author_id = v_current_user
+      and p.moderation_status = 'rejected'
+  ) then
+    raise exception 'Only the author can appeal a rejected post';
+  end if;
+
+  if exists (
+    select 1
+    from public.post_appeals pa
+    where pa.post_id = p_post_id
+      and pa.user_id = v_current_user
+  ) then
+    raise exception 'An appeal has already been submitted for this post';
+  end if;
+
+  insert into public.post_appeals (post_id, user_id, reason)
+  values (p_post_id, v_current_user, v_reason);
+end;
+$$;
+
+create or replace function public.notify_content_creator_awarded()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.is_content_creator is distinct from true
+    and new.is_content_creator = true
+  then
+    insert into public.notifications (
+      user_id,
+      type,
+      title,
+      body,
+      action_type,
+      action_payload
+    )
+    select
+      new.id,
+      'system',
+      'You are now a verified content creator',
+      format(
+        E'Hi %s,\n\nWe appreciate the time and effort you have invested in sharing valuable content with the CyanZone community. We are pleased to let you know that you have been awarded the Content Creator badge and are now a verified CyanZone creator.\n\nOur creator programme is still growing. We are planning creator benefits and developing tools such as content analytics, data visualisation, music support, and additional photo-editing options.\n\nCyanZone will continue improving these tools, and we hope you will continue creating content that makes the community more useful, welcoming, and inspiring.\n\nCongratulations, and thank you for being an active part of CyanZone.',
+        new.name
+      ),
+      'none',
+      jsonb_build_object('template_type', 'creator_badge_awarded')
+    where coalesce((
+      select np.in_app_enabled and np.system_enabled
+      from public.notification_preferences np
+      where np.user_id = new.id
+    ), true)
+      and not exists (
+        select 1
+        from public.notifications existing
+        where existing.user_id = new.id
+          and existing.type = 'system'
+          and existing.action_payload->>'template_type' =
+              'creator_badge_awarded'
+      );
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace function public.notify_post_rejected()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_author_name text;
+  v_evidence text;
+  v_rejected_at timestamptz := coalesce(new.reviewed_at, now());
+  v_deletion_at timestamptz := v_rejected_at + interval '7 days';
+begin
+  if old.moderation_status is distinct from 'rejected'
+    and new.moderation_status = 'rejected'
+  then
+    select p.name
+    into v_author_name
+    from public.profiles p
+    where p.id = new.author_id;
+
+    v_evidence := coalesce(
+      nullif(btrim(new.moderation_reason), ''),
+      case
+        when new.ai_toxicity_score is not null
+          then format(
+            'AI moderation score: %s',
+            new.ai_toxicity_score
+          )
+        else 'No additional moderation evidence was provided.'
+      end
+    );
+
+    insert into public.notifications (
+      user_id,
+      type,
+      post_id,
+      title,
+      body,
+      action_type,
+      action_payload
+    )
+    select
+      new.author_id,
+      'system',
+      new.id,
+      'Your post was not approved',
+      format(
+        E'Hi %s,\n\nUnfortunately, your post “%s” was not approved because our moderation system detected content that may not be suitable for CyanZone.\n\nEvidence from moderation:\n%s\n\nYour post will remain in rejected status for seven days and is scheduled for removal on %s. You may edit the content and publish a revised post, or submit an appeal if you believe the moderation result is inaccurate.\n\nAppeals are sent to the CyanZone administration team for careful review. We will notify you when a future moderation workflow records the outcome.\n\nThank you for contributing to CyanZone. We hope you continue creating thoughtful and valuable content for the community.',
+        coalesce(v_author_name, 'CyanZone creator'),
+        new.title,
+        v_evidence,
+        to_char(v_deletion_at, 'FMMonth DD, YYYY')
+      ),
+      'open_rejected_post',
+      jsonb_build_object(
+        'template_type', 'post_rejected',
+        'post_title', new.title,
+        'moderation_evidence', v_evidence,
+        'rejected_at', v_rejected_at,
+        'scheduled_deletion_at', v_deletion_at
+      )
+    where coalesce((
+      select np.in_app_enabled and np.system_enabled
+      from public.notification_preferences np
+      where np.user_id = new.author_id
+    ), true)
+      and not exists (
+        select 1
+        from public.notifications existing
+        where existing.user_id = new.author_id
+          and existing.type = 'system'
+          and existing.post_id = new.id
+          and existing.action_payload->>'template_type' = 'post_rejected'
+      );
+  end if;
+
+  return new;
+end;
+$$;
+
 drop trigger if exists notify_new_follower_on_insert on public.follows;
 create trigger notify_new_follower_on_insert
 after insert on public.follows
@@ -1532,12 +1728,24 @@ create trigger notify_comment_like_on_insert
 after insert on public.comment_likes
 for each row execute function public.notify_comment_like();
 
+drop trigger if exists notify_content_creator_awarded_on_update
+on public.profiles;
+create trigger notify_content_creator_awarded_on_update
+after update of is_content_creator on public.profiles
+for each row execute function public.notify_content_creator_awarded();
+
+drop trigger if exists notify_post_rejected_on_update on public.posts;
+create trigger notify_post_rejected_on_update
+after update of moderation_status on public.posts
+for each row execute function public.notify_post_rejected();
+
 alter table public.chat_conversations enable row level security;
 alter table public.chat_conversation_members enable row level security;
 alter table public.chat_messages enable row level security;
 alter table public.chat_message_mentions enable row level security;
 alter table public.notification_preferences enable row level security;
 alter table public.notifications enable row level security;
+alter table public.post_appeals enable row level security;
 
 drop policy if exists "Conversations visible to members" on public.chat_conversations;
 create policy "Conversations visible to members"
@@ -1609,6 +1817,18 @@ using (user_id = auth.uid());
 
 drop policy if exists "Users update own notifications" on public.notifications;
 
+drop policy if exists "Users delete own notifications" on public.notifications;
+create policy "Users delete own notifications"
+on public.notifications for delete
+to authenticated
+using (user_id = auth.uid());
+
+drop policy if exists "Users view own post appeals" on public.post_appeals;
+create policy "Users view own post appeals"
+on public.post_appeals for select
+to authenticated
+using (user_id = auth.uid());
+
 revoke execute on function public.chat_users_have_relationship(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.chat_can_add_group_member(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.chat_is_conversation_member(uuid, uuid) from public, anon;
@@ -1630,6 +1850,7 @@ revoke execute on function public.unsend_chat_message(uuid) from public, anon;
 revoke execute on function public.mark_conversation_read(uuid) from public, anon;
 revoke execute on function public.mark_notification_read(uuid) from public, anon;
 revoke execute on function public.mark_notification_section_read(text) from public, anon;
+revoke execute on function public.submit_post_appeal(uuid, text) from public, anon;
 
 grant execute on function public.chat_is_conversation_member(uuid, uuid) to authenticated;
 grant execute on function public.create_direct_conversation(uuid) to authenticated;
@@ -1649,6 +1870,7 @@ grant execute on function public.unsend_chat_message(uuid) to authenticated;
 grant execute on function public.mark_conversation_read(uuid) to authenticated;
 grant execute on function public.mark_notification_read(uuid) to authenticated;
 grant execute on function public.mark_notification_section_read(text) to authenticated;
+grant execute on function public.submit_post_appeal(uuid, text) to authenticated;
 
 do $$
 begin
