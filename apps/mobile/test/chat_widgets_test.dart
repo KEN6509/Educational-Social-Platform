@@ -14,6 +14,8 @@ import 'package:cyanzone_mobile/src/features/chat/presentation/chat_room_page.da
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_widgets.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/create_group_chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/notification_sections_page.dart';
+import 'package:cyanzone_mobile/src/features/chat/presentation/system_notification_detail_page.dart';
+import 'package:cyanzone_mobile/src/features/chat/presentation/system_notification_widgets.dart';
 
 void main() {
   testWidgets('ChatMessageBubble renders tappable structured mentions',
@@ -1585,6 +1587,212 @@ void main() {
     expect(deleted, isTrue);
     expect(loads, 2);
     expect(find.text('No notifications'), findsOneWidget);
+  });
+
+  testWidgets('system notification detail renders creator award as email',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'creator-detail-1',
+            'type': 'system',
+            'title': 'You are now a verified content creator',
+            'body':
+                'Hi Ava,\n\nCongratulations, and thank you for being an active part of CyanZone.',
+            'created_at': '2026-07-13T01:10:00',
+            'action_payload': {
+              'template_type': 'creator_badge_awarded',
+            },
+          }),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('You are now a verified content creator'), findsOneWidget);
+    expect(find.textContaining('Congratulations'), findsOneWidget);
+    expect(find.byTooltip('Delete notification'), findsOneWidget);
+    expect(find.text('Send appeal'), findsNothing);
+  });
+
+  testWidgets('rejected system detail opens post and submits valid appeal',
+      (tester) async {
+    var openedPost = false;
+    String? submittedReason;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'rejected-detail-1',
+            'type': 'system',
+            'post_id': 'post-1',
+            'title': 'Your post was not approved',
+            'body': 'Hi Ava,\n\nYour post was rejected.',
+            'created_at': '2026-07-13T01:10:00',
+            'action_type': 'open_rejected_post',
+            'action_payload': {
+              'template_type': 'post_rejected',
+              'post_title': 'My hiking post',
+              'moderation_evidence': 'Image safety result',
+            },
+          }),
+          openRejectedPost: (_) async => openedPost = true,
+          loadAppealSubmitted: (_) async => false,
+          submitAppeal: (_, reason) async => submittedReason = reason,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('rejected-post-inline-link')),
+    );
+    await tester.pump();
+    expect(openedPost, isTrue);
+
+    await tester.tap(find.text('Send appeal'));
+    await tester.pumpAndSettle();
+    final field = find.byKey(const ValueKey('post-appeal-reason'));
+    expect(field, findsOneWidget);
+    await tester.enterText(field, 'Too short');
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Submit appeal'),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    const validReason =
+        'This post is suitable because the image documents a public trail.';
+    await tester.enterText(field, validReason);
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Submit appeal'));
+    await tester.pumpAndSettle();
+
+    expect(submittedReason, validReason);
+    expect(find.text('Appeal submitted'), findsOneWidget);
+  });
+
+  testWidgets('missing rejected post disables its link and appeal',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'rejected-missing-1',
+            'type': 'system',
+            'post_id': 'post-missing',
+            'title': 'Your post was not approved',
+            'body': 'Unfortunately, your post “Missing post” was rejected.',
+            'created_at': '2026-07-13T01:10:00',
+            'action_payload': {
+              'template_type': 'post_rejected',
+              'post_title': 'Missing post',
+            },
+          }),
+          openRejectedPost: (_) async => throw Exception('missing'),
+          loadAppealSubmitted: (_) async => false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('rejected-post-inline-link')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('rejected-post-unavailable-message')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Send appeal'),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('post appeal preserves the reason when submission fails',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PostAppealForm(
+            onSubmit: (_) async => throw Exception('network'),
+          ),
+        ),
+      ),
+    );
+
+    const reason =
+        'The image documents a public place and follows the community rules.';
+    final field = find.byKey(const ValueKey('post-appeal-reason'));
+    await tester.enterText(field, reason);
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Submit appeal'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(reason), findsOneWidget);
+    expect(
+      find.text('Could not submit your appeal. Please retry.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('system notification detail deletes only after confirmation',
+      (tester) async {
+    String? deletedId;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SystemNotificationDetailPage(
+                      notification: ChatNotification.fromMap({
+                        'id': 'creator-delete-1',
+                        'type': 'system',
+                        'title': 'Creator update',
+                        'body': 'Congratulations.',
+                        'created_at': '2026-07-13T01:10:00',
+                        'action_payload': {
+                          'template_type': 'creator_badge_awarded',
+                        },
+                      }),
+                      deleteNotification: (id) async => deletedId = id,
+                    ),
+                  ),
+                ),
+                child: const Text('Open detail'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open detail'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Delete notification'));
+    await tester.pumpAndSettle();
+    expect(deletedId, isNull);
+    await tester.tap(
+      find.byKey(const ValueKey('confirm-delete-system-detail')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(deletedId, 'creator-delete-1');
+    expect(find.text('Open detail'), findsOneWidget);
   });
 
   testWidgets('New Followers rows open follower profile and show latest label',

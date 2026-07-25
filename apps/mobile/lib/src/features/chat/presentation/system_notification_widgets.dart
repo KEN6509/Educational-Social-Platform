@@ -182,3 +182,128 @@ String _formatSystemNotificationDate(DateTime value) {
   ];
   return '${months[local.month - 1]} ${local.day}, ${local.year}';
 }
+
+class PostAppealForm extends StatefulWidget {
+  const PostAppealForm({
+    super.key,
+    required this.onSubmit,
+  });
+
+  final Future<void> Function(String reason) onSubmit;
+
+  @override
+  State<PostAppealForm> createState() => _PostAppealFormState();
+}
+
+class _PostAppealFormState extends State<PostAppealForm> {
+  final _controller = TextEditingController();
+  bool _submitting = false;
+  String? _error;
+
+  String get _reason => _controller.text.trim();
+  bool get _isValid => _reason.length >= 20 && _reason.length <= 500;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_isValid || _submitting) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await widget.onSubmit(_reason);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = 'Could not submit your appeal. Please retry.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          20 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Send an appeal',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Explain why you believe this post is suitable for CyanZone.',
+                style: TextStyle(color: Color(0xFF64748B), height: 1.4),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                key: const ValueKey('post-appeal-reason'),
+                controller: _controller,
+                autofocus: true,
+                minLines: 4,
+                maxLines: 7,
+                maxLength: 500,
+                onChanged: (_) => setState(() => _error = null),
+                decoration: InputDecoration(
+                  hintText: 'Write 20–500 characters',
+                  errorText: _error,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _submitting
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _isValid && !_submitting ? _submit : null,
+                      child: _submitting
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Submit appeal'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -9,6 +9,7 @@ import '../data/chat_repository.dart';
 import 'chat_room_page.dart';
 import 'chat_widgets.dart';
 import 'system_notification_widgets.dart';
+import 'system_notification_detail_page.dart';
 
 typedef NotificationLoader = Future<List<ChatNotification>> Function(
   NotificationSection section,
@@ -236,8 +237,16 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     final opener = widget.openSystemNotification;
     if (opener != null) {
       await opener(notification);
-      _refreshNotifications();
+    } else {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SystemNotificationDetailPage(
+            notification: notification,
+          ),
+        ),
+      );
     }
+    _refreshNotifications();
   }
 
   Future<void> _deleteSystemNotification(
