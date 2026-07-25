@@ -363,5 +363,56 @@ void main() {
       expect(notification.activityLabel, 'mentioned you');
       expect(notification.activityGroup, NotificationActivityGroup.mentions);
     });
+
+    test('parses rejected post system notification metadata', () {
+      final notification = ChatNotification.fromMap({
+        'id': 'system-rejected-1',
+        'type': 'system',
+        'post_id': 'post-1',
+        'title': 'Your post was not approved',
+        'body': 'Full rejection message',
+        'action_type': 'open_rejected_post',
+        'action_payload': {
+          'template_type': 'post_rejected',
+          'post_title': 'My first post',
+          'moderation_evidence': 'Image safety score exceeded',
+          'scheduled_deletion_at': '2026-07-20T00:00:00Z',
+        },
+        'created_at': '2026-07-13T00:00:00Z',
+      });
+
+      expect(notification.actionType, 'open_rejected_post');
+      expect(notification.systemTemplateType, 'post_rejected');
+      expect(notification.systemPostTitle, 'My first post');
+      expect(
+        notification.moderationEvidence,
+        'Image safety score exceeded',
+      );
+      expect(
+        notification.scheduledDeletionAt,
+        DateTime.parse('2026-07-20T00:00:00Z').toLocal(),
+      );
+      expect(notification.isPostRejection, isTrue);
+      expect(notification.isCreatorAward, isFalse);
+    });
+
+    test('parses informational creator award system notification', () {
+      final notification = ChatNotification.fromMap({
+        'id': 'system-creator-1',
+        'type': 'system',
+        'title': 'You are now a verified content creator',
+        'body': 'Congratulations',
+        'action_type': 'none',
+        'action_payload': {
+          'template_type': 'creator_badge_awarded',
+        },
+        'created_at': '2026-07-13T00:00:00Z',
+      });
+
+      expect(notification.isCreatorAward, isTrue);
+      expect(notification.isPostRejection, isFalse);
+      expect(notification.moderationEvidence,
+          'No additional moderation evidence was provided.');
+    });
   });
 }

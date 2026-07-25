@@ -498,6 +498,8 @@ class ChatNotification {
     this.commentId,
     this.postFirstImageUrl,
     this.postAuthorAvatarUrl,
+    this.actionType,
+    this.actionPayload = const <String, dynamic>{},
   });
 
   final String id;
@@ -513,8 +515,21 @@ class ChatNotification {
   final String? commentId;
   final String? postFirstImageUrl;
   final String? postAuthorAvatarUrl;
+  final String? actionType;
+  final Map<String, dynamic> actionPayload;
 
   bool get isUnread => readAt == null;
+  String? get systemTemplateType =>
+      _nullableStringValue(actionPayload['template_type']);
+  String? get systemPostTitle =>
+      _nullableStringValue(actionPayload['post_title']);
+  String get moderationEvidence =>
+      _nullableStringValue(actionPayload['moderation_evidence']) ??
+      'No additional moderation evidence was provided.';
+  DateTime? get scheduledDeletionAt =>
+      _dateTimeValue(actionPayload['scheduled_deletion_at']);
+  bool get isPostRejection => systemTemplateType == 'post_rejected';
+  bool get isCreatorAward => systemTemplateType == 'creator_badge_awarded';
 
   NotificationSection get section {
     switch (type) {
@@ -565,6 +580,10 @@ class ChatNotification {
   }
 
   factory ChatNotification.fromMap(Map<String, dynamic> map) {
+    final rawActionPayload = map['action_payload'] ?? map['actionPayload'];
+    final actionPayload = rawActionPayload is Map
+        ? Map<String, dynamic>.from(rawActionPayload)
+        : const <String, dynamic>{};
     final post = (map['posts'] ?? map['posts!notifications_post_id_fkey'])
         as Map<String, dynamic>?;
     final postImages = (post?['post_images'] as List<dynamic>? ?? [])
@@ -601,6 +620,8 @@ class ChatNotification {
       postAuthorAvatarUrl: _nullableStringValue(
         postAuthorProfile?['avatar_url'] ?? map['post_author_avatar_url'],
       ),
+      actionType: _nullableStringValue(map['action_type'] ?? map['actionType']),
+      actionPayload: actionPayload,
     );
   }
 }
