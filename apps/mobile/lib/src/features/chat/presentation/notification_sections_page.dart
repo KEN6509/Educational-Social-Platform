@@ -234,6 +234,7 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     ChatNotification notification,
   ) async {
     await _markNotificationReadLocally(notification);
+    if (!mounted) return;
     final opener = widget.openSystemNotification;
     if (opener != null) {
       await opener(notification);
@@ -246,6 +247,7 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
         ),
       );
     }
+    if (!mounted) return;
     _refreshNotifications();
   }
 
