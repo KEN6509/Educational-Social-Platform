@@ -8,6 +8,7 @@ import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
 import 'chat_room_page.dart';
 import 'chat_widgets.dart';
+import 'system_notification_widgets.dart';
 
 typedef NotificationLoader = Future<List<ChatNotification>> Function(
   NotificationSection section,
@@ -25,6 +26,12 @@ typedef ActivityPostOpener = Future<void> Function(
   ChatNotification notification,
 );
 
+typedef SystemNotificationOpener = Future<void> Function(
+  ChatNotification notification,
+);
+
+typedef NotificationDeleter = Future<void> Function(String notificationId);
+
 class NotificationSectionsPage extends StatefulWidget {
   const NotificationSectionsPage({
     super.key,
@@ -34,6 +41,8 @@ class NotificationSectionsPage extends StatefulWidget {
     this.markSectionRead,
     this.markNotificationRead,
     this.openActivityPost,
+    this.openSystemNotification,
+    this.deleteNotification,
   });
 
   final NotificationSection initialSection;
@@ -42,6 +51,8 @@ class NotificationSectionsPage extends StatefulWidget {
   final NotificationSectionReadMarker? markSectionRead;
   final NotificationReadMarker? markNotificationRead;
   final ActivityPostOpener? openActivityPost;
+  final SystemNotificationOpener? openSystemNotification;
+  final NotificationDeleter? deleteNotification;
 
   @override
   State<NotificationSectionsPage> createState() =>
@@ -218,6 +229,60 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     }
   }
 
+  Future<void> _openSystemNotification(
+    ChatNotification notification,
+  ) async {
+    await _markNotificationReadLocally(notification);
+    final opener = widget.openSystemNotification;
+    if (opener != null) {
+      await opener(notification);
+      _refreshNotifications();
+    }
+  }
+
+  Future<void> _deleteSystemNotification(
+    ChatNotification notification,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete notification?'),
+        content: const Text(
+          'This removes the notification only. Related posts and appeals are not deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const ValueKey('confirm-delete-system-notification'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final deleter = widget.deleteNotification;
+      if (deleter != null) {
+        await deleter(notification.id);
+      } else {
+        await _repo.deleteNotification(notification.id);
+      }
+      _refreshNotifications();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not delete this notification. Please retry.'),
+        ),
+      );
+    }
+  }
+
   ({String title, String subtitle, IconData icon}) get _emptyState {
     if (_section == NotificationSection.followers) {
       return (
@@ -305,13 +370,25 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
                   return ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                     itemCount: notifications.length,
-                    separatorBuilder: (_, __) => const Divider(
-                      height: 1,
-                      indent: 62,
-                      color: Color(0xFFE2E8F0),
-                    ),
+                    separatorBuilder: (_, __) =>
+                        _section == NotificationSection.system
+                            ? const SizedBox(height: 12)
+                            : const Divider(
+                                height: 1,
+                                indent: 62,
+                                color: Color(0xFFE2E8F0),
+                              ),
                     itemBuilder: (context, index) {
                       final notification = notifications[index];
+                      if (_section == NotificationSection.system) {
+                        return SystemNotificationCard(
+                          notification: notification,
+                          isUnread: _isNotificationUnread(notification),
+                          onOpen: () => _openSystemNotification(notification),
+                          onDelete: () =>
+                              _deleteSystemNotification(notification),
+                        );
+                      }
                       if (_section == NotificationSection.activity) {
                         return _ActivityNotificationTile(
                           notification: notification,

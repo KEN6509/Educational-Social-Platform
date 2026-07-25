@@ -1490,6 +1490,103 @@ void main() {
     );
   });
 
+  testWidgets(
+      'system notification card shows email preview and opens from whole card',
+      (tester) async {
+    ChatNotification? opened;
+    final marked = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSectionsPage(
+          initialSection: NotificationSection.system,
+          markNotificationRead: (id) async => marked.add(id),
+          openSystemNotification: (notification) async {
+            opened = notification;
+          },
+          loadNotifications: (_) async => [
+            ChatNotification.fromMap({
+              'id': 'system-card-1',
+              'type': 'system',
+              'title': 'Your post was not approved',
+              'body':
+                  'This is a longer notification message that should only be previewed on the card before opening the complete email-like page.',
+              'created_at': '2026-07-13T01:10:00',
+              'action_payload': {
+                'template_type': 'post_rejected',
+              },
+            }),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card =
+        find.byKey(const ValueKey('system-notification-card-system-card-1'));
+    expect(card, findsOneWidget);
+    expect(find.text('System Notification'), findsOneWidget);
+    expect(find.text('Your post was not approved'), findsOneWidget);
+    expect(find.text('View more'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('notification-unread-dot-system-card-1')),
+      findsOneWidget,
+    );
+
+    await tester.tap(card);
+    await tester.pumpAndSettle();
+    expect(marked, ['system-card-1']);
+    expect(opened?.id, 'system-card-1');
+  });
+
+  testWidgets('system notification card confirms deletion and refreshes',
+      (tester) async {
+    var deleted = false;
+    var loads = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSectionsPage(
+          initialSection: NotificationSection.system,
+          deleteNotification: (id) async {
+            expect(id, 'system-delete-1');
+            deleted = true;
+          },
+          loadNotifications: (_) async {
+            loads += 1;
+            if (deleted) return const <ChatNotification>[];
+            return [
+              ChatNotification.fromMap({
+                'id': 'system-delete-1',
+                'type': 'system',
+                'title': 'Creator update',
+                'body': 'Congratulations',
+                'created_at': '2026-07-13T01:10:00',
+              }),
+            ];
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('system-notification-menu-system-delete-1')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete notification?'), findsOneWidget);
+    expect(deleted, isFalse);
+    await tester.tap(
+      find.byKey(const ValueKey('confirm-delete-system-notification')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(deleted, isTrue);
+    expect(loads, 2);
+    expect(find.text('No notifications'), findsOneWidget);
+  });
+
   testWidgets('New Followers rows open follower profile and show latest label',
       (tester) async {
     ChatNotification? openedNotification;
