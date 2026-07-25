@@ -59,6 +59,7 @@ class ChatRepository {
   static const markNotificationReadRpc = 'mark_notification_read';
   static const markNotificationSectionReadRpc =
       'mark_notification_section_read';
+  static const submitPostAppealRpc = 'submit_post_appeal';
   static const fetchUnvisitedChatMentionsRpc = 'fetch_unvisited_chat_mentions';
   static const markChatMentionVisitedRpc = 'mark_chat_mention_visited';
 
@@ -90,7 +91,8 @@ class ChatRepository {
       'end_offset, is_all_source, visited_at)';
 
   static const _notificationSelectColumns =
-      'id, type, actor_id, post_id, comment_id, title, body, created_at, read_at, '
+      'id, type, actor_id, post_id, comment_id, title, body, action_type, '
+      'action_payload, created_at, read_at, '
       'profiles!notifications_actor_id_fkey(name, avatar_url), '
       'posts!notifications_post_id_fkey(author_id, '
       'profiles!posts_author_id_fkey(avatar_url), '
@@ -504,6 +506,34 @@ class ChatRepository {
     await _client.rpc<void>(
       markNotificationReadRpc,
       params: {notificationIdParam: notificationId},
+    );
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    await _client.from('notifications').delete().eq('id', notificationId);
+  }
+
+  Future<bool> hasPostAppeal(String postId) async {
+    final currentUserId = _requireCurrentUserId();
+    final response = await _client
+        .from('post_appeals')
+        .select('id')
+        .eq('post_id', postId)
+        .eq('user_id', currentUserId)
+        .maybeSingle();
+    return response != null;
+  }
+
+  Future<void> submitPostAppeal({
+    required String postId,
+    required String reason,
+  }) async {
+    await _client.rpc<void>(
+      submitPostAppealRpc,
+      params: {
+        'p_post_id': postId,
+        'p_reason': reason.trim(),
+      },
     );
   }
 

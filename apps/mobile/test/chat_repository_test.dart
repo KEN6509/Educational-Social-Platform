@@ -293,6 +293,24 @@ void main() {
       expect(source, contains('posts!notifications_post_id_fkey'));
       expect(source, contains('post_images(public_url, position)'));
       expect(source, contains('profiles!posts_author_id_fkey(avatar_url)'));
+      expect(source, contains('action_type'));
+      expect(source, contains('action_payload'));
+    });
+
+    test('repository exposes system notification and appeal actions', () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+
+      expect(source, contains('submitPostAppealRpc'));
+      expect(source, contains("'submit_post_appeal'"));
+      expect(source, contains('Future<void> deleteNotification'));
+      expect(source, contains(".from('notifications')"));
+      expect(source, contains('.delete()'));
+      expect(source, contains('Future<bool> hasPostAppeal'));
+      expect(source, contains(".from('post_appeals')"));
+      expect(source, contains('Future<void> submitPostAppeal'));
+      expect(source, contains("'p_post_id': postId"));
+      expect(source, contains("'p_reason': reason.trim()"));
     });
 
     test(
