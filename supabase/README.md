@@ -194,6 +194,37 @@ the SQL: change `is_content_creator` from false to true, or change a post from a
 non-rejected status to `rejected`. Re-saving the same final state does not create
 another notification.
 
+### Administration Portal
+
+Run `admin_portal.sql` after `chat.sql`.
+
+The migration adds the administrator audit trail, duplicate unresolved-report
+protection, appeal review access, and the trusted account, creator-request,
+report, and appeal decision functions used by the Express Admin API.
+
+Verify:
+
+```sql
+select to_regclass('public.admin_action_audit');
+
+select routine_name
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name in (
+    'set_user_account_status',
+    'set_user_creator_status',
+    'review_creator_request',
+    'decide_report_case',
+    'decide_post_appeal'
+  )
+order by routine_name;
+```
+
+Expected results:
+
+- `to_regclass` returns `public.admin_action_audit`.
+- The routine query returns five rows.
+
 ### Chat activity notification triggers
 
 Apply `supabase/chat.sql` to the live Supabase database after pulling chat
