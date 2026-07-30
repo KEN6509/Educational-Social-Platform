@@ -40,7 +40,7 @@ void main() {
 
     expect(find.text('Enter a valid email address.'), findsOneWidget);
     expect(
-      find.text('Password must be at least 8 characters.'),
+      find.text('Enter your password.'),
       findsOneWidget,
     );
 
@@ -49,7 +49,7 @@ void main() {
 
     expect(find.text('Enter a valid email address.'), findsNothing);
     expect(
-      find.text('Password must be at least 8 characters.'),
+      find.text('Enter your password.'),
       findsNothing,
     );
     expect(find.text('Enter your name.'), findsNothing);
@@ -59,7 +59,7 @@ void main() {
 
     expect(find.text('Enter a valid email address.'), findsNothing);
     expect(
-      find.text('Password must be at least 8 characters.'),
+      find.text('Enter your password.'),
       findsNothing,
     );
   });
@@ -83,5 +83,44 @@ void main() {
     await tester.pump();
 
     expect(tester.widget<EditableText>(emailInput).focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('registration enforces the strong password policy',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const CyanZoneApp());
+    await tester.pump();
+
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('register-name-field')),
+      'Ming Jiang',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-email-field')),
+      'ming@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-password-field')),
+      'weakpassword',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-confirm-password-field')),
+      'weakpassword',
+    );
+
+    final submit = find.widgetWithText(FilledButton, 'Create account');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pump();
+
+    expect(
+      find.text(
+        'Use at least 12 characters with uppercase, lowercase, a number, '
+        'and a symbol such as . or _.',
+      ),
+      findsOneWidget,
+    );
   });
 }

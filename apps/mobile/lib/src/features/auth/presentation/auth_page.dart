@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/security/password_policy.dart';
+
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
 
@@ -368,8 +370,9 @@ class _AuthPanel extends StatelessWidget {
                     : const [AutofillHints.password],
                 decoration: InputDecoration(
                   labelText: 'Password',
-                  helperText:
-                      isRegistering ? 'Use at least 8 characters.' : null,
+                  helperText: isRegistering
+                      ? 'Use 12+ characters with upper/lowercase, a number, and a symbol.'
+                      : null,
                   prefixIcon: const Icon(Icons.lock_outline_rounded),
                   suffixIcon: IconButton(
                     tooltip: showPassword ? 'Hide password' : 'Show password',
@@ -382,10 +385,11 @@ class _AuthPanel extends StatelessWidget {
                   ),
                 ),
                 validator: (value) {
-                  if ((value ?? '').length < 8) {
-                    return 'Password must be at least 8 characters.';
+                  final password = value ?? '';
+                  if (!isRegistering) {
+                    return password.isEmpty ? 'Enter your password.' : null;
                   }
-                  return null;
+                  return PasswordPolicy.validationError(password);
                 },
                 onFieldSubmitted: (_) {
                   if (!isRegistering) {
