@@ -7,16 +7,19 @@ typedef NotificationPreferenceLoader = Future<Map<String, bool>> Function();
 typedef NotificationPreferenceSaver = Future<void> Function(
   Map<String, bool> preferences,
 );
+typedef SignOutAction = Future<void> Function();
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
     this.loadNotificationPreferences,
     this.saveNotificationPreferences,
+    this.signOut,
   });
 
   final NotificationPreferenceLoader? loadNotificationPreferences;
   final NotificationPreferenceSaver? saveNotificationPreferences;
+  final SignOutAction? signOut;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -24,6 +27,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late Future<_NotificationPreferenceState> _preferencesFuture;
+  bool _isSigningOut = false;
 
   @override
   void initState() {
@@ -89,6 +93,52 @@ class _SettingsPageState extends State<SettingsPage> {
           content: Text('Could not update notification setting.'),
         ),
       );
+    }
+  }
+
+  Future<void> _confirmLogout() async {
+    if (_isSigningOut) return;
+
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('Are you sure you want to log out of CyanZone?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFE11D48),
+            ),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+    if (shouldLogout != true || !mounted) return;
+
+    setState(() => _isSigningOut = true);
+    try {
+      await (widget.signOut ?? Supabase.instance.client.auth.signOut).call();
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not log out. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSigningOut = false);
+      }
     }
   }
 
@@ -207,12 +257,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 title: 'Log out',
                 titleColor: const Color(0xFFE11D48),
                 showChevron: false,
-                onTap: () async {
-                  await Supabase.instance.client.auth.signOut();
-                  if (context.mounted) {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  }
-                },
+                onTap: _confirmLogout,
               ),
             ]),
             const SizedBox(height: 40),
