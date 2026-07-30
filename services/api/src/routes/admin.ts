@@ -1,16 +1,10 @@
 import { Router } from 'express';
-import { z } from 'zod';
 
 import { env } from '../config/env.js';
 import { supabaseAdmin } from '../lib/supabase.js';
+import { bootstrapSchema } from './adminSchema.js';
 
 export const adminRouter = Router();
-
-const bootstrapSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(2).max(80),
-});
 
 adminRouter.post('/bootstrap', async (req, res) => {
   const providedSecret = req.header('x-bootstrap-secret');
