@@ -87,6 +87,7 @@ export function requireAdministrator(
 
     try {
       res.locals.admin = await verifyAdmin(token);
+      res.locals.adminAccessToken = token;
       next();
     } catch (error) {
       if (error instanceof AdminAuthorizationError) {

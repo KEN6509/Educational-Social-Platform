@@ -1,9 +1,10 @@
-import { Router } from 'express';
-
 import {
   createVerifyAdmin,
   type AdminAuthSource,
 } from './admin/adminAuth.js';
+import { createAdminRepository } from './admin/adminRepository.js';
+import { createProtectedAdminRouter } from './admin/adminRouter.js';
+import { createAdminService } from './admin/adminService.js';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { supabaseAdmin } from './lib/supabase.js';
@@ -46,7 +47,14 @@ const adminAuthSource: AdminAuthSource = {
   },
 };
 
-const protectedAdminRouter = Router();
+const adminRepository = createAdminRepository(supabaseAdmin);
+const adminService = createAdminService(
+  adminRepository,
+  env.REPORT_REVIEW_THRESHOLD,
+);
+const protectedAdminRouter = createProtectedAdminRouter({
+  createService: () => adminService,
+});
 
 const app = createApp({
   bootstrapSecret: env.ADMIN_BOOTSTRAP_SECRET,
