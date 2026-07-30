@@ -2,6 +2,7 @@ import { AdminAuthBoundary } from './auth/AdminAuthBoundary';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import { OverviewPage } from './features/overview/OverviewPage';
+import { CreatorRequestsPage } from './features/creatorRequests/CreatorRequestsPage';
 import { UsersPage } from './features/users/UsersPage';
 import { AdminPortalLayout } from './layout/AdminPortalLayout';
 
@@ -46,12 +47,7 @@ export function App() {
               />
               <Route
                 path="creator-requests"
-                element={
-                  <PlaceholderPage
-                    title="Creator Requests"
-                    description="Review and decide on creator applications."
-                  />
-                }
+                element={<CreatorRequestsPage />}
               />
               <Route
                 path="reports"
