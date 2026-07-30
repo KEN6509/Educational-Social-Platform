@@ -9,7 +9,13 @@ import {
   reportStatusSchema,
 } from './adminSchemas.js';
 import { createAdminService } from './adminService.js';
-import type { AdminRepository } from './adminTypes.js';
+import {
+  AdminNotFoundError,
+  AdminValidationError,
+  type AdminRepository,
+  type PageResult,
+  type UserSummaryView,
+} from './adminTypes.js';
 
 function createRepository(
   overrides: Partial<AdminRepository> = {},
@@ -21,6 +27,23 @@ function createRepository(
       reportRows: [],
       recentAuditRows: [],
     }),
+    listUsers: async (query) => ({
+      items: [],
+      page: query.page,
+      pageSize: query.pageSize,
+      total: 0,
+    }),
+    getUserDetail: async () => null,
+    setUserAccountStatus: async () => undefined,
+    setUserCreatorStatus: async () => undefined,
+    listCreatorRequests: async (query) => ({
+      items: [],
+      page: query.page,
+      pageSize: query.pageSize,
+      total: 0,
+    }),
+    getCreatorRequestDetail: async () => null,
+    decideCreatorRequest: async () => undefined,
     ...overrides,
   };
 }
@@ -169,4 +192,112 @@ test('overview maps recent audit rows to safe view models', async () => {
 
   assert.equal(overview.recentDecisions[0]?.adminEmail, 'admin@cyanzone.test');
   assert.equal(overview.recentDecisions[0]?.targetId, 'user-1');
+});
+
+test('user listing trims search before delegating to the repository', async () => {
+  let receivedSearch = '';
+  const result: PageResult<UserSummaryView> = {
+    items: [],
+    page: 1,
+    pageSize: 20,
+    total: 0,
+  };
+  const repository = {
+    ...createRepository(),
+    listUsers: async (query: { search: string }) => {
+      receivedSearch = query.search;
+      return result;
+    },
+  } as unknown as AdminRepository;
+
+  const service = createAdminService(repository, 3, {
+    id: 'admin-id',
+    email: 'admin@cyanzone.test',
+  });
+
+  assert.equal(
+    await service.listUsers({
+      page: 1,
+      pageSize: 20,
+      search: '  cyan member  ',
+      accountStatus: undefined,
+      creator: 'all',
+    }),
+    result,
+  );
+  assert.equal(receivedSearch, 'cyan member');
+});
+
+test('missing user detail becomes a typed not-found error', async () => {
+  const repository = {
+    ...createRepository(),
+    getUserDetail: async () => null,
+  } as unknown as AdminRepository;
+  const service = createAdminService(repository, 3, {
+    id: 'admin-id',
+    email: 'admin@cyanzone.test',
+  });
+
+  await assert.rejects(
+    () => service.getUser('missing-user'),
+    AdminNotFoundError,
+  );
+});
+
+test('administrators cannot suspend their own account', async () => {
+  let repositoryCalled = false;
+  const repository = {
+    ...createRepository(),
+    setUserAccountStatus: async () => {
+      repositoryCalled = true;
+    },
+  } as unknown as AdminRepository;
+  const service = createAdminService(repository, 3, {
+    id: 'admin-id',
+    email: 'admin@cyanzone.test',
+  });
+
+  await assert.rejects(
+    () =>
+      service.setUserAccountStatus('admin-id', {
+        status: 'suspended',
+        reason: 'This action must never reach the repository.',
+      }),
+    AdminValidationError,
+  );
+  assert.equal(repositoryCalled, false);
+});
+
+test('creator-request decisions delegate only validated domain values', async () => {
+  let received:
+    | {
+        requestId: string;
+        decision: string;
+        reason: string;
+      }
+    | undefined;
+  const repository = {
+    ...createRepository(),
+    decideCreatorRequest: async (
+      requestId: string,
+      input: { decision: string; reason: string },
+    ) => {
+      received = { requestId, ...input };
+    },
+  } as unknown as AdminRepository;
+  const service = createAdminService(repository, 3, {
+    id: 'admin-id',
+    email: 'admin@cyanzone.test',
+  });
+
+  await service.decideCreatorRequest('request-1', {
+    decision: 'approved',
+    reason: 'Consistently helpful educational contributions.',
+  });
+
+  assert.deepEqual(received, {
+    requestId: 'request-1',
+    decision: 'approved',
+    reason: 'Consistently helpful educational contributions.',
+  });
 });

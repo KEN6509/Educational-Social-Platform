@@ -40,3 +40,24 @@ export const appealDecisionSchema = z.object({
   decision: z.enum(['approved', 'rejected']),
   reason: reasonSchema,
 });
+
+export const userListQuerySchema = pageSchema.extend({
+  search: z.string().trim().max(100).default(''),
+  accountStatus: accountStatusSchema.optional(),
+  creator: z.enum(['all', 'creator', 'member']).default('all'),
+});
+
+export const userAccountStatusSchema = z.object({
+  status: accountStatusSchema,
+  reason: reasonSchema,
+});
+
+export const userCreatorStatusSchema = z.object({
+  isCreator: z.boolean(),
+  reason: reasonSchema,
+});
+
+export const creatorRequestListQuerySchema = pageSchema.extend({
+  search: z.string().trim().max(100).default(''),
+  status: creatorRequestStatusSchema.default('pending'),
+});

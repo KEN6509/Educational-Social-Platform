@@ -7,7 +7,10 @@ import { createProtectedAdminRouter } from './admin/adminRouter.js';
 import { createAdminService } from './admin/adminService.js';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { supabaseAdmin } from './lib/supabase.js';
+import {
+  createSupabaseAdminRequestClient,
+  supabaseAdmin,
+} from './lib/supabase.js';
 import { AdminBootstrapError } from './routes/admin.js';
 
 const adminAuthSource: AdminAuthSource = {
@@ -47,13 +50,15 @@ const adminAuthSource: AdminAuthSource = {
   },
 };
 
-const adminRepository = createAdminRepository(supabaseAdmin);
-const adminService = createAdminService(
-  adminRepository,
-  env.REPORT_REVIEW_THRESHOLD,
-);
 const protectedAdminRouter = createProtectedAdminRouter({
-  createService: () => adminService,
+  createService: (context) =>
+    createAdminService(
+      createAdminRepository(
+        createSupabaseAdminRequestClient(context.accessToken),
+      ),
+      env.REPORT_REVIEW_THRESHOLD,
+      context.admin,
+    ),
 });
 
 const app = createApp({

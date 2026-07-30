@@ -12,3 +12,17 @@ export const supabaseAdmin = createClient(
     },
   },
 );
+
+export function createSupabaseAdminRequestClient(accessToken: string) {
+  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}

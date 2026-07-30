@@ -8,6 +8,7 @@ import {
   AdminConflictError,
   AdminNotFoundError,
   AdminValidationError,
+  type AdminService,
   type OverviewView,
 } from './adminTypes.js';
 import { createProtectedAdminRouter } from './adminRouter.js';
@@ -21,14 +22,41 @@ const expectedOverview: OverviewView = {
 
 function createDependencies(
   getOverview: () => Promise<OverviewView>,
+  overrides: Partial<AdminService> = {},
 ): AppDependencies {
+  const service: AdminService = {
+    getOverview,
+    listUsers: async (query) => ({
+      items: [],
+      page: query.page,
+      pageSize: query.pageSize,
+      total: 0,
+    }),
+    getUser: async () => {
+      throw new AdminNotFoundError('User not found.');
+    },
+    setUserAccountStatus: async () => undefined,
+    setUserCreatorStatus: async () => undefined,
+    listCreatorRequests: async (query) => ({
+      items: [],
+      page: query.page,
+      pageSize: query.pageSize,
+      total: 0,
+    }),
+    getCreatorRequest: async () => {
+      throw new AdminNotFoundError('Creator request not found.');
+    },
+    decideCreatorRequest: async () => undefined,
+    ...overrides,
+  };
+
   return {
     bootstrapSecret: 'a'.repeat(24),
     countAdministrators: async () => 0,
     createAdministrator: async () => ({ id: 'created-admin' }),
     upsertAdministratorProfile: async () => undefined,
     protectedAdminRouter: createProtectedAdminRouter({
-      createService: () => ({ getOverview }),
+      createService: () => service,
     }),
     verifyAdmin: async () => ({
       id: 'admin-id',
@@ -86,4 +114,58 @@ test('replaces unknown overview failures with a safe message', async () => {
   assert.deepEqual(response.body, {
     error: 'Unable to complete the administrator request.',
   });
+});
+
+test('validates and returns the paginated users endpoint', async () => {
+  const dependencies = createDependencies(
+    async () => expectedOverview,
+    {
+      listUsers: async (query) => ({
+          items: [
+            {
+              id: 'user-1',
+              name: 'Cyan Member',
+              email: 'member@cyanzone.test',
+              avatarUrl: null,
+              bio: null,
+              isContentCreator: false,
+              isAdmin: false,
+              accountStatus: 'active',
+              createdAt: '2026-07-31T00:00:00.000Z',
+            },
+          ],
+          page: query.page,
+          pageSize: query.pageSize,
+          total: 1,
+        }),
+    },
+  );
+
+  const response = await request(createApp(dependencies))
+    .get('/admin/users?search=cyan&page=1&pageSize=20')
+    .set('Authorization', 'Bearer valid-token');
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.total, 1);
+  assert.equal(response.body.items[0].email, 'member@cyanzone.test');
+});
+
+test('rejects short reasons before changing account status', async () => {
+  let decisionCalled = false;
+  const dependencies = createDependencies(
+    async () => expectedOverview,
+    {
+      setUserAccountStatus: async () => {
+          decisionCalled = true;
+        },
+    },
+  );
+
+  const response = await request(createApp(dependencies))
+    .post('/admin/users/user-1/account-status')
+    .set('Authorization', 'Bearer valid-token')
+    .send({ status: 'suspended', reason: 'short' });
+
+  assert.equal(response.status, 400);
+  assert.equal(decisionCalled, false);
 });
