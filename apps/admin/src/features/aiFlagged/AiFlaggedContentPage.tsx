@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   Bot,
   FileText,
   FlaskConical,
@@ -36,6 +37,7 @@ export function AiFlaggedContentPage() {
     'approved' | 'rejected' | null
   >(null);
   const [saved, setSaved] = useState(false);
+  const [mobileDetail, setMobileDetail] = useState(false);
 
   function changeStatus(value: string) {
     const nextStatus = value as AiFlaggedStatus;
@@ -83,7 +85,11 @@ export function AiFlaggedContentPage() {
       </div>
 
       <div className="grid min-h-[calc(100vh-10rem)] xl:grid-cols-[26rem_minmax(0,1fr)]">
-        <aside className="border-r border-slate-200">
+        <aside
+          className={`border-r border-slate-200 ${
+            mobileDetail ? 'hidden xl:block' : 'block'
+          }`}
+        >
           <CaseworkTabs
             activeId={status}
             items={[
@@ -130,13 +136,26 @@ export function AiFlaggedContentPage() {
               onSelect={(id) => {
                 setSelectedId(id);
                 setSaved(false);
+                setMobileDetail(true);
               }}
               selectedId={selected?.id ?? null}
             />
           )}
         </aside>
 
-        <div className="min-w-0">
+        <div
+          className={`min-w-0 ${
+            mobileDetail ? 'block' : 'hidden xl:block'
+          }`}
+        >
+          <button
+            className="m-4 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-bold text-slate-600 xl:hidden"
+            onClick={() => setMobileDetail(false)}
+            type="button"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to preview queue
+          </button>
           {selected ? (
             <>
               <div className="p-5 lg:p-6">

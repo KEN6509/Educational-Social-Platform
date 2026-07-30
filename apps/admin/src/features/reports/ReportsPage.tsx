@@ -1,4 +1,4 @@
-import { FileWarning, Search } from 'lucide-react';
+import { ArrowLeft, FileWarning, Search } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 
 import { AsyncState } from '../../components/casework/AsyncState';
@@ -37,6 +37,7 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
   const [submitting, setSubmitting] = useState(false);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [mobileDetail, setMobileDetail] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -146,7 +147,11 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
       </header>
 
       <div className="grid min-h-[calc(100vh-7rem)] xl:grid-cols-[26rem_minmax(0,1fr)]">
-        <aside className="border-r border-slate-200">
+        <aside
+          className={`border-r border-slate-200 ${
+            mobileDetail ? 'hidden xl:block' : 'block'
+          }`}
+        >
           <form className="border-b border-slate-200 p-4" onSubmit={submitSearch}>
             <label className="relative block">
               <span className="sr-only">Search report cases</span>
@@ -203,6 +208,7 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
                   type: type as 'post' | 'comment',
                   id,
                 });
+                setMobileDetail(true);
               }}
               selectedId={
                 selected ? `${selected.type}:${selected.id}` : null
@@ -211,7 +217,19 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
           ) : null}
         </aside>
 
-        <div className="min-w-0">
+        <div
+          className={`min-w-0 ${
+            mobileDetail ? 'block' : 'hidden xl:block'
+          }`}
+        >
+          <button
+            className="m-4 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-bold text-slate-600 xl:hidden"
+            onClick={() => setMobileDetail(false)}
+            type="button"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to cases
+          </button>
           {!selected ? (
             <AsyncState emptyMessage="Select a grouped report case." state="empty" />
           ) : null}

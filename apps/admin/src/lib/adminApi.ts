@@ -111,7 +111,8 @@ export function createAdminApi(
 }
 
 export const adminApi = createAdminApi({
-  baseUrl: import.meta.env.VITE_API_URL as string,
+  baseUrl: (import.meta.env.VITE_API_BASE_URL ??
+    import.meta.env.VITE_API_URL) as string,
   fetcher: fetch,
   getAccessToken: async () => {
     const { data } = await supabase.auth.getSession();
