@@ -134,6 +134,106 @@ export type CreatorRequestDecisionInput = {
   reason: string;
 };
 
+export type ReportCaseRow = {
+  id: string;
+  targetType: ReportTargetType;
+  targetId: string;
+  reporterId: string | null;
+  reason: string;
+  description: string | null;
+  status: ReportStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  resolutionNote: string | null;
+  createdAt: string;
+  targetTitle: string | null;
+  targetExcerpt: string;
+  ownerName: string;
+};
+
+export type ReportReasonCount = {
+  reason: string;
+  count: number;
+};
+
+export type ReportCaseSummaryView = {
+  targetType: ReportTargetType;
+  targetId: string;
+  targetTitle: string | null;
+  targetExcerpt: string;
+  ownerName: string;
+  status: ReportStatus;
+  uniqueReporters: number;
+  reasonCounts: ReportReasonCount[];
+  latestReportedAt: string;
+};
+
+export type ReportHistoryView = {
+  id: string;
+  reporterId: string | null;
+  reason: string;
+  description: string | null;
+  status: ReportStatus;
+  createdAt: string;
+  reviewedAt: string | null;
+  resolutionNote: string | null;
+};
+
+export type ReportCaseDetailView = ReportCaseSummaryView & {
+  ownerId: string | null;
+  ownerEmail: string | null;
+  content: string | null;
+  moderationStatus: string | null;
+  publishedAt: string | null;
+  reports: ReportHistoryView[];
+  recentDecisions: AuditView[];
+};
+
+export type ReportCaseListQuery = PageRequest & {
+  search: string;
+  status: ReportStatus;
+  targetType?: ReportTargetType;
+};
+
+export type ReportCaseDecisionInput = {
+  decision: 'retain' | 'remove';
+  reason: string;
+};
+
+export type AppealSummaryView = {
+  id: string;
+  postId: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  postTitle: string;
+  reason: string;
+  status: AppealStatus;
+  createdAt: string;
+  reviewedAt: string | null;
+};
+
+export type AppealDetailView = AppealSummaryView & {
+  postContent: string | null;
+  moderationStatus: string | null;
+  originalModerationReason: string | null;
+  originalReviewedAt: string | null;
+  aiToxicityScore: number | null;
+  adminNote: string | null;
+  reviewedBy: string | null;
+  recentDecisions: AuditView[];
+};
+
+export type AppealListQuery = PageRequest & {
+  search: string;
+  status: AppealStatus;
+};
+
+export type AppealDecisionInput = {
+  decision: 'approved' | 'rejected';
+  reason: string;
+};
+
 export type AdminRepository = {
   getOverviewSnapshot: () => Promise<OverviewSnapshot>;
   listUsers: (query: UserListQuery) => Promise<PageResult<UserSummaryView>>;
@@ -155,6 +255,28 @@ export type AdminRepository = {
   decideCreatorRequest: (
     requestId: string,
     input: CreatorRequestDecisionInput,
+  ) => Promise<void>;
+  getReportCaseRows: (
+    query: ReportCaseListQuery,
+  ) => Promise<ReportCaseRow[]>;
+  getReportCaseDetail: (
+    targetType: ReportTargetType,
+    targetId: string,
+  ) => Promise<ReportCaseDetailView | null>;
+  decideReportCase: (
+    targetType: ReportTargetType,
+    targetId: string,
+    input: ReportCaseDecisionInput,
+  ) => Promise<void>;
+  listAppeals: (
+    query: AppealListQuery,
+  ) => Promise<PageResult<AppealSummaryView>>;
+  getAppealDetail: (
+    appealId: string,
+  ) => Promise<AppealDetailView | null>;
+  decideAppeal: (
+    appealId: string,
+    input: AppealDecisionInput,
   ) => Promise<void>;
 };
 
@@ -181,6 +303,26 @@ export type AdminService = {
   decideCreatorRequest: (
     requestId: string,
     input: CreatorRequestDecisionInput,
+  ) => Promise<void>;
+  listReportCases: (
+    query: ReportCaseListQuery,
+  ) => Promise<PageResult<ReportCaseSummaryView>>;
+  getReportCase: (
+    targetType: ReportTargetType,
+    targetId: string,
+  ) => Promise<ReportCaseDetailView>;
+  decideReportCase: (
+    targetType: ReportTargetType,
+    targetId: string,
+    input: ReportCaseDecisionInput,
+  ) => Promise<void>;
+  listAppeals: (
+    query: AppealListQuery,
+  ) => Promise<PageResult<AppealSummaryView>>;
+  getAppeal: (appealId: string) => Promise<AppealDetailView>;
+  decideAppeal: (
+    appealId: string,
+    input: AppealDecisionInput,
   ) => Promise<void>;
 };
 

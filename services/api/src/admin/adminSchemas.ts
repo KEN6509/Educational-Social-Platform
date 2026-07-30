@@ -61,3 +61,14 @@ export const creatorRequestListQuerySchema = pageSchema.extend({
   search: z.string().trim().max(100).default(''),
   status: creatorRequestStatusSchema.default('pending'),
 });
+
+export const reportCaseListQuerySchema = pageSchema.extend({
+  search: z.string().trim().max(100).default(''),
+  status: reportStatusSchema.default('open'),
+  targetType: reportTargetTypeSchema.optional(),
+});
+
+export const appealListQuerySchema = pageSchema.extend({
+  search: z.string().trim().max(100).default(''),
+  status: appealStatusSchema.default('pending'),
+});

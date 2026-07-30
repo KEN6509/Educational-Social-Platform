@@ -2,8 +2,13 @@ import { Router, type Request, type Response } from 'express';
 
 import type { AdminIdentity } from './adminAuth.js';
 import {
+  appealDecisionSchema,
+  appealListQuerySchema,
   creatorRequestDecisionSchema,
   creatorRequestListQuerySchema,
+  reportCaseListQuerySchema,
+  reportDecisionSchema,
+  reportTargetTypeSchema,
   userAccountStatusSchema,
   userCreatorStatusSchema,
   userListQuerySchema,
@@ -152,6 +157,106 @@ export function createProtectedAdminRouter(
     try {
       const service = dependencies.createService(getRequestContext(req));
       await service.decideCreatorRequest(req.params.requestId, parsed.data);
+      return res.status(204).send();
+    } catch (error) {
+      return sendAdminError(res, error);
+    }
+  });
+
+  router.get('/report-cases', async (req, res) => {
+    const parsed = reportCaseListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid report filters.' });
+    }
+
+    try {
+      const service = dependencies.createService(getRequestContext(req));
+      return res.json(await service.listReportCases(parsed.data));
+    } catch (error) {
+      return sendAdminError(res, error);
+    }
+  });
+
+  router.get('/report-cases/:targetType/:targetId', async (req, res) => {
+    const targetType = reportTargetTypeSchema.safeParse(
+      req.params.targetType,
+    );
+    if (!targetType.success) {
+      return res.status(400).json({ error: 'Invalid report target.' });
+    }
+
+    try {
+      const service = dependencies.createService(getRequestContext(req));
+      return res.json(
+        await service.getReportCase(
+          targetType.data,
+          req.params.targetId,
+        ),
+      );
+    } catch (error) {
+      return sendAdminError(res, error);
+    }
+  });
+
+  router.post(
+    '/report-cases/:targetType/:targetId/decision',
+    async (req, res) => {
+      const targetType = reportTargetTypeSchema.safeParse(
+        req.params.targetType,
+      );
+      const decision = reportDecisionSchema.safeParse(req.body);
+      if (!targetType.success || !decision.success) {
+        return res.status(400).json({ error: 'Invalid report decision.' });
+      }
+
+      try {
+        const service = dependencies.createService(
+          getRequestContext(req),
+        );
+        await service.decideReportCase(
+          targetType.data,
+          req.params.targetId,
+          decision.data,
+        );
+        return res.status(204).send();
+      } catch (error) {
+        return sendAdminError(res, error);
+      }
+    },
+  );
+
+  router.get('/appeals', async (req, res) => {
+    const parsed = appealListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid appeal filters.' });
+    }
+
+    try {
+      const service = dependencies.createService(getRequestContext(req));
+      return res.json(await service.listAppeals(parsed.data));
+    } catch (error) {
+      return sendAdminError(res, error);
+    }
+  });
+
+  router.get('/appeals/:appealId', async (req, res) => {
+    try {
+      const service = dependencies.createService(getRequestContext(req));
+      return res.json(await service.getAppeal(req.params.appealId));
+    } catch (error) {
+      return sendAdminError(res, error);
+    }
+  });
+
+  router.post('/appeals/:appealId/decision', async (req, res) => {
+    const parsed = appealDecisionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid appeal decision.' });
+    }
+
+    try {
+      const service = dependencies.createService(getRequestContext(req));
+      await service.decideAppeal(req.params.appealId, parsed.data);
       return res.status(204).send();
     } catch (error) {
       return sendAdminError(res, error);

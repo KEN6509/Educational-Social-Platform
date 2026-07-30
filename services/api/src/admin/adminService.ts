@@ -4,9 +4,15 @@ import type {
 import type {
   AdminRepository,
   AdminService,
+  AppealDecisionInput,
+  AppealListQuery,
   CreatorRequestDecisionInput,
   CreatorRequestListQuery,
   OverviewView,
+  ReportCaseDecisionInput,
+  ReportCaseListQuery,
+  ReportCaseSummaryView,
+  ReportTargetType,
   UserAccountStatusInput,
   UserCreatorStatusInput,
   UserListQuery,
@@ -116,6 +122,119 @@ export function createAdminService(
       input: CreatorRequestDecisionInput,
     ) => {
       await repository.decideCreatorRequest(requestId, {
+        ...input,
+        reason: input.reason.trim(),
+      });
+    },
+    listReportCases: async (query: ReportCaseListQuery) => {
+      const rows = await repository.getReportCaseRows(query);
+      const grouped = new Map<string, typeof rows>();
+
+      for (const row of rows) {
+        const key = `${row.targetType}:${row.targetId}`;
+        const group = grouped.get(key) ?? [];
+        group.push(row);
+        grouped.set(key, group);
+      }
+
+      const search = query.search.trim().toLowerCase();
+      const cases: ReportCaseSummaryView[] = [...grouped.values()]
+        .map((group) => {
+          const first = group[0]!;
+          const reporters = new Set(
+            group
+              .map((row) => row.reporterId)
+              .filter((id): id is string => Boolean(id)),
+          );
+          const reasons = new Map<string, number>();
+          for (const row of group) {
+            reasons.set(row.reason, (reasons.get(row.reason) ?? 0) + 1);
+          }
+
+          return {
+            targetType: first.targetType,
+            targetId: first.targetId,
+            targetTitle: first.targetTitle,
+            targetExcerpt: first.targetExcerpt,
+            ownerName: first.ownerName,
+            status: first.status,
+            uniqueReporters: reporters.size,
+            reasonCounts: [...reasons.entries()]
+              .map(([reason, count]) => ({ reason, count }))
+              .sort(
+                (left, right) =>
+                  right.count - left.count ||
+                  left.reason.localeCompare(right.reason),
+              ),
+            latestReportedAt: group
+              .map((row) => row.createdAt)
+              .sort()
+              .at(-1)!,
+          };
+        })
+        .filter((reportCase) => reportCase.uniqueReporters >= reportReviewThreshold)
+        .filter((reportCase) => {
+          if (!search) {
+            return true;
+          }
+          return [
+            reportCase.targetTitle,
+            reportCase.targetExcerpt,
+            reportCase.ownerName,
+          ].some((value) => value?.toLowerCase().includes(search));
+        })
+        .sort((left, right) =>
+          right.latestReportedAt.localeCompare(left.latestReportedAt),
+        );
+
+      const from = (query.page - 1) * query.pageSize;
+      return {
+        items: cases.slice(from, from + query.pageSize),
+        page: query.page,
+        pageSize: query.pageSize,
+        total: cases.length,
+      };
+    },
+    getReportCase: async (
+      targetType: ReportTargetType,
+      targetId: string,
+    ) => {
+      const reportCase = await repository.getReportCaseDetail(
+        targetType,
+        targetId,
+      );
+      if (!reportCase) {
+        throw new AdminNotFoundError('Report case not found.');
+      }
+      return reportCase;
+    },
+    decideReportCase: async (
+      targetType: ReportTargetType,
+      targetId: string,
+      input: ReportCaseDecisionInput,
+    ) => {
+      await repository.decideReportCase(targetType, targetId, {
+        ...input,
+        reason: input.reason.trim(),
+      });
+    },
+    listAppeals: async (query: AppealListQuery) =>
+      repository.listAppeals({
+        ...query,
+        search: query.search.trim(),
+      }),
+    getAppeal: async (appealId: string) => {
+      const appeal = await repository.getAppealDetail(appealId);
+      if (!appeal) {
+        throw new AdminNotFoundError('Appeal not found.');
+      }
+      return appeal;
+    },
+    decideAppeal: async (
+      appealId: string,
+      input: AppealDecisionInput,
+    ) => {
+      await repository.decideAppeal(appealId, {
         ...input,
         reason: input.reason.trim(),
       });

@@ -47,6 +47,26 @@ function createDependencies(
       throw new AdminNotFoundError('Creator request not found.');
     },
     decideCreatorRequest: async () => undefined,
+    listReportCases: async (query) => ({
+      items: [],
+      page: query.page,
+      pageSize: query.pageSize,
+      total: 0,
+    }),
+    getReportCase: async () => {
+      throw new AdminNotFoundError('Report case not found.');
+    },
+    decideReportCase: async () => undefined,
+    listAppeals: async (query) => ({
+      items: [],
+      page: query.page,
+      pageSize: query.pageSize,
+      total: 0,
+    }),
+    getAppeal: async () => {
+      throw new AdminNotFoundError('Appeal not found.');
+    },
+    decideAppeal: async () => undefined,
     ...overrides,
   };
 
@@ -168,4 +188,37 @@ test('rejects short reasons before changing account status', async () => {
 
   assert.equal(response.status, 400);
   assert.equal(decisionCalled, false);
+});
+
+test('returns grouped report cases from the protected endpoint', async () => {
+  const dependencies = createDependencies(
+    async () => expectedOverview,
+    {
+      listReportCases: async (query) => ({
+        items: [
+          {
+            targetType: 'post',
+            targetId: 'post-1',
+            targetTitle: 'Reported post',
+            targetExcerpt: 'Context',
+            ownerName: 'Owner',
+            status: 'open',
+            uniqueReporters: 7,
+            reasonCounts: [{ reason: 'Harassment', count: 7 }],
+            latestReportedAt: '2026-07-31T00:00:00.000Z',
+          },
+        ],
+        page: query.page,
+        pageSize: query.pageSize,
+        total: 1,
+      }),
+    },
+  );
+
+  const response = await request(createApp(dependencies))
+    .get('/admin/report-cases?status=open&page=1&pageSize=20')
+    .set('Authorization', 'Bearer valid-token');
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.items[0].uniqueReporters, 7);
 });

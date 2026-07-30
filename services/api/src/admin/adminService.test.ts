@@ -14,6 +14,7 @@ import {
   AdminValidationError,
   type AdminRepository,
   type PageResult,
+  type ReportCaseRow,
   type UserSummaryView,
 } from './adminTypes.js';
 
@@ -44,6 +45,17 @@ function createRepository(
     }),
     getCreatorRequestDetail: async () => null,
     decideCreatorRequest: async () => undefined,
+    getReportCaseRows: async () => [],
+    getReportCaseDetail: async () => null,
+    decideReportCase: async () => undefined,
+    listAppeals: async (query) => ({
+      items: [],
+      page: query.page,
+      pageSize: query.pageSize,
+      total: 0,
+    }),
+    getAppealDetail: async () => null,
+    decideAppeal: async () => undefined,
     ...overrides,
   };
 }
@@ -300,4 +312,91 @@ test('creator-request decisions delegate only validated domain values', async ()
     decision: 'approved',
     reason: 'Consistently helpful educational contributions.',
   });
+});
+
+test('report cases group raw rows by target and apply the unique-reporter threshold', async () => {
+  const rows: ReportCaseRow[] = [];
+  for (let index = 1; index <= 7; index += 1) {
+    rows.push({
+      id: `report-post-${index}`,
+      targetType: 'post',
+      targetId: 'post-ready',
+      reporterId: `reporter-${index}`,
+      reason: index <= 4 ? 'Harassment' : 'Hate speech',
+      description: null,
+      status: 'open',
+      reviewedBy: null,
+      reviewedAt: null,
+      resolutionNote: null,
+      createdAt: `2026-07-${String(index).padStart(2, '0')}T00:00:00.000Z`,
+      targetTitle: 'Reported post',
+      targetExcerpt: 'Post context',
+      ownerName: 'Post Owner',
+    });
+  }
+  for (let index = 1; index <= 2; index += 1) {
+    rows.push({
+      ...rows[0]!,
+      id: `report-below-${index}`,
+      targetId: 'post-below',
+      reporterId: `below-reporter-${index}`,
+    });
+  }
+  for (let index = 1; index <= 3; index += 1) {
+    rows.push({
+      ...rows[0]!,
+      id: `report-comment-${index}`,
+      targetType: 'comment',
+      targetId: 'comment-ready',
+      reporterId: `comment-reporter-${index}`,
+      targetTitle: null,
+      targetExcerpt: 'Reported comment',
+    });
+  }
+
+  const repository = {
+    ...createRepository(),
+    getReportCaseRows: async () => rows,
+  } as unknown as AdminRepository;
+  const service = createAdminService(repository, 3, {
+    id: 'admin-id',
+    email: 'admin@cyanzone.test',
+  });
+
+  const result = await service.listReportCases({
+    page: 1,
+    pageSize: 20,
+    search: '',
+    status: 'open',
+    targetType: undefined,
+  });
+
+  assert.equal(result.total, 2);
+  assert.deepEqual(
+    result.items.map((item) => [item.targetId, item.uniqueReporters]),
+    [
+      ['post-ready', 7],
+      ['comment-ready', 3],
+    ],
+  );
+  assert.deepEqual(result.items[0]?.reasonCounts, [
+    { reason: 'Harassment', count: 4 },
+    { reason: 'Hate speech', count: 3 },
+  ]);
+});
+
+test('missing appeal detail becomes a typed not-found error', async () => {
+  const repository = {
+    ...createRepository(),
+    getAppealDetail: async () => null,
+  } as unknown as AdminRepository;
+  const service = createAdminService(repository, 3, {
+    id: 'admin-id',
+    email: 'admin@cyanzone.test',
+  });
+
+  await assert.rejects(
+    () => service.getAppeal('missing-appeal'),
+    AdminNotFoundError,
+  );
 });
