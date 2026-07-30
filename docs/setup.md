@@ -51,11 +51,17 @@ by the current mobile app. At minimum, the live project should include:
 6. `supabase/comment_moderation.sql`
 7. `supabase/comment_mentions.sql`
 8. `supabase/chat.sql`
+9. `supabase/admin_portal.sql`
 
 The latest `chat.sql` is required for group-chat mentions. Run it manually in
 the Supabase SQL Editor after updating the application. It creates
 `chat_message_mentions` and the mention fetch/visit RPCs. Inspect any SQL Editor
 error before rerunning the script.
+
+`admin_portal.sql` must run after `chat.sql`. It creates the administrator audit
+table, duplicate unresolved-report guard, administrator appeal access, and the
+transactional RPCs used for account, creator, request, report, and appeal
+decisions. Inspect and resolve any SQL Editor error before using the portal.
 
 Inspect the remote schema before rerunning scripts. Notification trigger changes
 do not backfill old Activity/New Followers rows.
@@ -76,3 +82,63 @@ Install these locally for development:
 - Git
 
 The current scaffold is generator-free and can be opened directly in an editor.
+
+## Local Environment
+
+Administration Portal (`apps/admin/.env`):
+
+```text
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_API_BASE_URL=http://localhost:4000
+```
+
+Privileged API (`services/api/.env`):
+
+```text
+PORT=4000
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+ADMIN_BOOTSTRAP_SECRET=replace-with-long-random-secret
+REPORT_REVIEW_THRESHOLD=3
+```
+
+`REPORT_REVIEW_THRESHOLD` counts unique reporters per post/comment target. Keep
+it at `3` for the approved SRS behavior unless the SRS and project overview are
+revised together.
+
+## Local Development and Verification
+
+Run commands directly in the user's PowerShell environment, outside the Codex
+sandbox:
+
+```powershell
+cd services/api
+npm run dev
+
+cd ../../apps/admin
+npm run dev -- --host 127.0.0.1 --port 4173
+```
+
+In separate PowerShell sessions, verify:
+
+```powershell
+cd apps/admin
+npm test
+npm run typecheck
+npm run build
+
+cd ../../services/api
+npm test
+npm run typecheck
+npm run build
+
+cd ../../apps/mobile
+flutter test --reporter compact
+flutter analyze
+```
+
+The Admin Portal requires an authenticated active administrator. Apply
+`admin_portal.sql` before testing real casework. The AI-Flagged Content page is
+the only mock-backed portal feature until Gemini integration; it does not read
+or write Supabase.
