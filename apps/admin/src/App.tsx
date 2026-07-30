@@ -1,6 +1,8 @@
 import { AdminAuthBoundary } from './auth/AdminAuthBoundary';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
+import { OverviewPage } from './features/overview/OverviewPage';
+import { UsersPage } from './features/users/UsersPage';
 import { AdminPortalLayout } from './layout/AdminPortalLayout';
 
 function PlaceholderPage({
@@ -36,21 +38,11 @@ export function App() {
             >
               <Route
                 index
-                element={
-                  <PlaceholderPage
-                    title="Overview"
-                    description="Prioritized queues and recent casework decisions."
-                  />
-                }
+                element={<OverviewPage />}
               />
               <Route
                 path="users"
-                element={
-                  <PlaceholderPage
-                    title="Users"
-                    description="Review accounts, access, and creator status."
-                  />
-                }
+                element={<UsersPage currentUserId={context.session.userId} />}
               />
               <Route
                 path="creator-requests"

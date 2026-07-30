@@ -10,6 +10,7 @@ type Props = {
   onDanger?: () => void;
   title?: string;
   helperText?: string;
+  dangerDisabled?: boolean;
 };
 
 export function DecisionPanel({
@@ -22,6 +23,7 @@ export function DecisionPanel({
   onDanger,
   title = 'Your decision',
   helperText = 'Provide a clear reason. This decision will be recorded.',
+  dangerDisabled = false,
 }: Props) {
   const valid = reason.trim().length >= 10 && reason.trim().length <= 500;
 
@@ -56,7 +58,7 @@ export function DecisionPanel({
           {dangerLabel && onDanger ? (
             <button
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 text-sm font-extrabold text-red-600 transition hover:bg-red-50 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-45"
-              disabled={!valid || isSubmitting}
+              disabled={!valid || isSubmitting || dangerDisabled}
               onClick={onDanger}
               type="button"
             >
