@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { OverviewPage } from './features/overview/OverviewPage';
 import { CreatorRequestsPage } from './features/creatorRequests/CreatorRequestsPage';
 import { AppealsPage } from './features/appeals/AppealsPage';
+import { AiFlaggedContentPage } from './features/aiFlagged/AiFlaggedContentPage';
 import { ReportsPage } from './features/reports/ReportsPage';
 import { UsersPage } from './features/users/UsersPage';
 import { AdminPortalLayout } from './layout/AdminPortalLayout';
@@ -61,12 +62,7 @@ export function App() {
               />
               <Route
                 path="ai-flagged"
-                element={
-                  <PlaceholderPage
-                    title="AI-Flagged Content"
-                    description="Preview the future AI moderation review workflow."
-                  />
-                }
+                element={<AiFlaggedContentPage />}
               />
             </Route>
           </Routes>
