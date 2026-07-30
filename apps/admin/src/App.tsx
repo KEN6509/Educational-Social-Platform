@@ -10,6 +10,7 @@ import {
   Users,
 } from 'lucide-react';
 
+import { AdminLogoutDialog } from './components/AdminLogoutDialog';
 import { supabase } from './lib/supabase';
 
 const metrics = [
@@ -216,6 +217,31 @@ function AdminLogin({ message }: { message: string | null }) {
 }
 
 function Dashboard({ email }: { email: string }) {
+  const [isLogoutOpen, setIsLogoutOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+
+  function closeLogoutDialog() {
+    if (isSigningOut) return;
+    setIsLogoutOpen(false);
+    setLogoutError(null);
+  }
+
+  async function confirmLogout() {
+    if (isSigningOut) return;
+
+    setIsSigningOut(true);
+    setLogoutError(null);
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      setLogoutError(
+        'Could not log out. Please check your connection and try again.',
+      );
+      setIsSigningOut(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-cyanZone-mist text-cyanZone-ink">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white px-5 py-6 lg:block">
@@ -251,10 +277,13 @@ function Dashboard({ email }: { email: string }) {
           <button
             className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-cyan-100"
             type="button"
-            onClick={() => supabase.auth.signOut()}
+            onClick={() => {
+              setLogoutError(null);
+              setIsLogoutOpen(true);
+            }}
           >
             <LogOut className="h-4 w-4" />
-            Sign out
+            Log out
           </button>
         </header>
 
@@ -278,6 +307,14 @@ function Dashboard({ email }: { email: string }) {
           })}
         </div>
       </section>
+
+      <AdminLogoutDialog
+        error={logoutError}
+        isOpen={isLogoutOpen}
+        isSigningOut={isSigningOut}
+        onCancel={closeLogoutDialog}
+        onConfirm={confirmLogout}
+      />
     </main>
   );
 }
