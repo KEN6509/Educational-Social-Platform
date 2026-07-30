@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import { OverviewPage } from './features/overview/OverviewPage';
 import { CreatorRequestsPage } from './features/creatorRequests/CreatorRequestsPage';
+import { ReportsPage } from './features/reports/ReportsPage';
 import { UsersPage } from './features/users/UsersPage';
 import { AdminPortalLayout } from './layout/AdminPortalLayout';
 
@@ -51,12 +52,7 @@ export function App() {
               />
               <Route
                 path="reports"
-                element={
-                  <PlaceholderPage
-                    title="Reports"
-                    description="Review grouped content cases reported by the community."
-                  />
-                }
+                element={<ReportsPage />}
               />
               <Route
                 path="appeals"
