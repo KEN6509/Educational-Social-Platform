@@ -3,6 +3,31 @@ import { describe, expect, it, vi } from 'vitest';
 import { AdminApiError, createAdminApi } from './adminApi';
 
 describe('adminApi', () => {
+  it('invokes fetch with the browser global as its receiver', async () => {
+    const receiverSensitiveFetch = vi.fn(function (
+      this: typeof globalThis,
+    ) {
+      if (this !== globalThis) {
+        throw new TypeError('Illegal invocation');
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ activeUsers: 0 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    }) as unknown as typeof fetch;
+    const api = createAdminApi({
+      baseUrl: 'https://api.cyanzone.test',
+      fetcher: receiverSensitiveFetch,
+      getAccessToken: async () => 'access-token',
+    });
+
+    await expect(api.get('/admin/overview')).resolves.toEqual({
+      activeUsers: 0,
+    });
+  });
+
   it('attaches the bearer token and encodes query parameters', async () => {
     const fetcher = vi.fn(async () =>
       new Response(JSON.stringify({ items: [], total: 0 }), {

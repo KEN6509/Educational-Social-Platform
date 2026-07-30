@@ -71,15 +71,19 @@ export function createAdminApi(
       }
     }
 
-    const response = await dependencies.fetcher(url.toString(), {
-      ...init,
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        ...init.headers,
+    const response = await dependencies.fetcher.call(
+      globalThis,
+      url.toString(),
+      {
+        ...init,
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+          ...init.headers,
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       let message = 'Unable to complete the administrator request.';
