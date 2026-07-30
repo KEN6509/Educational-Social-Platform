@@ -8,6 +8,7 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   ADMIN_BOOTSTRAP_SECRET: z.string().min(24),
+  REPORT_REVIEW_THRESHOLD: z.coerce.number().int().min(1).default(3),
   GEMINI_API_KEY: z.string().min(1).optional(),
 });
 
