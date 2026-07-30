@@ -6,8 +6,11 @@
 
 body {
   margin: 0;
+  min-width: 320px;
   font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172026;
+  background: #ffffff;
 }
 
 h1,
@@ -15,4 +18,21 @@ h2,
 h3,
 .font-black {
   font-family: "Nunito", "DM Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: rgba(0, 167, 183, 0.2);
 }
