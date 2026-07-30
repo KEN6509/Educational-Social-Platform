@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import { OverviewPage } from './features/overview/OverviewPage';
 import { CreatorRequestsPage } from './features/creatorRequests/CreatorRequestsPage';
+import { AppealsPage } from './features/appeals/AppealsPage';
 import { ReportsPage } from './features/reports/ReportsPage';
 import { UsersPage } from './features/users/UsersPage';
 import { AdminPortalLayout } from './layout/AdminPortalLayout';
@@ -56,12 +57,7 @@ export function App() {
               />
               <Route
                 path="appeals"
-                element={
-                  <PlaceholderPage
-                    title="Appeals"
-                    description="Review rejected content and member appeals."
-                  />
-                }
+                element={<AppealsPage />}
               />
               <Route
                 path="ai-flagged"
