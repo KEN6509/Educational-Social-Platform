@@ -35,6 +35,8 @@ function createRepository(
       total: 0,
     }),
     getUserDetail: async () => null,
+    listUserPublishedPosts: async () => [],
+    getPostDetail: async () => null,
     setUserAccountStatus: async () => undefined,
     setUserCreatorStatus: async () => undefined,
     listCreatorRequests: async (query) => ({
@@ -254,6 +256,56 @@ test('missing user detail becomes a typed not-found error', async () => {
     () => service.getUser('missing-user'),
     AdminNotFoundError,
   );
+});
+
+test('post review services expose published posts and reject missing details', async () => {
+  const postSummary = {
+    id: 'post-1',
+    title: 'Repair guide',
+    content: 'Full guide',
+    tags: ['Technology'],
+    moderationStatus: 'approved',
+    publishedAt: '2026-07-31T00:00:00.000Z',
+    createdAt: '2026-07-30T00:00:00.000Z',
+    coverImageUrl: 'https://img/cover.jpg',
+    imageCount: 1,
+    commentCount: 2,
+  };
+  const postDetail = {
+    ...postSummary,
+    authorId: 'creator-1',
+    authorName: 'Ken',
+    authorAvatarUrl: null,
+    images: [{ url: 'https://img/cover.jpg', position: 1 }],
+    comments: [],
+  };
+  const service = createAdminService(
+    createRepository({
+      getUserDetail: async () => ({
+        id: 'user-1',
+        name: 'Ken',
+        email: 'ken@cyanzone.test',
+        avatarUrl: null,
+        bio: null,
+        isContentCreator: true,
+        isAdmin: false,
+        accountStatus: 'active',
+        createdAt: '2026-07-01T00:00:00.000Z',
+        emailVerified: true,
+        publishedPostCount: 1,
+        recentPosts: [postSummary],
+        recentDecisions: [],
+      }),
+      listUserPublishedPosts: async () => [postSummary],
+      getPostDetail: async (postId: string) =>
+        postId === 'missing' ? null : postDetail,
+    }),
+    1,
+  );
+
+  assert.equal((await service.listUserPosts('user-1')).length, 1);
+  assert.equal((await service.getPost('post-1')).id, 'post-1');
+  await assert.rejects(() => service.getPost('missing'), AdminNotFoundError);
 });
 
 test('administrators cannot suspend their own account', async () => {

@@ -35,6 +35,10 @@ function createDependencies(
     getUser: async () => {
       throw new AdminNotFoundError('User not found.');
     },
+    listUserPosts: async () => [],
+    getPost: async () => {
+      throw new AdminNotFoundError('Post not found.');
+    },
     setUserAccountStatus: async () => undefined,
     setUserCreatorStatus: async () => undefined,
     listCreatorRequests: async (query) => ({

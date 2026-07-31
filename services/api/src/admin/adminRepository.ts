@@ -1,5 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import {
+  buildAdminPostDetail,
+  buildAdminPostSummary,
+  type AdminPostCommentRow,
+  type AdminPostImageRow,
+  type AdminPostProfileRow,
+  type AdminPostRow,
+} from './adminPostViews.js';
 import type {
   AdminRepository,
   AuditView,
@@ -58,7 +66,73 @@ function mapPost(row: Record<string, unknown>): PostSummaryView {
     publishedAt:
       typeof row.published_at === 'string' ? row.published_at : null,
     createdAt: String(row.created_at),
+    coverImageUrl: null,
+    imageCount: 0,
+    commentCount: 0,
   };
+}
+
+function mapPostRow(row: Record<string, unknown>): AdminPostRow {
+  return {
+    id: String(row.id),
+    author_id: String(row.author_id),
+    title: typeof row.title === 'string' ? row.title : null,
+    content: typeof row.content === 'string' ? row.content : null,
+    tags: row.tags,
+    moderation_status: String(row.moderation_status),
+    published_at:
+      typeof row.published_at === 'string' ? row.published_at : null,
+    created_at: String(row.created_at),
+  };
+}
+
+function mapImageRow(row: Record<string, unknown>): AdminPostImageRow {
+  return {
+    post_id: String(row.post_id),
+    public_url:
+      typeof row.public_url === 'string' ? row.public_url : null,
+    position: Number(row.position),
+  };
+}
+
+async function hydratePostSummaries(
+  client: SupabaseClient,
+  postRows: Record<string, unknown>[],
+): Promise<PostSummaryView[]> {
+  if (postRows.length === 0) {
+    return [];
+  }
+
+  const postIds = postRows.map((row) => String(row.id));
+  const [imageResult, commentResult] = await Promise.all([
+    client
+      .from('post_images')
+      .select('post_id, public_url, position')
+      .in('post_id', postIds)
+      .order('position', { ascending: true }),
+    client
+      .from('comments')
+      .select('id, post_id')
+      .in('post_id', postIds)
+      .eq('moderation_status', 'approved'),
+  ]);
+  assertQuerySucceeded(imageResult.error);
+  assertQuerySucceeded(commentResult.error);
+
+  const images = (imageResult.data ?? []).map((row) => mapImageRow(row));
+  const comments = (commentResult.data ?? []).map((row) => ({
+    id: String(row.id),
+    post_id: String(row.post_id),
+  }));
+
+  return postRows.map((row) => {
+    const post = mapPostRow(row);
+    return buildAdminPostSummary({
+      post,
+      images: images.filter((image) => image.post_id === post.id),
+      comments: comments.filter((comment) => comment.post_id === post.id),
+    });
+  });
 }
 
 function mapAudit(row: Record<string, unknown>): AuditView {
@@ -221,16 +295,21 @@ export function createAdminRepository(
         return null;
       }
 
-      const [postsResult, auditResult] = await Promise.all([
+      const [postsResult, postCountResult, auditResult] = await Promise.all([
         client
           .from('posts')
           .select(
-            'id, title, content, tags, moderation_status, published_at, created_at',
+            'id, author_id, title, content, tags, moderation_status, published_at, created_at',
           )
           .eq('author_id', userId)
           .eq('moderation_status', 'approved')
           .order('published_at', { ascending: false, nullsFirst: false })
           .limit(5),
+        client
+          .from('posts')
+          .select('id', { count: 'exact', head: true })
+          .eq('author_id', userId)
+          .eq('moderation_status', 'approved'),
         client
           .from('admin_action_audit')
           .select(
@@ -243,16 +322,140 @@ export function createAdminRepository(
       ]);
 
       assertQuerySucceeded(postsResult.error);
+      assertQuerySucceeded(postCountResult.error);
       assertQuerySucceeded(auditResult.error);
+      const recentPosts = await hydratePostSummaries(
+        client,
+        postsResult.data ?? [],
+      );
 
       return {
         ...mapUser(profileResult.data),
         emailVerified: null,
-        recentPosts: (postsResult.data ?? []).map((row) => mapPost(row)),
+        publishedPostCount: postCountResult.count ?? 0,
+        recentPosts,
         recentDecisions: (auditResult.data ?? []).map((row) =>
           mapAudit(row),
         ),
       };
+    },
+    listUserPublishedPosts: async (userId) => {
+      const postsResult = await client
+        .from('posts')
+        .select(
+          'id, author_id, title, content, tags, moderation_status, published_at, created_at',
+        )
+        .eq('author_id', userId)
+        .eq('moderation_status', 'approved')
+        .order('published_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
+      assertQuerySucceeded(postsResult.error);
+
+      return hydratePostSummaries(client, postsResult.data ?? []);
+    },
+    getPostDetail: async (postId) => {
+      const postResult = await client
+        .from('posts')
+        .select(
+          'id, author_id, title, content, tags, moderation_status, published_at, created_at',
+        )
+        .eq('id', postId)
+        .eq('moderation_status', 'approved')
+        .maybeSingle();
+      assertQuerySucceeded(postResult.error);
+      if (!postResult.data) {
+        return null;
+      }
+
+      const post = mapPostRow(postResult.data);
+      const [authorResult, imageResult, commentResult] = await Promise.all([
+        client
+          .from('profiles')
+          .select('id, name, avatar_url')
+          .eq('id', post.author_id)
+          .maybeSingle(),
+        client
+          .from('post_images')
+          .select('post_id, public_url, position')
+          .eq('post_id', postId)
+          .order('position', { ascending: true }),
+        client
+          .from('comments')
+          .select(
+            'id, post_id, author_id, parent_comment_id, content, created_at',
+          )
+          .eq('post_id', postId)
+          .eq('moderation_status', 'approved')
+          .order('created_at', { ascending: true }),
+      ]);
+      assertQuerySucceeded(authorResult.error);
+      assertQuerySucceeded(imageResult.error);
+      assertQuerySucceeded(commentResult.error);
+
+      const comments: AdminPostCommentRow[] = (commentResult.data ?? []).map(
+        (row) => ({
+          id: String(row.id),
+          post_id: String(row.post_id),
+          author_id: String(row.author_id),
+          parent_comment_id:
+            typeof row.parent_comment_id === 'string'
+              ? row.parent_comment_id
+              : null,
+          content: String(row.content),
+          created_at: String(row.created_at),
+        }),
+      );
+      const profileIds = [
+        ...new Set([post.author_id, ...comments.map((row) => row.author_id)]),
+      ];
+      const commentIds = comments.map((row) => row.id);
+      const [profilesResult, likesResult] = await Promise.all([
+        client
+          .from('profiles')
+          .select('id, name, avatar_url')
+          .in('id', profileIds),
+        commentIds.length > 0
+          ? client
+              .from('comment_likes')
+              .select('comment_id')
+              .in('comment_id', commentIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      assertQuerySucceeded(profilesResult.error);
+      assertQuerySucceeded(likesResult.error);
+
+      const profiles: AdminPostProfileRow[] = (
+        profilesResult.data ?? []
+      ).map((row) => ({
+        id: String(row.id),
+        name: String(row.name),
+        avatar_url:
+          typeof row.avatar_url === 'string' ? row.avatar_url : null,
+      }));
+      const author: AdminPostProfileRow | null = authorResult.data
+        ? {
+            id: String(authorResult.data.id),
+            name: String(authorResult.data.name),
+            avatar_url:
+              typeof authorResult.data.avatar_url === 'string'
+                ? authorResult.data.avatar_url
+                : null,
+          }
+        : null;
+      const likeCounts = new Map<string, number>();
+      for (const like of likesResult.data ?? []) {
+        const commentId = String(like.comment_id);
+        likeCounts.set(commentId, (likeCounts.get(commentId) ?? 0) + 1);
+      }
+
+      return buildAdminPostDetail({
+        post,
+        author,
+        images: (imageResult.data ?? []).map((row) => mapImageRow(row)),
+        comments,
+        profiles,
+        likeCounts,
+      });
     },
     setUserAccountStatus: async (userId, input) => {
       const { error } = await client.rpc('set_user_account_status', {

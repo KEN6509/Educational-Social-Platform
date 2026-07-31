@@ -82,6 +82,20 @@ export function createAdminService(
       }
       return user;
     },
+    listUserPosts: async (userId: string) => {
+      const user = await repository.getUserDetail(userId);
+      if (!user) {
+        throw new AdminNotFoundError('User not found.');
+      }
+      return repository.listUserPublishedPosts(userId);
+    },
+    getPost: async (postId: string) => {
+      const post = await repository.getPostDetail(postId);
+      if (!post) {
+        throw new AdminNotFoundError('Post not found.');
+      }
+      return post;
+    },
     setUserAccountStatus: async (
       userId: string,
       input: UserAccountStatusInput,
