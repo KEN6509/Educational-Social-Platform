@@ -5,6 +5,7 @@ export type CaseworkListItem = {
   id: string;
   title: string;
   subtitle: string;
+  supportingText?: string;
   meta?: string;
   leading?: ReactNode;
   trailing?: ReactNode;
@@ -48,7 +49,16 @@ export function CaseworkList({ items, selectedId, onSelect }: Props) {
                   </span>
                 ) : null}
               </span>
-              <span className="mt-1 line-clamp-2 block text-xs leading-5 text-slate-600">
+              {item.supportingText ? (
+                <span className="mt-1 block text-[11px] font-bold text-slate-500">
+                  {item.supportingText}
+                </span>
+              ) : null}
+              <span
+                className={`line-clamp-2 text-xs leading-5 text-slate-600 ${
+                  item.supportingText ? 'mt-0.5' : 'mt-1'
+                }`}
+              >
                 {item.subtitle}
               </span>
             </span>

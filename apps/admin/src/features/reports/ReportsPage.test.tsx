@@ -84,6 +84,22 @@ describe('ReportsPage', () => {
     expect(screen.queryByText('7 cases')).not.toBeInTheDocument();
   });
 
+  it('limits each left-panel content preview to two lines', async () => {
+    const api = createApi();
+    render(<ReportsPage api={api} />);
+
+    const queue = await screen.findByLabelText('Casework queue');
+    const item = within(queue).getByRole('button', {
+      name: /Why Sleep Matters/,
+    });
+    expect(
+      within(item).getByText('7 reports · 7 reporters'),
+    ).toBeVisible();
+    expect(within(item).getByText(summary.targetExcerpt)).toHaveClass(
+      'line-clamp-2',
+    );
+  });
+
   it('confirms removal with a required administrator reason', async () => {
     const user = userEvent.setup();
     const api = createApi();

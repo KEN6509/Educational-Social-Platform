@@ -194,7 +194,8 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
                 title:
                   item.targetTitle ||
                   `Reported ${item.targetType}`,
-                subtitle: `${item.uniqueReporters} unique reports · ${item.targetExcerpt}`,
+                subtitle: item.targetExcerpt,
+                supportingText: `${item.totalReports} reports · ${item.uniqueReporters} reporters`,
                 meta: formatDate(item.latestReportedAt),
                 leading: (
                   <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-50 text-red-600">
