@@ -81,6 +81,7 @@ export type ReportCaseSummaryView = {
   targetExcerpt: string;
   ownerName: string;
   status: 'open' | 'reviewing' | 'resolved' | 'dismissed';
+  totalReports: number;
   uniqueReporters: number;
   reasonCounts: Array<{ reason: string; count: number }>;
   latestReportedAt: string;

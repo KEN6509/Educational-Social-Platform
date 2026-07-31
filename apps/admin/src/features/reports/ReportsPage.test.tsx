@@ -17,6 +17,7 @@ const summary: ReportCaseSummaryView = {
   targetExcerpt: 'Sleep is optional if you really want to succeed.',
   ownerName: 'Jordan Lee',
   status: 'open',
+  totalReports: 7,
   uniqueReporters: 7,
   reasonCounts: [
     { reason: 'Harmful advice', count: 5 },
@@ -65,14 +66,19 @@ function createApi() {
 }
 
 describe('ReportsPage', () => {
-  it('renders grouped case counts, unique reporters, reasons, and visibility', async () => {
+  it('renders grouped report totals, reason percentages, and visibility', async () => {
     const api = createApi();
     render(<ReportsPage api={api} />);
 
     expect(await screen.findByText('Why Sleep Matters')).toBeVisible();
-    expect(await screen.findByText('7 unique reports')).toBeVisible();
+    expect(await screen.findByText('7 total reports')).toBeVisible();
+    expect(screen.getByText('7 unique reporters')).toBeVisible();
     expect(screen.getByText('Harmful advice')).toBeVisible();
-    expect(screen.getByText('5')).toBeVisible();
+    expect(screen.getByText('71%')).toBeVisible();
+    expect(screen.getByText('29%')).toBeVisible();
+    expect(
+      screen.getByRole('progressbar', { name: 'Harmful advice 71%' }),
+    ).toHaveAttribute('aria-valuenow', '71');
     expect(screen.getByText('Currently visible')).toBeVisible();
     expect(screen.getByText('1 case')).toBeVisible();
     expect(screen.queryByText('7 cases')).not.toBeInTheDocument();
@@ -82,7 +88,7 @@ describe('ReportsPage', () => {
     const user = userEvent.setup();
     const api = createApi();
     render(<ReportsPage api={api} />);
-    await screen.findByText('7 unique reports');
+    await screen.findByText('7 total reports');
 
     await user.type(
       screen.getByLabelText(/Decision reason/),

@@ -85,27 +85,55 @@ export function ReportCaseDetail({
         <section className="rounded-xl border border-red-200 bg-red-50/50 p-5">
           <div className="flex items-center gap-2">
             <Flag className="h-5 w-5 text-red-600" aria-hidden="true" />
-            <h3 className="font-black">
-              {reportCase.uniqueReporters} unique reports
-            </h3>
+            <div>
+              <h3 className="font-black">
+                {reportCase.totalReports} total reports
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                {reportCase.uniqueReporters} unique reporters
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-3 text-xs text-slate-500">
             This is one grouped case for a single content target.
           </p>
           <div className="mt-4 space-y-2">
-            {reportCase.reasonCounts.map((item) => (
-              <div
-                className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm"
-                key={item.reason}
-              >
-                <span className="font-semibold text-slate-700">
-                  {item.reason}
-                </span>
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-black text-red-700">
-                  {item.count}
-                </span>
-              </div>
-            ))}
+            {reportCase.reasonCounts.map((item) => {
+              const percentage = reasonPercentage(
+                item.count,
+                reportCase.totalReports,
+              );
+              return (
+                <div
+                  className="rounded-lg bg-white px-3 py-2"
+                  key={item.reason}
+                >
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-semibold text-slate-700">
+                      {item.reason}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-black text-red-700">
+                      <span>{item.count}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{percentage}%</span>
+                    </span>
+                  </div>
+                  <div
+                    aria-label={`${item.reason} ${percentage}%`}
+                    aria-valuemax={100}
+                    aria-valuemin={0}
+                    aria-valuenow={percentage}
+                    className="mt-2 h-1.5 overflow-hidden rounded-full bg-red-100"
+                    role="progressbar"
+                  >
+                    <div
+                      className="h-full rounded-full bg-red-500"
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
 
@@ -130,6 +158,10 @@ export function ReportCaseDetail({
       </div>
     </div>
   );
+}
+
+function reasonPercentage(count: number, total: number) {
+  return total === 0 ? 0 : Math.round((count / total) * 100);
 }
 
 function formatDateTime(value: string) {
