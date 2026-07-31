@@ -53,6 +53,13 @@ The Recent Decisions section displays the latest 15 rows from `admin_action_audi
 
 The current Users detail page, profile summary, account facts, and Account Decision section remain visually and functionally unchanged.
 
+The creator identity treatment is corrected in the profile header:
+
+- Keep the existing account-status badge, such as **Active**.
+- When `isContentCreator` is true, place the same verification mark used by the mobile app immediately to the right of the user's name: a `16px` circular `#2F8FED` blue mark containing a white check, separated from the name by `6px`.
+- Give the icon an accessible label of **Verified content creator**.
+- Do not render an **Approved** or text-based **Verified** status badge beside the name; `approved` describes content moderation, not the user's identity.
+
 The Published Posts fact must show the user's real total number of approved published posts rather than the size of the five-item recent-post collection.
 
 ### Recent Published Content carousel
