@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { AdminApi } from '../../lib/adminApi';
 import type {
+  AdminPostDetailView,
   PageResult,
   ReportCaseDetailView,
   ReportCaseSummaryView,
@@ -16,7 +17,7 @@ const summary: ReportCaseSummaryView = {
   targetTitle: 'Why Sleep Matters',
   targetExcerpt: 'Sleep is optional if you really want to succeed.',
   ownerName: 'Jordan Lee',
-  status: 'open',
+  status: 'pending_review',
   totalReports: 7,
   uniqueReporters: 7,
   reasonCounts: [
@@ -38,14 +39,43 @@ const detail: ReportCaseDetailView = {
       id: 'report-1',
       reporterId: 'reporter-1',
       reason: 'Harmful advice',
-      description: 'Encourages unsafe sleep habits.',
-      status: 'pending',
+      status: 'pending_review',
       createdAt: '2026-07-31T08:00:00.000Z',
       reviewedAt: null,
       resolutionNote: null,
     },
   ],
   recentDecisions: [],
+};
+
+const postDetail: AdminPostDetailView = {
+  id: 'post-1',
+  authorId: 'owner-1',
+  authorName: 'Jordan Lee',
+  authorAvatarUrl: null,
+  title: 'Why Sleep Matters',
+  content: 'Sleep is optional if you really want to succeed.',
+  tags: ['Health'],
+  moderationStatus: 'approved',
+  publishedAt: '2026-07-30T08:00:00.000Z',
+  createdAt: '2026-07-30T08:00:00.000Z',
+  coverImageUrl: 'https://images.test/sleep.jpg',
+  imageCount: 1,
+  commentCount: 1,
+  images: [{ url: 'https://images.test/sleep.jpg', position: 1 }],
+  comments: [
+    {
+      id: 'comment-1',
+      authorId: 'member-1',
+      authorName: 'Aisha',
+      authorAvatarUrl: null,
+      isCreator: false,
+      content: 'This advice feels unsafe.',
+      createdAt: '2026-07-31T09:00:00.000Z',
+      likeCount: 2,
+      replies: [],
+    },
+  ],
 };
 
 function createApi() {
@@ -59,6 +89,7 @@ function createApi() {
           total: 1,
         } satisfies PageResult<ReportCaseSummaryView>;
       }
+      if (path === '/admin/posts/post-1') return postDetail;
       return detail;
     }),
     post: vi.fn().mockResolvedValue(undefined),
@@ -74,14 +105,39 @@ describe('ReportsPage', () => {
     expect(await screen.findByText('7 total reports')).toBeVisible();
     expect(screen.getByText('7 unique reporters')).toBeVisible();
     expect(screen.getByText('Harmful advice')).toBeVisible();
-    expect(screen.getByText('71%')).toBeVisible();
-    expect(screen.getByText('29%')).toBeVisible();
-    expect(
-      screen.getByRole('progressbar', { name: 'Harmful advice 71%' }),
-    ).toHaveAttribute('aria-valuenow', '71');
+    expect(screen.getByText('5 · 71%')).toBeVisible();
+    expect(screen.getByText('2 · 29%')).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Report reasons' })).toBeVisible();
     expect(screen.getByText('Currently visible')).toBeVisible();
     expect(screen.getByText('1 case')).toBeVisible();
     expect(screen.queryByText('7 cases')).not.toBeInTheDocument();
+  });
+
+  it('uses only the simplified report tabs and pending-review query', async () => {
+    const api = createApi();
+    render(<ReportsPage api={api} />);
+
+    expect(await screen.findByRole('tab', { name: 'Pending Review' })).toBeVisible();
+    expect(screen.queryByRole('tab', { name: 'Reviewing' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Resolved' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Dismissed' })).toBeVisible();
+    expect(api.get).toHaveBeenCalledWith(
+      '/admin/report-cases',
+      expect.objectContaining({ status: 'pending_review' }),
+    );
+    expect(screen.queryByText('Reporter context')).not.toBeInTheDocument();
+  });
+
+  it('opens the shared post detail popup from a post report', async () => {
+    const user = userEvent.setup();
+    const api = createApi();
+    render(<ReportsPage api={api} />);
+
+    await user.click(await screen.findByRole('button', { name: 'View Post >' }));
+
+    expect(api.get).toHaveBeenCalledWith('/admin/posts/post-1');
+    expect(await screen.findByRole('dialog', { name: 'Why Sleep Matters' })).toBeVisible();
+    expect(screen.getByText('This advice feels unsafe.')).toBeVisible();
   });
 
   it('limits each left-panel content preview to two lines', async () => {

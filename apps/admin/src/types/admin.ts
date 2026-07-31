@@ -104,7 +104,7 @@ export type ReportCaseSummaryView = {
   targetTitle: string | null;
   targetExcerpt: string;
   ownerName: string;
-  status: 'open' | 'reviewing' | 'resolved' | 'dismissed';
+  status: 'pending_review' | 'resolved' | 'dismissed';
   totalReports: number;
   uniqueReporters: number;
   reasonCounts: Array<{ reason: string; count: number }>;
@@ -121,7 +121,6 @@ export type ReportCaseDetailView = ReportCaseSummaryView & {
     id: string;
     reporterId: string | null;
     reason: string;
-    description: string | null;
     status: string;
     createdAt: string;
     reviewedAt: string | null;

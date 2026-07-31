@@ -1,5 +1,5 @@
 import { ArrowLeft, FileWarning, Search } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { AsyncState } from '../../components/casework/AsyncState';
 import { CaseworkList } from '../../components/casework/CaseworkList';
@@ -12,16 +12,18 @@ import {
   type AdminApi,
 } from '../../lib/adminApi';
 import type {
+  AdminPostDetailView,
   PageResult,
   ReportCaseDetailView,
   ReportCaseSummaryView,
 } from '../../types/admin';
 import { ReportCaseDetail } from './ReportCaseDetail';
+import { PostDetailModal } from '../users/PostDetailModal';
 
-type Status = 'open' | 'reviewing' | 'resolved' | 'dismissed';
+type Status = 'pending_review' | 'resolved' | 'dismissed';
 
 export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
-  const [status, setStatus] = useState<Status>('open');
+  const [status, setStatus] = useState<Status>('pending_review');
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const [list, setList] =
@@ -38,6 +40,12 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [mobileDetail, setMobileDetail] = useState(false);
+  const [postDetailOpen, setPostDetailOpen] = useState(false);
+  const [postDetail, setPostDetail] = useState<AdminPostDetailView | null>(null);
+  const [postDetailLoading, setPostDetailLoading] = useState(false);
+  const [postDetailError, setPostDetailError] = useState<string | null>(null);
+  const [postDetailId, setPostDetailId] = useState<string | null>(null);
+  const postTriggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -98,6 +106,41 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
   function submitSearch(event: FormEvent) {
     event.preventDefault();
     setSearch(searchDraft.trim());
+  }
+
+  async function loadPost(postId: string) {
+    setPostDetailLoading(true);
+    setPostDetailError(null);
+    try {
+      setPostDetail(
+        await api.get<AdminPostDetailView>(`/admin/posts/${postId}`),
+      );
+    } catch (nextError) {
+      setPostDetailError(
+        nextError instanceof Error
+          ? nextError.message
+          : 'Post details could not be loaded.',
+      );
+    } finally {
+      setPostDetailLoading(false);
+    }
+  }
+
+  function openReportedPost() {
+    if (!detail || detail.targetType !== 'post') return;
+    postTriggerRef.current = document.activeElement as HTMLElement | null;
+    setPostDetailId(detail.targetId);
+    setPostDetail(null);
+    setPostDetailOpen(true);
+    void loadPost(detail.targetId);
+  }
+
+  function closePostDetail() {
+    setPostDetailOpen(false);
+    setPostDetail(null);
+    setPostDetailError(null);
+    setPostDetailId(null);
+    window.setTimeout(() => postTriggerRef.current?.focus(), 0);
   }
 
   async function confirmDecision() {
@@ -169,8 +212,7 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
           <CaseworkTabs
             activeId={status}
             items={[
-              { id: 'open', label: 'Pending Review' },
-              { id: 'reviewing', label: 'Reviewing' },
+              { id: 'pending_review', label: 'Pending Review' },
               { id: 'resolved', label: 'Resolved' },
               { id: 'dismissed', label: 'Dismissed' },
             ]}
@@ -237,7 +279,12 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
           {selected && !detail && !error ? <AsyncState state="loading" /> : null}
           {detail ? (
             <>
-              <ReportCaseDetail reportCase={detail} />
+              <ReportCaseDetail
+                onViewPost={
+                  detail.targetType === 'post' ? openReportedPost : undefined
+                }
+                reportCase={detail}
+              />
               {decisionError ? (
                 <p
                   className="mx-5 mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
@@ -246,7 +293,7 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
                   {decisionError}
                 </p>
               ) : null}
-              {['open', 'reviewing'].includes(detail.status) ? (
+              {detail.status === 'pending_review' ? (
                 <DecisionPanel
                   dangerLabel="Remove content"
                   helperText="Retaining keeps the content visible. Removing hides it and records the reason."
@@ -284,6 +331,14 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
           ) : null}
         </div>
       </div>
+      <PostDetailModal
+        errorMessage={postDetailError}
+        isOpen={postDetailOpen}
+        loading={postDetailLoading}
+        onClose={closePostDetail}
+        onRetry={postDetailId ? () => void loadPost(postDetailId) : undefined}
+        post={postDetail}
+      />
     </section>
   );
 }
