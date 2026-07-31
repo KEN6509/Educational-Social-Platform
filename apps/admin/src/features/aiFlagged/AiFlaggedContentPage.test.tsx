@@ -10,13 +10,10 @@ describe('AiFlaggedContentPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('is an isolated post/comment preview with bounded mock scores', async () => {
+  it('presents post and comment moderation without implementation disclaimers', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     render(<AiFlaggedContentPage />);
 
-    expect(
-      screen.getByText('Preview data - Gemini integration is not connected.'),
-    ).toBeVisible();
     expect(aiFlaggedMockData).toHaveLength(6);
     expect(
       aiFlaggedMockData.every(
@@ -25,10 +22,13 @@ describe('AiFlaggedContentPage', () => {
     ).toBe(true);
     expect(await screen.findByText('Post')).toBeVisible();
     expect(screen.getAllByText(/Comment/).length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toMatch(
+      /mock|preview|temporary|future|deferred|not implemented|not connected|saved locally/i,
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('requires confirmation, changes local status, and resets on a new instance', async () => {
+  it('requires confirmation before changing moderation status', async () => {
     const user = userEvent.setup();
     const { unmount } = render(<AiFlaggedContentPage />);
 
@@ -37,13 +37,14 @@ describe('AiFlaggedContentPage', () => {
       'The context is educational and does not violate policy.',
     );
     await user.click(screen.getByRole('button', { name: 'Approve content' }));
-    const dialog = screen.getByRole('dialog', { name: 'Approve preview content?' });
+    expect(screen.getByRole('tab', { name: /Pending/ })).toHaveTextContent('3');
+    const dialog = screen.getByRole('dialog', { name: 'Approve content?' });
     await user.click(within(dialog).getByRole('button', { name: 'Confirm approval' }));
-    expect(await screen.findByText('Preview decision saved locally.')).toBeVisible();
+    expect(await screen.findByText('Decision saved.')).toBeVisible();
 
     unmount();
     render(<AiFlaggedContentPage />);
-    expect(screen.queryByText('Preview decision saved locally.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Decision saved.')).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Pending/ })).toHaveAttribute(
       'aria-selected',
       'true',

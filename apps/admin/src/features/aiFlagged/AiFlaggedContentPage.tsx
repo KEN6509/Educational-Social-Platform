@@ -1,8 +1,6 @@
 import {
   ArrowLeft,
-  Bot,
   FileText,
-  FlaskConical,
   MessageSquare,
   ShieldAlert,
 } from 'lucide-react';
@@ -62,29 +60,15 @@ export function AiFlaggedContentPage() {
   return (
     <section className="min-h-screen bg-white">
       <header className="border-b border-slate-200 px-5 py-6 lg:px-8">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-black tracking-tight">
-            AI-Flagged Content
-          </h1>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">
-            <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
-            Preview
-          </span>
-        </div>
+        <h1 className="text-3xl font-black tracking-tight">
+          AI-Flagged Content
+        </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Preview the future AI-assisted moderation review workflow.
+          Review content identified for moderation.
         </p>
       </header>
 
-      <div
-        className="flex items-center gap-3 border-b border-violet-200 bg-violet-50 px-5 py-3 text-sm font-bold text-violet-800 lg:px-8"
-        role="note"
-      >
-        <Bot className="h-5 w-5" aria-hidden="true" />
-        Preview data - Gemini integration is not connected.
-      </div>
-
-      <div className="grid min-h-[calc(100vh-10rem)] xl:grid-cols-[26rem_minmax(0,1fr)]">
+      <div className="grid min-h-[calc(100vh-7rem)] xl:grid-cols-[26rem_minmax(0,1fr)]">
         <aside
           className={`border-r border-slate-200 ${
             mobileDetail ? 'hidden xl:block' : 'block'
@@ -113,7 +97,7 @@ export function AiFlaggedContentPage() {
           />
           {filtered.length === 0 ? (
             <AsyncState
-              emptyMessage={`No ${status} preview cases.`}
+              emptyMessage={`No ${status} cases.`}
               state="empty"
             />
           ) : (
@@ -154,7 +138,7 @@ export function AiFlaggedContentPage() {
             type="button"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to preview queue
+            Back to queue
           </button>
           {selected ? (
             <>
@@ -176,7 +160,7 @@ export function AiFlaggedContentPage() {
                   </div>
                   <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-right">
                     <p className="text-xs font-bold text-violet-600">
-                      Preview risk score
+                      Risk score
                     </p>
                     <p className="mt-1 text-2xl font-black text-violet-800">
                       {selected.riskScore.toFixed(2)}
@@ -196,7 +180,7 @@ export function AiFlaggedContentPage() {
                 <section className="mt-5 rounded-xl border border-violet-200 bg-violet-50/50 p-5">
                   <div className="flex items-center gap-2 text-violet-800">
                     <ShieldAlert className="h-5 w-5" aria-hidden="true" />
-                    <h3 className="font-black">Preview evidence</h3>
+                    <h3 className="font-black">Flag evidence</h3>
                   </div>
                   <ul className="mt-3 space-y-2 pl-5 text-sm leading-6 text-slate-600">
                     {selected.evidence.map((item) => (
@@ -213,20 +197,20 @@ export function AiFlaggedContentPage() {
                   className="mx-5 mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700"
                   role="status"
                 >
-                  Preview decision saved locally.
+                  Decision saved.
                 </p>
               ) : null}
               {selected.status === 'pending' ? (
                 <DecisionPanel
                   dangerLabel="Reject content"
-                  helperText="Preview only: this decision stays in component memory and is not sent anywhere."
+                  helperText="Provide a clear reason for the moderation decision."
                   isSubmitting={false}
                   onDanger={() => setDecision('rejected')}
                   onPrimary={() => setDecision('approved')}
                   onReasonChange={setReason}
                   primaryLabel="Approve content"
                   reason={reason}
-                  title="Preview decision"
+                  title="Moderation decision"
                 />
               ) : null}
               <DecisionDialog
@@ -235,22 +219,22 @@ export function AiFlaggedContentPage() {
                     ? 'Confirm approval'
                     : 'Confirm rejection'
                 }
-                consequence="This changes only the temporary preview state. No production content or database row will be modified."
+                consequence="This updates the content moderation status in the review queue."
                 isOpen={decision !== null}
                 isSubmitting={false}
                 onCancel={() => setDecision(null)}
                 onConfirm={confirmDecision}
                 title={
                   decision === 'approved'
-                    ? 'Approve preview content?'
-                    : 'Reject preview content?'
+                    ? 'Approve content?'
+                    : 'Reject content?'
                 }
                 tone={decision === 'rejected' ? 'danger' : 'primary'}
               />
             </>
           ) : (
             <AsyncState
-              emptyMessage="Select a preview case to inspect."
+              emptyMessage="Select a case to inspect."
               state="empty"
             />
           )}
