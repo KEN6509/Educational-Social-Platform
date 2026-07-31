@@ -130,7 +130,7 @@ export function createAdminRepository(
             'id, admin_id, action_type, target_type, target_id, reason, created_at',
           )
           .order('created_at', { ascending: false })
-          .limit(8),
+          .limit(15),
       ]);
 
       assertQuerySucceeded(creatorRequestResult.error);

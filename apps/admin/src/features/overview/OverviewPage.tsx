@@ -72,7 +72,7 @@ export function OverviewPage({ api = adminApi }: { api?: AdminApi }) {
               />
               <QueueLink
                 count={data.pendingReportCases}
-                description="Grouped cases meeting the three-reporter review threshold."
+                description="Grouped cases meeting the configured review threshold."
                 icon={FileWarning}
                 label="Report cases"
                 to="/reports"
@@ -102,10 +102,14 @@ export function OverviewPage({ api = adminApi }: { api?: AdminApi }) {
                 />
               </div>
             ) : (
-              <div className="mt-4 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div
+                className="mt-4 max-h-[32rem] divide-y divide-slate-200 overflow-y-auto rounded-xl border border-slate-200 bg-white"
+                data-testid="recent-decisions-scroll"
+              >
                 {data.recentDecisions.map((decision) => (
                   <article
                     className="grid gap-2 px-5 py-4 sm:grid-cols-[1fr_auto]"
+                    data-testid="recent-decision"
                     key={decision.id}
                   >
                     <div>
