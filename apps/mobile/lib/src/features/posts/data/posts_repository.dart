@@ -453,7 +453,6 @@ class PostsRepository {
     required String targetType,
     required String targetId,
     required String reason,
-    String? description,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
@@ -465,8 +464,6 @@ class PostsRepository {
       'target_type': targetType,
       'target_id': targetId,
       'reason': reason,
-      if (description != null && description.trim().isNotEmpty)
-        'description': description.trim(),
     });
   }
 

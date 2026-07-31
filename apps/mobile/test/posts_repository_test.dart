@@ -29,6 +29,20 @@ void main() {
     expect(PostsRepository.reportReasons.length, greaterThanOrEqualTo(7));
   });
 
+  test('createReport inserts a reason-only report', () {
+    final source = File('lib/src/features/posts/data/posts_repository.dart')
+        .readAsStringSync();
+    final start = source.indexOf('Future<void> createReport');
+    final end = source.indexOf('Future<void> createPost');
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+
+    final createReportSource = source.substring(start, end);
+    expect(createReportSource, contains(".from('reports').insert"));
+    expect(createReportSource, contains("'reason': reason"));
+    expect(createReportSource, isNot(contains('description')));
+  });
+
   test('saved and liked profile queries embed posts through inner joins', () {
     expect(
       PostsRepository.savedPostsSelectColumns,
