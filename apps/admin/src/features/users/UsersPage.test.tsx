@@ -105,7 +105,7 @@ describe('UsersPage', () => {
   it('loads users, applies filters, and shows selected account evidence', async () => {
     const user = userEvent.setup();
     const api = createApi();
-    render(<UsersPage api={api} currentUserId="admin-1" />);
+    render(<UsersPage api={api} />);
 
     expect(await screen.findByText('Lena Park')).toBeVisible();
     expect(await screen.findByText('Science educator')).toBeVisible();
@@ -125,24 +125,13 @@ describe('UsersPage', () => {
     });
   });
 
-  it('confirms account and creator changes with the preserved reason', async () => {
+  it('confirms creator changes with the preserved reason', async () => {
     const user = userEvent.setup();
     const api = createApi();
-    render(<UsersPage api={api} currentUserId="admin-1" />);
+    render(<UsersPage api={api} />);
 
     await screen.findByText('Science educator');
     const reason = screen.getByLabelText(/Decision reason/);
-    await user.type(reason, 'Repeatedly violated the community safety rules.');
-    await user.click(screen.getByRole('button', { name: 'Suspend account' }));
-
-    const dialog = screen.getByRole('dialog', { name: 'Suspend this account?' });
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm suspension' }));
-    expect(api.post).toHaveBeenCalledWith('/admin/users/user-1/account-status', {
-      status: 'suspended',
-      reason: 'Repeatedly violated the community safety rules.',
-    });
-
-    await user.clear(reason);
     await user.type(reason, 'Profile now meets the educational creator standard.');
     await user.click(screen.getByRole('button', { name: 'Assign creator' }));
     const creatorDialog = screen.getByRole('dialog', { name: 'Assign creator access?' });
@@ -153,20 +142,21 @@ describe('UsersPage', () => {
     });
   });
 
-  it('does not allow an administrator to suspend their own account', async () => {
+  it('does not expose account suspension actions', async () => {
     const api = createApi();
-    render(<UsersPage api={api} currentUserId="user-1" />);
+    render(<UsersPage api={api} />);
 
     await screen.findByText('Science educator');
-    expect(screen.getByRole('button', { name: 'Suspend account' })).toBeDisabled();
-    expect(screen.getByText('You cannot suspend your own administrator account.')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Suspend account' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reactivate account' })).not.toBeInTheDocument();
+    expect(screen.queryByText('You cannot suspend your own administrator account.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
   });
 
   it('reviews recent and all creator posts while preserving the all-posts modal', async () => {
     const user = userEvent.setup();
     const api = createPostReviewApi();
-    render(<UsersPage api={api} currentUserId="admin-1" />);
+    render(<UsersPage api={api} />);
 
     const identity = await screen.findByTestId('user-identity');
     expect(

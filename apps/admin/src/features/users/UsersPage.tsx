@@ -32,16 +32,12 @@ type Filters = {
   creator: string;
 };
 
-type Decision =
-  | { kind: 'account'; nextValue: 'active' | 'suspended' }
-  | { kind: 'creator'; nextValue: boolean };
+type Decision = { nextValue: boolean };
 
 export function UsersPage({
   api = adminApi,
-  currentUserId,
 }: {
   api?: AdminApi;
-  currentUserId: string;
 }) {
   const [draft, setDraft] = useState<Filters>({
     search: '',
@@ -205,17 +201,10 @@ export function UsersPage({
     setSubmitting(true);
     setDecisionError(null);
     try {
-      if (decision.kind === 'account') {
-        await api.post(`/admin/users/${detail.id}/account-status`, {
-          status: decision.nextValue,
-          reason: reason.trim(),
-        });
-      } else {
-        await api.post(`/admin/users/${detail.id}/creator-status`, {
-          isCreator: decision.nextValue,
-          reason: reason.trim(),
-        });
-      }
+      await api.post(`/admin/users/${detail.id}/creator-status`, {
+        isCreator: decision.nextValue,
+        reason: reason.trim(),
+      });
       setDecision(null);
       setReason('');
       setReload((value) => value + 1);
@@ -234,11 +223,6 @@ export function UsersPage({
     }
   }
 
-  const isSelf = detail?.id === currentUserId;
-  const accountButton =
-    detail?.accountStatus === 'active'
-      ? 'Suspend account'
-      : 'Reactivate account';
   const creatorButton = detail?.isContentCreator
     ? 'Remove creator'
     : 'Assign creator';
@@ -407,76 +391,40 @@ export function UsersPage({
                   {decisionError}
                 </p>
               ) : null}
-              {isSelf && detail.accountStatus === 'active' ? (
-                <p className="mx-5 mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-                  You cannot suspend your own administrator account.
-                </p>
-              ) : null}
               <DecisionPanel
-                dangerDisabled={Boolean(
-                  isSelf && detail.accountStatus === 'active',
-                )}
-                dangerLabel={accountButton}
-                helperText="Account and creator changes are audited and the member is notified."
+                helperText="Creator changes are audited and the member is notified."
                 isSubmitting={submitting}
-                onDanger={() =>
-                  setDecision({
-                    kind: 'account',
-                    nextValue:
-                      detail.accountStatus === 'active'
-                        ? 'suspended'
-                        : 'active',
-                  })
-                }
                 onPrimary={() =>
                   setDecision({
-                    kind: 'creator',
                     nextValue: !detail.isContentCreator,
                   })
                 }
                 onReasonChange={setReason}
                 primaryLabel={creatorButton}
                 reason={reason}
-                title="Account decision"
+                title="Creator decision"
               />
               <DecisionDialog
                 confirmLabel={
-                  decision?.kind === 'account'
-                    ? decision.nextValue === 'suspended'
-                      ? 'Confirm suspension'
-                      : 'Confirm reactivation'
-                    : decision?.nextValue
-                      ? 'Confirm assignment'
-                      : 'Confirm removal'
+                  decision?.nextValue
+                    ? 'Confirm assignment'
+                    : 'Confirm removal'
                 }
                 consequence={
-                  decision?.kind === 'account'
-                    ? decision.nextValue === 'suspended'
-                      ? 'The member will lose access until an administrator reactivates the account.'
-                      : 'The member will regain access to CyanZone.'
-                    : decision?.nextValue
-                      ? 'The member will be able to publish creator content.'
-                      : 'The member will no longer have creator publishing access.'
+                  decision?.nextValue
+                    ? 'The member will be able to publish creator content.'
+                    : 'The member will no longer have creator publishing access.'
                 }
                 isOpen={decision !== null}
                 isSubmitting={submitting}
                 onCancel={() => setDecision(null)}
                 onConfirm={() => void confirmDecision()}
                 title={
-                  decision?.kind === 'account'
-                    ? decision.nextValue === 'suspended'
-                      ? 'Suspend this account?'
-                      : 'Reactivate this account?'
-                    : decision?.nextValue
-                      ? 'Assign creator access?'
-                      : 'Remove creator access?'
+                  decision?.nextValue
+                    ? 'Assign creator access?'
+                    : 'Remove creator access?'
                 }
-                tone={
-                  decision?.kind === 'account' &&
-                  decision.nextValue === 'suspended'
-                    ? 'danger'
-                    : 'primary'
-                }
+                tone="primary"
               />
             </>
           ) : null}

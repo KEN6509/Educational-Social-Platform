@@ -46,7 +46,7 @@ export function App() {
               />
               <Route
                 path="users"
-                element={<UsersPage currentUserId={context.session.userId} />}
+                element={<UsersPage />}
               />
               <Route
                 path="creator-requests"
