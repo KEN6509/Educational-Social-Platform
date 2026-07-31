@@ -84,7 +84,7 @@ Status meanings:
 | F003 / REQ_F003 | Basic | User Profile Management | **Implemented** | Own/other public profiles, own-profile editing, follow/unfollow, follower/following lists, public creator badge display, and database protection against self-following are present. Administrator assignment/removal of creator status remains under F011. |
 | F004 / REQ_F004 | Intermediate | Social Feed | **Partial** | Feed browsing, search, create/edit/soft-delete, selection of one to five predefined tags, `Others` fallback, image and text posts, profiles, saves/following views, and media flows are implemented. New and edited posts are not yet processed by the required Gemini publication workflow. UC004 must state one to five predefined tags, not exactly one tag. |
 | F005 / REQ_F005 | Intermediate | Post Engagement | **Partial** | Comments/replies, likes, saves, chat sharing, and private 14-day dislike hiding are implemented. Public comments are still missing Gemini moderation before publication. |
-| F006 / REQ_F006 | Intermediate | Content Reporting | **Implemented** | Users can report public posts and comments with a reason. Repository SQL prevents duplicate unresolved reports, the API groups cases after three unique reporters, and the Administration Portal supports evidence review plus Retain/Remove decisions with atomic audit and owner-notification records. The live Supabase project must still be verified against `admin_portal.sql`. |
+| F006 / REQ_F006 | Intermediate | Content Reporting | **Implemented** | Users can report public posts and comments with a reason. Repository SQL prevents duplicate unresolved reports, and the Administration Portal groups cases by target, shows total reports, unique reporters, reason percentages, two-line queue previews, and Retain/Remove decisions with atomic audit and owner-notification records. `REPORT_REVIEW_THRESHOLD=1` is a testing convenience only and must be changed to `1000` before deployment. The live Supabase project must still be verified against `admin_portal.sql`. |
 | F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Not implemented** | Moderation fields, pending/rejected UI states, post-appeal storage, and rejection-notification foundations exist, but there is no Gemini route or worker. The below-40% approve, 40%-60% administrator review, above-60% reject, 20-second timeout, retry/failure behavior, and post/comment integration remain required. |
 | F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Link retrieval/status display, basic repository methods, screen-time table access, a family page, and basic SOS record creation exist. Linking acceptance/rejection, role rules, usage tracking/alerts, check-ins, location, linked-parent alerts, records, and two-party unlinking are incomplete. |
 | F009 / REQ_F009 | Intermediate | Real-Time Communication | **Partial** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. Message-request database/repository foundations exist and a sender is capped at three messages while a request is pending, but the recipient Accept action is not exposed in the mobile UI and the complete request flow has not been verified end to end. Do not claim message requests are complete yet. Group-member eligibility also accepts users from accepted recent chats, while the current SRS limits selection to Followers and Following; this rule still needs a product decision or SRS revision. |
@@ -197,6 +197,8 @@ POST /admin/bootstrap
 GET  /admin/overview
 GET  /admin/users
 GET  /admin/users/:userId
+GET  /admin/users/:userId/posts
+GET  /admin/posts/:postId
 POST /admin/users/:userId/account-status
 POST /admin/users/:userId/creator-status
 GET  /admin/creator-requests
@@ -224,11 +226,12 @@ Implemented:
 - Supabase administrator login and session handling.
 - `is_admin` and active-account authorization check.
 - Responsive Casework Desk navigation and accessible confirmation-based logout with cancel, progress, and failure states.
-- Operational Overview shortcuts and recent audited decisions.
-- User search/filter/detail, suspend/reactivate, and assign/remove creator controls. Permanent user deletion is intentionally unavailable.
+- Operational Overview shortcuts and the latest 15 audited decisions in an internally scrollable panel.
+- User search/filter/detail, suspend/reactivate, and assign/remove creator controls. Permanent user deletion is intentionally unavailable. Creator identity uses the same blue circular check as the mobile app; **Approved** remains a content-moderation status and is not an identity badge.
+- User detail exposes a horizontally scrollable latest-five post carousel with side controls, a filter-free four-column **See All** modal, and a large post-detail modal containing every image, title, full content, tags, publication date, moderation status, and approved comments/replies.
 - Creator Request Pending/Approved/Rejected queues with profile evidence and confirmed approval/rejection.
-- Grouped Report case queues at the configured threshold of three unique reporters, with reason counts, visibility evidence, and confirmed Retain/Remove decisions.
-- Appeal Pending/Approved/Rejected queues with rejected content, original moderation evidence, member appeal, and confirmed approval/rejection.
+- Grouped Report case queues with total reports, unique reporters, reason percentages, two-line target-content previews, visibility evidence, and confirmed Retain/Remove decisions. The current `REPORT_REVIEW_THRESHOLD=1` is for functional testing; set it to `1000` before deployment.
+- Appeal Pending/Approved/Rejected queues with rejected content, original moderation evidence, owner-only mobile appeal submission, and confirmed approval/rejection. The mobile submission and administrator decision paths are functionally testable now.
 - AI-Flagged Content preview UI with six isolated local mock cases, 0.40-0.60 scores, and local-only decisions.
 
 The AI preview must be replaced, not extended, when Gemini integration begins.
@@ -297,13 +300,13 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 ### 3. Reporting, appeals, and Administration Portal
 
 - [x] Prevent the same user from creating multiple unresolved reports for the same post/comment in repository SQL.
-- [x] Configure the report-count threshold at three unique reporters and group the queue by post/comment target without automatic removal.
+- [x] Group the queue by post/comment target without automatic removal; use `REPORT_REVIEW_THRESHOLD=1` only for functional testing and change it to `1000` before deployment.
 - [ ] Replace the temporary AI-Flagged Content mock adapter/data with Gemini-backed moderation records and authenticated API reads/decisions.
-- [x] Build the User-Reported Content queue with grouped case counts/reasons and Retain/Remove actions.
+- [x] Build the User-Reported Content queue with total/unique counts, reason percentages, two-line content previews, and Retain/Remove actions.
 - [x] Record moderator identity, decision, reason, and timestamps; update public visibility atomically.
 - [x] Build the Content Appeals queue/detail and Approve/Reject workflow.
 - [x] On approved appeal, publish the content; on rejected appeal, retain rejection; record an owner notification in both cases.
-- [x] Build user listing/search/detail with public profile and published-content review.
+- [x] Build user listing/search/detail with public profile, true published-post counts, latest-five horizontal carousel, See All grid, complete post media/content/status, and approved comment/reply review.
 - [x] Build confirmed assign/remove verified creator controls mapped consistently to `is_content_creator`.
 - [x] Record user notifications when creator status or moderation/report/appeal decisions change.
 - [x] Replace placeholder dashboard links/metrics with functional SRS pages; advanced analytics remain out of scope.
@@ -401,9 +404,10 @@ Observed:
 
 - Mobile test suite: **183 tests passed**.
 - Flutter analyzer: **no issues found**.
-- Administration Portal: **31 tests passed**; TypeScript and Vite production builds passed.
-- Express API: **33 tests passed**; TypeScript type-check and production build passed.
-- In-app browser: approved Creator Requests visual compared side by side at
+- Administration Portal: **38 tests passed**; TypeScript type-check and Vite production build passed.
+- Express API: **39 tests passed**; TypeScript type-check and production build passed.
+- Mobile appeal regressions: owner appeal widget failure-state preservation and repository appeal actions both passed.
+- Earlier in-app-browser acceptance: approved Creator Requests visual compared side by side at
   **1510 x 1075**; narrow list/detail, Back action, navigation drawer, decision
   validation, and confirmation verified at **390 x 844** with no horizontal
   overflow.
@@ -411,6 +415,7 @@ Observed:
 Not covered by this verification:
 
 - Live Supabase migration/application state.
+- The new Users carousel, See All, Post Detail/comments, Reports preview, and Overview decision panel still require one final live visual pass. The local preview was healthy on port 4173, but the claimed in-app-browser tab remained on its earlier connection-error interstitial and Browser URL policy rejected controlled navigation; reload the tab manually before resuming this acceptance pass.
 - Gemini moderation or FCM, because they are not implemented.
 - Android physical-device, location, background/terminated notification, or screen-size acceptance.
 - Latest Chrome and Edge acceptance outside the in-app browser.
@@ -478,5 +483,7 @@ ADMIN_BOOTSTRAP_SECRET
 REPORT_REVIEW_THRESHOLD
 GEMINI_API_KEY
 ```
+
+Set `REPORT_REVIEW_THRESHOLD=1` only while performing functional tests with the current small user population. Set it to `1000` before any deployment.
 
 FCM server credentials and any Vercel-specific environment values must be added through secure deployment configuration when those features are implemented; never commit them.
