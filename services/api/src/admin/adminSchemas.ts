@@ -14,8 +14,7 @@ export const creatorRequestStatusSchema = z.enum([
   'rejected',
 ]);
 export const reportStatusSchema = z.enum([
-  'open',
-  'reviewing',
+  'pending_review',
   'resolved',
   'dismissed',
 ]);
@@ -64,7 +63,7 @@ export const creatorRequestListQuerySchema = pageSchema.extend({
 
 export const reportCaseListQuerySchema = pageSchema.extend({
   search: z.string().trim().max(100).default(''),
-  status: reportStatusSchema.default('open'),
+  status: reportStatusSchema.default('pending_review'),
   targetType: reportTargetTypeSchema.optional(),
 });
 

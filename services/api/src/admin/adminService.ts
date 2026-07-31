@@ -58,8 +58,7 @@ export function createAdminService(
 
       const pendingReportCases = [...reportCases.values()].filter(
         (reportCase) =>
-          reportCase.statuses.has('open') &&
-          !reportCase.statuses.has('reviewing') &&
+          reportCase.statuses.has('pending_review') &&
           reportCase.reporters.size >= reportReviewThreshold,
       ).length;
 

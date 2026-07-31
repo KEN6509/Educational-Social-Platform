@@ -1,6 +1,6 @@
 export type AccountStatus = 'active' | 'suspended';
 export type CreatorRequestStatus = 'pending' | 'approved' | 'rejected';
-export type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed';
+export type ReportStatus = 'pending_review' | 'resolved' | 'dismissed';
 export type AppealStatus = 'pending' | 'approved' | 'rejected';
 export type ReportTargetType = 'post' | 'comment';
 export type UserAccountState = AccountStatus | 'deleted';
@@ -164,7 +164,6 @@ export type ReportCaseRow = {
   targetId: string;
   reporterId: string | null;
   reason: string;
-  description: string | null;
   status: ReportStatus;
   reviewedBy: string | null;
   reviewedAt: string | null;
@@ -197,7 +196,6 @@ export type ReportHistoryView = {
   id: string;
   reporterId: string | null;
   reason: string;
-  description: string | null;
   status: ReportStatus;
   createdAt: string;
   reviewedAt: string | null;

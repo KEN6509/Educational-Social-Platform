@@ -197,7 +197,7 @@ export function createAdminRepository(
         client
           .from('reports')
           .select('target_type, target_id, reporter_id, status')
-          .in('status', ['open', 'reviewing']),
+          .eq('status', 'pending_review'),
         client
           .from('admin_action_audit')
           .select(
@@ -252,6 +252,7 @@ export function createAdminRepository(
           'id, name, email, avatar_url, bio, is_content_creator, is_admin, account_status, created_at',
           { count: 'exact' },
         )
+        .eq('is_admin', false)
         .order('created_at', { ascending: false })
         .order('id', { ascending: true })
         .range(from, to);
@@ -638,7 +639,7 @@ export function createAdminRepository(
       let reportRequest = client
         .from('reports')
         .select(
-          'id, reporter_id, target_type, target_id, reason, description, status, reviewed_by, reviewed_at, resolution_note, created_at',
+          'id, reporter_id, target_type, target_id, reason, status, reviewed_by, reviewed_at, resolution_note, created_at',
         )
         .eq('status', query.status)
         .order('created_at', { ascending: false })
@@ -725,7 +726,6 @@ export function createAdminRepository(
             targetId: row.target_id,
             reporterId: row.reporter_id,
             reason: row.reason,
-            description: row.description,
             status: row.status,
             reviewedBy: row.reviewed_by,
             reviewedAt: row.reviewed_at,
@@ -750,7 +750,7 @@ export function createAdminRepository(
       const reportResult = await client
         .from('reports')
         .select(
-          'id, reporter_id, reason, description, status, reviewed_at, resolution_note, created_at',
+          'id, reporter_id, reason, status, reviewed_at, resolution_note, created_at',
         )
         .eq('target_type', targetType)
         .eq('target_id', targetId)
@@ -848,7 +848,6 @@ export function createAdminRepository(
           id: row.id,
           reporterId: row.reporter_id,
           reason: row.reason,
-          description: row.description,
           status: row.status,
           createdAt: row.created_at,
           reviewedAt: row.reviewed_at,

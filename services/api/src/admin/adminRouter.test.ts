@@ -260,7 +260,7 @@ test('returns grouped report cases from the protected endpoint', async () => {
             targetTitle: 'Reported post',
             targetExcerpt: 'Context',
             ownerName: 'Owner',
-            status: 'open',
+            status: 'pending_review',
             totalReports: 7,
             uniqueReporters: 7,
             reasonCounts: [{ reason: 'Harassment', count: 7 }],
@@ -275,7 +275,7 @@ test('returns grouped report cases from the protected endpoint', async () => {
   );
 
   const response = await request(createApp(dependencies))
-    .get('/admin/report-cases?status=open&page=1&pageSize=20')
+    .get('/admin/report-cases?status=pending_review&page=1&pageSize=20')
     .set('Authorization', 'Bearer valid-token');
 
   assert.equal(response.status, 200);

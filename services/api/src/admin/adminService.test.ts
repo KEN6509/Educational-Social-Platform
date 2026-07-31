@@ -6,6 +6,7 @@ import {
   appealStatusSchema,
   creatorRequestStatusSchema,
   pageSchema,
+  reportCaseListQuerySchema,
   reportStatusSchema,
 } from './adminSchemas.js';
 import { createAdminService } from './adminService.js';
@@ -74,7 +75,10 @@ test('page schema applies defaults and rejects sizes outside 1 through 50', () =
 test('status schemas reject values outside their stored state contracts', () => {
   assert.equal(accountStatusSchema.safeParse('deleted').success, false);
   assert.equal(creatorRequestStatusSchema.safeParse('reviewing').success, false);
-  assert.equal(reportStatusSchema.safeParse('pending').success, false);
+  assert.equal(reportStatusSchema.safeParse('pending_review').success, true);
+  assert.equal(reportStatusSchema.safeParse('open').success, false);
+  assert.equal(reportStatusSchema.safeParse('reviewing').success, false);
+  assert.equal(reportCaseListQuerySchema.parse({}).status, 'pending_review');
   assert.equal(appealStatusSchema.safeParse('dismissed').success, false);
 });
 
@@ -88,49 +92,49 @@ test('overview counts grouped report targets meeting three unique reporters', as
           targetType: 'post',
           targetId: 'post-ready',
           reporterId: 'reporter-1',
-          status: 'open',
+          status: 'pending_review',
         },
         {
           targetType: 'post',
           targetId: 'post-ready',
           reporterId: 'reporter-2',
-          status: 'open',
+          status: 'pending_review',
         },
         {
           targetType: 'post',
           targetId: 'post-ready',
           reporterId: 'reporter-3',
-          status: 'open',
+          status: 'pending_review',
         },
         {
           targetType: 'comment',
           targetId: 'comment-below-threshold',
           reporterId: 'reporter-1',
-          status: 'open',
+          status: 'pending_review',
         },
         {
           targetType: 'comment',
           targetId: 'comment-below-threshold',
           reporterId: 'reporter-2',
-          status: 'open',
+          status: 'pending_review',
         },
         {
           targetType: 'post',
           targetId: 'post-reviewing',
           reporterId: 'reporter-1',
-          status: 'reviewing',
+          status: 'resolved',
         },
         {
           targetType: 'post',
           targetId: 'post-reviewing',
           reporterId: 'reporter-2',
-          status: 'reviewing',
+          status: 'resolved',
         },
         {
           targetType: 'post',
           targetId: 'post-reviewing',
           reporterId: 'reporter-3',
-          status: 'reviewing',
+          status: 'resolved',
         },
       ],
       recentAuditRows: [],
@@ -157,19 +161,19 @@ test('overview deduplicates repeated report rows from the same reporter', async 
           targetType: 'post',
           targetId: 'post-1',
           reporterId: 'same-reporter',
-          status: 'open',
+          status: 'pending_review',
         },
         {
           targetType: 'post',
           targetId: 'post-1',
           reporterId: 'same-reporter',
-          status: 'open',
+          status: 'pending_review',
         },
         {
           targetType: 'post',
           targetId: 'post-1',
           reporterId: null,
-          status: 'open',
+          status: 'pending_review',
         },
       ],
       recentAuditRows: [],
@@ -375,8 +379,7 @@ test('report cases group raw rows by target and apply the unique-reporter thresh
       targetId: 'post-ready',
       reporterId: `reporter-${index}`,
       reason: index <= 4 ? 'Harassment' : 'Hate speech',
-      description: null,
-      status: 'open',
+      status: 'pending_review',
       reviewedBy: null,
       reviewedAt: null,
       resolutionNote: null,
@@ -419,7 +422,7 @@ test('report cases group raw rows by target and apply the unique-reporter thresh
     page: 1,
     pageSize: 20,
     search: '',
-    status: 'open',
+    status: 'pending_review',
     targetType: undefined,
   });
 
@@ -446,8 +449,7 @@ test('threshold one exposes a genuine single-reporter case', async () => {
     targetId: 'post-1',
     reporterId: 'reporter-1',
     reason: 'Spam',
-    description: null,
-    status: 'open',
+    status: 'pending_review',
     reviewedBy: null,
     reviewedAt: null,
     resolutionNote: null,
@@ -465,7 +467,7 @@ test('threshold one exposes a genuine single-reporter case', async () => {
     page: 1,
     pageSize: 20,
     search: '',
-    status: 'open',
+    status: 'pending_review',
     targetType: undefined,
   });
 
