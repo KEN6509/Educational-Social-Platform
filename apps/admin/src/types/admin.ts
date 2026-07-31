@@ -31,6 +31,29 @@ export type PostSummaryView = {
   moderationStatus: string;
   publishedAt: string | null;
   createdAt: string;
+  coverImageUrl: string | null;
+  imageCount: number;
+  commentCount: number;
+};
+
+export type AdminCommentView = {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatarUrl: string | null;
+  isCreator: boolean;
+  content: string;
+  createdAt: string;
+  likeCount: number;
+  replies: AdminCommentView[];
+};
+
+export type AdminPostDetailView = PostSummaryView & {
+  authorId: string;
+  authorName: string;
+  authorAvatarUrl: string | null;
+  images: Array<{ url: string; position: number }>;
+  comments: AdminCommentView[];
 };
 
 export type UserSummaryView = {
@@ -47,6 +70,7 @@ export type UserSummaryView = {
 
 export type UserDetailView = UserSummaryView & {
   emailVerified: boolean | null;
+  publishedPostCount: number;
   recentPosts: PostSummaryView[];
   recentDecisions: AuditView[];
 };

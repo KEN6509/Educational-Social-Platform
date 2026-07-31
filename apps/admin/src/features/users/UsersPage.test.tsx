@@ -21,6 +21,7 @@ const userSummary: UserSummaryView = {
 const detail: UserDetailView = {
   ...userSummary,
   emailVerified: true,
+  publishedPostCount: 0,
   recentPosts: [],
   recentDecisions: [],
 };
