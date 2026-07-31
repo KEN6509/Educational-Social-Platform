@@ -19,7 +19,7 @@ on public.admin_action_audit (target_type, target_id, created_at desc);
 create unique index if not exists reports_one_unresolved_per_reporter_target
 on public.reports (reporter_id, target_type, target_id)
 where reporter_id is not null
-  and status in ('open', 'reviewing');
+  and status = 'pending_review';
 
 alter table public.admin_action_audit enable row level security;
 
@@ -563,7 +563,7 @@ begin
   from public.reports r
   where r.target_type = p_target_type
     and r.target_id = p_target_id
-    and r.status in ('open', 'reviewing')
+    and r.status = 'pending_review'
   for update;
 
   if not found then
@@ -582,13 +582,13 @@ begin
   from public.reports r
   where r.target_type = p_target_type
     and r.target_id = p_target_id
-    and r.status in ('open', 'reviewing');
+    and r.status = 'pending_review';
 
-  -- Three unique reporters are required before an administrator can decide.
-  if v_reporter_count < 3 then
+  -- One unique reporter is enough during functional testing.
+  if v_reporter_count < 1 then
     raise exception using
       errcode = 'P0001',
-      message = 'Report case has not reached three unique reporters';
+      message = 'Report case has no unique reporters';
   end if;
 
   v_new_report_status := case
@@ -628,7 +628,7 @@ begin
     updated_at = now()
   where target_type = p_target_type
     and target_id = p_target_id
-    and status in ('open', 'reviewing');
+    and status = 'pending_review';
 
   select coalesce(
     jsonb_agg(to_jsonb(r) order by r.created_at),

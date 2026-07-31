@@ -23,7 +23,7 @@ end $$;
 
 do $$
 begin
-  create type public.report_status as enum ('open', 'reviewing', 'resolved', 'dismissed');
+  create type public.report_status as enum ('pending_review', 'resolved', 'dismissed');
 exception
   when duplicate_object then null;
 end $$;
@@ -152,8 +152,7 @@ create table if not exists public.reports (
   target_type text not null check (target_type in ('post', 'comment', 'user')),
   target_id uuid not null,
   reason text not null check (char_length(reason) between 3 and 120),
-  description text,
-  status public.report_status not null default 'open',
+  status public.report_status not null default 'pending_review',
   reviewed_by uuid references public.profiles(id) on delete set null,
   reviewed_at timestamptz,
   resolution_note text,

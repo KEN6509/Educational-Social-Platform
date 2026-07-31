@@ -6,6 +6,17 @@ const sql = readFileSync(
   new URL('../../../../supabase/admin_portal.sql', import.meta.url),
   'utf8',
 ).toLowerCase();
+const schemaSql = readFileSync(
+  new URL('../../../../supabase/schema.sql', import.meta.url),
+  'utf8',
+).toLowerCase();
+const migrationSql = readFileSync(
+  new URL(
+    '../../../../supabase/report_flow_simplification.sql',
+    import.meta.url,
+  ),
+  'utf8',
+).toLowerCase();
 
 test('admin portal SQL defines audit and decision boundaries', () => {
   assert.match(sql, /create table if not exists public\.admin_action_audit/);
@@ -16,11 +27,42 @@ test('admin portal SQL defines audit and decision boundaries', () => {
   assert.match(sql, /review_creator_request/);
   assert.match(sql, /decide_report_case/);
   assert.match(sql, /decide_post_appeal/);
-  assert.match(sql, /three unique reporters/);
+  assert.match(sql, /one unique reporter/);
 });
 
 test('admin portal SQL prevents duplicate unresolved reports', () => {
   assert.match(sql, /reports_one_unresolved_per_reporter_target/);
+  assert.match(sql, /and status = 'pending_review'/);
+  assert.doesNotMatch(sql, /status in \('open', 'reviewing'\)/);
+});
+
+test('report schema and migration use the simplified lifecycle', () => {
+  assert.match(
+    schemaSql,
+    /create type public\.report_status as enum \('pending_review', 'resolved', 'dismissed'\)/,
+  );
+  assert.match(
+    schemaSql,
+    /status public\.report_status not null default 'pending_review'/,
+  );
+  const reportsTable = schemaSql.slice(
+    schemaSql.indexOf('create table if not exists public.reports'),
+    schemaSql.indexOf('create table if not exists public.parent_child_links'),
+  );
+  assert.doesNotMatch(reportsTable, /\bdescription text\b/);
+  assert.match(
+    migrationSql,
+    /update public\.reports\s+set status = 'pending_review'\s+where status in \('open', 'reviewing'\)/s,
+  );
+  assert.match(migrationSql, /drop column if exists description/);
+  assert.match(
+    migrationSql,
+    /where reporter_id is not null\s+and status = 'pending_review'/s,
+  );
+  assert.match(migrationSql, /create or replace function public\.decide_report_case/);
+  assert.match(migrationSql, /'resolved'/);
+  assert.match(migrationSql, /'dismissed'/);
+  assert.doesNotMatch(migrationSql, /supabase db push/);
 });
 
 test('admin decisions enforce authorization, locking, audit, and notifications', () => {
