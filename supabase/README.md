@@ -202,6 +202,14 @@ The migration adds the administrator audit trail, duplicate unresolved-report
 protection, appeal review access, and the trusted account, creator-request,
 report, and appeal decision functions used by the Express Admin API.
 
+Fresh projects receive the simplified report lifecycle from the current
+`schema.sql` and `admin_portal.sql`: `pending_review`, `resolved`, and
+`dismissed`, with reason-only reports. Existing databases created from the
+earlier Open/Reviewing schema must run `report_flow_simplification.sql` after
+`admin_portal.sql`. Review that script before executing it because it replaces
+the enum and drops `reports.description`. It is committed for manual use and is
+not applied to the live Supabase project automatically.
+
 Verify:
 
 ```sql

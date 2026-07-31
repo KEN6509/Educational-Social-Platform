@@ -52,6 +52,7 @@ by the current mobile app. At minimum, the live project should include:
 7. `supabase/comment_mentions.sql`
 8. `supabase/chat.sql`
 9. `supabase/admin_portal.sql`
+10. `supabase/report_flow_simplification.sql` for an existing database only
 
 The latest `chat.sql` is required for group-chat mentions. Run it manually in
 the Supabase SQL Editor after updating the application. It creates
@@ -62,6 +63,14 @@ error before rerunning the script.
 table, duplicate unresolved-report guard, administrator appeal access, and the
 transactional RPCs used for account, creator, request, report, and appeal
 decisions. Inspect and resolve any SQL Editor error before using the portal.
+
+Fresh projects use the simplified report schema already present in `schema.sql`
+and `admin_portal.sql`. For an existing database that still has Open/Reviewing
+report states or a report description column, inspect and then manually run
+`report_flow_simplification.sql` after `admin_portal.sql`. It converts unresolved
+rows to `pending_review`, replaces the report-status enum, drops the description
+column, and recreates the report decision function. The repository script is not
+applied to a live project automatically.
 
 Inspect the remote schema before rerunning scripts. Notification trigger changes
 do not backfill old Activity/New Followers rows.
@@ -139,7 +148,7 @@ flutter test --reporter compact
 flutter analyze
 ```
 
-The Admin Portal requires an authenticated active administrator. Apply
-`admin_portal.sql` before testing real casework. The AI-Flagged Content page is
-the only mock-backed portal feature until Gemini integration; it does not read
-or write Supabase.
+The Admin Portal requires an authenticated active administrator. Apply the
+appropriate SQL sequence before testing real casework. AI-Flagged Content uses
+production-facing wording, but its isolated local adapter/data still does not
+read or write Supabase until Gemini integration replaces it.
