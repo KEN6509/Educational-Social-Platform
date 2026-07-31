@@ -163,6 +163,7 @@ export type ReportCaseSummaryView = {
   targetExcerpt: string;
   ownerName: string;
   status: ReportStatus;
+  totalReports: number;
   uniqueReporters: number;
   reasonCounts: ReportReasonCount[];
   latestReportedAt: string;

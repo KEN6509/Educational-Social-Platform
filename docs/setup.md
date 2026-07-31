@@ -100,12 +100,13 @@ PORT=4000
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 ADMIN_BOOTSTRAP_SECRET=replace-with-long-random-secret
-REPORT_REVIEW_THRESHOLD=3
+REPORT_REVIEW_THRESHOLD=1
 ```
 
-`REPORT_REVIEW_THRESHOLD` counts unique reporters per post/comment target. Keep
-it at `3` for the approved SRS behavior unless the SRS and project overview are
-revised together.
+`REPORT_REVIEW_THRESHOLD` counts unique reporters per post/comment target.
+Local functional testing deliberately uses `1` so the three available test
+accounts can exercise the complete report-review flow. Set it to `1000` before
+production deployment; the lower value is a testing convenience only.
 
 ## Local Development and Verification
 

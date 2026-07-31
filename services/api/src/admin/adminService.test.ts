@@ -383,6 +383,42 @@ test('report cases group raw rows by target and apply the unique-reporter thresh
     { reason: 'Harassment', count: 4 },
     { reason: 'Hate speech', count: 3 },
   ]);
+  assert.equal(result.items[0]?.totalReports, 7);
+  assert.equal(result.items[1]?.totalReports, 3);
+});
+
+test('threshold one exposes a genuine single-reporter case', async () => {
+  const row: ReportCaseRow = {
+    id: 'report-1',
+    targetType: 'post',
+    targetId: 'post-1',
+    reporterId: 'reporter-1',
+    reason: 'Spam',
+    description: null,
+    status: 'open',
+    reviewedBy: null,
+    reviewedAt: null,
+    resolutionNote: null,
+    createdAt: '2026-07-31T00:00:00.000Z',
+    targetTitle: 'Reported post',
+    targetExcerpt: 'Repeated promotion',
+    ownerName: 'Owner',
+  };
+  const service = createAdminService(
+    createRepository({ getReportCaseRows: async () => [row] }),
+    1,
+  );
+
+  const result = await service.listReportCases({
+    page: 1,
+    pageSize: 20,
+    search: '',
+    status: 'open',
+    targetType: undefined,
+  });
+
+  assert.equal(result.total, 1);
+  assert.equal(result.items[0]?.totalReports, 1);
 });
 
 test('missing appeal detail becomes a typed not-found error', async () => {

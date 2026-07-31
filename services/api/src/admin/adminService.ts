@@ -158,6 +158,7 @@ export function createAdminService(
             targetExcerpt: first.targetExcerpt,
             ownerName: first.ownerName,
             status: first.status,
+            totalReports: group.length,
             uniqueReporters: reporters.size,
             reasonCounts: [...reasons.entries()]
               .map(([reason, count]) => ({ reason, count }))

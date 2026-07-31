@@ -623,6 +623,7 @@ export function createAdminRepository(
         targetExcerpt: target?.content ?? 'Content is unavailable.',
         ownerName: ownerResult.data?.name ?? 'Unavailable content',
         status: latest.status,
+        totalReports: reports.length,
         uniqueReporters: reporterIds.size,
         reasonCounts: [...reasonMap.entries()]
           .map(([reason, count]) => ({ reason, count }))

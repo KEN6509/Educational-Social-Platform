@@ -203,6 +203,7 @@ test('returns grouped report cases from the protected endpoint', async () => {
             targetExcerpt: 'Context',
             ownerName: 'Owner',
             status: 'open',
+            totalReports: 7,
             uniqueReporters: 7,
             reasonCounts: [{ reason: 'Harassment', count: 7 }],
             latestReportedAt: '2026-07-31T00:00:00.000Z',
