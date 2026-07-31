@@ -4,7 +4,7 @@ import {
   FileText,
   MessageCircle,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { StatusBadge } from '../../components/casework/StatusBadge';
 import type { PostSummaryView } from '../../types/admin';
@@ -18,34 +18,62 @@ const cardWidth = 280;
 const cardGap = 16;
 
 export function RecentPostsCarousel({ posts, onOpenPost }: Props) {
-  const recentPosts = posts.slice(0, 5);
+  const recentPosts = useMemo(() => posts.slice(0, 5), [posts]);
   const railRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState(0);
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const [canScrollPrevious, setCanScrollPrevious] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+
+  const measure = useCallback(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const overflow = rail.scrollWidth > rail.clientWidth + 1;
+    setHasOverflow(overflow);
+    setCanScrollPrevious(overflow && rail.scrollLeft > 1);
+    setCanScrollNext(
+      overflow &&
+        rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 1,
+    );
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const rail = railRef.current;
+    if (!rail) return;
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(measure);
+      observer.observe(rail);
+      return () => observer.disconnect();
+    }
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [measure, recentPosts]);
 
   function move(direction: -1 | 1) {
     railRef.current?.scrollBy({
       behavior: 'smooth',
       left: direction * (cardWidth + cardGap),
     });
-    setPosition((current) =>
-      Math.min(Math.max(current + direction, 0), recentPosts.length - 1),
-    );
   }
 
   return (
     <div className="relative px-5 sm:px-7">
-      <button
-        aria-label="Previous posts"
-        className="absolute left-0 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-35"
-        disabled={position === 0}
-        onClick={() => move(-1)}
-        type="button"
-      >
-        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-      </button>
+      {hasOverflow ? (
+        <button
+          aria-label="Previous posts"
+          className="absolute left-0 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-35"
+          disabled={!canScrollPrevious}
+          onClick={() => move(-1)}
+          type="button"
+        >
+          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+        </button>
+      ) : null}
 
       <div
         className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        data-testid="recent-posts-rail"
+        onScroll={measure}
         ref={railRef}
       >
         {recentPosts.map((post) => (
@@ -59,7 +87,7 @@ export function RecentPostsCarousel({ posts, onOpenPost }: Props) {
             {post.coverImageUrl ? (
               <img
                 alt=""
-                className="h-28 w-full object-cover"
+                className="block h-28 w-full object-cover"
                 src={post.coverImageUrl}
               />
             ) : (
@@ -89,15 +117,17 @@ export function RecentPostsCarousel({ posts, onOpenPost }: Props) {
         ))}
       </div>
 
-      <button
-        aria-label="Next posts"
-        className="absolute right-0 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-35"
-        disabled={position >= recentPosts.length - 1}
-        onClick={() => move(1)}
-        type="button"
-      >
-        <ChevronRight className="h-5 w-5" aria-hidden="true" />
-      </button>
+      {hasOverflow ? (
+        <button
+          aria-label="Next posts"
+          className="absolute right-0 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-35"
+          disabled={!canScrollNext}
+          onClick={() => move(1)}
+          type="button"
+        >
+          <ChevronRight className="h-5 w-5" aria-hidden="true" />
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -59,12 +59,16 @@ const detail = {
 };
 
 describe('administrator post review UI', () => {
-  it('limits the recent carousel to five posts and scrolls one card', async () => {
+  it('limits the recent carousel to five posts and shows controls only on overflow', async () => {
     const user = userEvent.setup();
     const scrollBy = vi.fn();
-    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+    Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
       configurable: true,
-      value: 280,
+      value: 1500,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      value: 600,
     });
     HTMLElement.prototype.scrollBy = scrollBy;
 
@@ -76,6 +80,14 @@ describe('administrator post review UI', () => {
       screen.getAllByRole('button', { name: /Open post/ }),
     ).toHaveLength(5);
     expect(
+      document.querySelector('img[src="https://img.test/post-1.jpg"]'),
+    ).toHaveClass(
+      'block',
+      'h-28',
+      'w-full',
+      'object-cover',
+    );
+    expect(
       screen.getByRole('button', { name: 'Previous posts' }),
     ).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Next posts' }));
@@ -83,9 +95,31 @@ describe('administrator post review UI', () => {
       behavior: 'smooth',
       left: 296,
     });
+    const rail = screen.getByTestId('recent-posts-rail');
+    Object.defineProperty(rail, 'scrollLeft', {
+      configurable: true,
+      value: 296,
+    });
+    fireEvent.scroll(rail);
     expect(
       screen.getByRole('button', { name: 'Previous posts' }),
     ).toBeEnabled();
+  });
+
+  it('hides carousel controls when all recent posts fit', () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+      configurable: true,
+      value: 600,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      value: 600,
+    });
+
+    render(<RecentPostsCarousel onOpenPost={vi.fn()} posts={posts} />);
+
+    expect(screen.queryByRole('button', { name: 'Previous posts' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Next posts' })).not.toBeInTheDocument();
   });
 
   it('shows every published post in a filter-free four-column modal', () => {
@@ -128,12 +162,24 @@ describe('administrator post review UI', () => {
     expect(within(dialog).getByText('Helpful comment')).toBeVisible();
     expect(within(dialog).getByText('Creator reply')).toBeVisible();
     expect(within(dialog).getByText('Creator')).toBeVisible();
+    expect(
+      within(dialog).getByRole('img', { name: 'Repair guide image 1' }),
+    ).toHaveClass('object-contain');
+    expect(
+      within(dialog).getByRole('button', { name: 'Previous image' }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole('button', { name: 'Next image' }),
+    ).toBeEnabled();
 
     await user.click(
-      within(dialog).getByRole('button', { name: 'Show image 2' }),
+      within(dialog).getByRole('button', { name: 'Next image' }),
     );
     expect(
       within(dialog).getByRole('img', { name: 'Repair guide image 2' }),
     ).toHaveAttribute('src', 'https://img.test/post-1-second.jpg');
+    expect(
+      within(dialog).getByRole('button', { name: 'Show image 2' }),
+    ).toHaveAttribute('aria-current', 'true');
   });
 });

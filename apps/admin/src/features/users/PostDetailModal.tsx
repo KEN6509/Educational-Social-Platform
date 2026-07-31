@@ -1,4 +1,11 @@
-import { ArrowLeft, Heart, ImageOff, UserRound } from 'lucide-react';
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  ImageOff,
+  UserRound,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { FullScreenDialog } from '../../components/casework/FullScreenDialog';
@@ -70,7 +77,7 @@ export function PostDetailModal({
             </button>
           ) : null}
 
-          <div className="grid min-h-0 flex-1 place-items-center overflow-hidden rounded-xl bg-white shadow-sm">
+          <div className="relative grid min-h-0 flex-1 place-items-center overflow-hidden rounded-xl bg-white shadow-sm">
             {image ? (
               <img
                 alt={`${post.title} image ${selectedImage + 1}`}
@@ -83,27 +90,47 @@ export function PostDetailModal({
                 <p className="text-sm font-bold">This post has no images.</p>
               </div>
             )}
-          </div>
-
-          {post.images.length > 1 ? (
-            <div className="mt-4 flex shrink-0 justify-center gap-2 overflow-x-auto">
-              {post.images.map((item, index) => (
+            {post.images.length > 1 ? (
+              <>
                 <button
-                  aria-label={`Show image ${index + 1}`}
-                  className={`h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 bg-white transition focus:outline-none focus:ring-4 focus:ring-cyan-100 ${
-                    selectedImage === index
-                      ? 'border-cyan-500'
-                      : 'border-transparent opacity-65 hover:opacity-100'
-                  }`}
-                  key={`${item.url}-${item.position}`}
-                  onClick={() => setSelectedImage(index)}
+                  aria-label="Previous image"
+                  className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-lg transition hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-35"
+                  disabled={selectedImage === 0}
+                  onClick={() => setSelectedImage((index) => index - 1)}
                   type="button"
                 >
-                  <img alt="" className="h-full w-full object-cover" src={item.url} />
+                  <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                 </button>
-              ))}
-            </div>
-          ) : null}
+                <button
+                  aria-label="Next image"
+                  className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-lg transition hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-35"
+                  disabled={selectedImage === post.images.length - 1}
+                  onClick={() => setSelectedImage((index) => index + 1)}
+                  type="button"
+                >
+                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                </button>
+                <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 rounded-full bg-slate-950/45 px-3 py-2">
+                  {post.images.map((item, index) => (
+                    <button
+                      aria-current={
+                        selectedImage === index ? 'true' : undefined
+                      }
+                      aria-label={`Show image ${index + 1}`}
+                      className={`h-2.5 w-2.5 rounded-full transition focus:outline-none focus:ring-2 focus:ring-white ${
+                        selectedImage === index
+                          ? 'bg-white'
+                          : 'bg-white/45 hover:bg-white/75'
+                      }`}
+                      key={`${item.url}-${item.position}`}
+                      onClick={() => setSelectedImage(index)}
+                      type="button"
+                    />
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </div>
         </section>
 
         <section className="min-h-0 overflow-y-auto border-l border-slate-200 bg-white p-5 sm:p-7">
