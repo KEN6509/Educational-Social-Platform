@@ -89,6 +89,24 @@ export function createProtectedAdminRouter(
     }
   });
 
+  router.get('/users/:userId/posts', async (req, res) => {
+    try {
+      const service = dependencies.createService(getRequestContext(req));
+      return res.json(await service.listUserPosts(req.params.userId));
+    } catch (error) {
+      return sendAdminError(res, error);
+    }
+  });
+
+  router.get('/posts/:postId', async (req, res) => {
+    try {
+      const service = dependencies.createService(getRequestContext(req));
+      return res.json(await service.getPost(req.params.postId));
+    } catch (error) {
+      return sendAdminError(res, error);
+    }
+  });
+
   router.post('/users/:userId/account-status', async (req, res) => {
     const parsed = userAccountStatusSchema.safeParse(req.body);
     if (!parsed.success) {

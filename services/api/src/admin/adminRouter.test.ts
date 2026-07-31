@@ -174,6 +174,60 @@ test('validates and returns the paginated users endpoint', async () => {
   assert.equal(response.body.items[0].email, 'member@cyanzone.test');
 });
 
+test('returns published user posts and complete post details', async () => {
+  const postSummary = {
+    id: 'post-1',
+    title: 'Repair guide',
+    content: 'Full guide',
+    tags: ['Technology'],
+    moderationStatus: 'approved',
+    publishedAt: '2026-07-31T00:00:00.000Z',
+    createdAt: '2026-07-30T00:00:00.000Z',
+    coverImageUrl: 'https://img/cover.jpg',
+    imageCount: 1,
+    commentCount: 1,
+  };
+  const postDetail = {
+    ...postSummary,
+    authorId: 'creator-1',
+    authorName: 'Ken',
+    authorAvatarUrl: null,
+    images: [{ url: 'https://img/cover.jpg', position: 1 }],
+    comments: [
+      {
+        id: 'comment-1',
+        authorId: 'member-1',
+        authorName: 'Member',
+        authorAvatarUrl: null,
+        isCreator: false,
+        content: 'Helpful',
+        createdAt: '2026-07-31T01:00:00.000Z',
+        likeCount: 2,
+        replies: [],
+      },
+    ],
+  };
+  const dependencies = createDependencies(
+    async () => expectedOverview,
+    {
+      listUserPosts: async () => [postSummary],
+      getPost: async () => postDetail,
+    },
+  );
+
+  const posts = await request(createApp(dependencies))
+    .get('/admin/users/user-1/posts')
+    .set('Authorization', 'Bearer valid-token');
+  const detail = await request(createApp(dependencies))
+    .get('/admin/posts/post-1')
+    .set('Authorization', 'Bearer valid-token');
+
+  assert.equal(posts.status, 200);
+  assert.equal(posts.body[0].id, 'post-1');
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.comments[0].content, 'Helpful');
+});
+
 test('rejects short reasons before changing account status', async () => {
   let decisionCalled = false;
   const dependencies = createDependencies(
