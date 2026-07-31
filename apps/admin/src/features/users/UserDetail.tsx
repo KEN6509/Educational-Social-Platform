@@ -1,6 +1,7 @@
 import {
   BadgeCheck,
   CalendarDays,
+  Check,
   Mail,
   ShieldAlert,
   UserRound,
@@ -8,8 +9,19 @@ import {
 
 import { StatusBadge } from '../../components/casework/StatusBadge';
 import type { UserDetailView } from '../../types/admin';
+import { RecentPostsCarousel } from './RecentPostsCarousel';
 
-export function UserDetail({ user }: { user: UserDetailView }) {
+type Props = {
+  user: UserDetailView;
+  onOpenPost: (postId: string) => void;
+  onSeeAllPosts: () => void;
+};
+
+export function UserDetail({
+  user,
+  onOpenPost,
+  onSeeAllPosts,
+}: Props) {
   return (
     <div className="p-5 lg:p-6">
       <div className="flex flex-wrap items-start gap-4">
@@ -25,10 +37,27 @@ export function UserDetail({ user }: { user: UserDetailView }) {
           </span>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-2xl font-black">{user.name}</h2>
+          <div
+            className="flex flex-wrap items-center gap-2"
+            data-testid="user-identity"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <h2 className="text-2xl font-black">{user.name}</h2>
+              {user.isContentCreator ? (
+                <span
+                  aria-label="Verified content creator"
+                  className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-[#2F8FED] text-white"
+                  role="img"
+                >
+                  <Check
+                    aria-hidden="true"
+                    className="h-3 w-3"
+                    strokeWidth={3.5}
+                  />
+                </span>
+              ) : null}
+            </span>
             <StatusBadge status={user.accountStatus} />
-            {user.isContentCreator ? <StatusBadge status="approved" /> : null}
           </div>
           <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-500">
             <span className="inline-flex items-center gap-1.5">
@@ -56,30 +85,34 @@ export function UserDetail({ user }: { user: UserDetailView }) {
           label="Role"
           value={user.isContentCreator ? 'Content creator' : 'Member'}
         />
-        <Fact label="Published posts" value={String(user.recentPosts.length)} />
+        <Fact label="Published posts" value={String(user.publishedPostCount)} />
       </dl>
 
       <section className="mt-6">
-        <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">
-          Recent published content
-        </h3>
+        <div className="flex items-center justify-between gap-4">
+          <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">
+            Recent published content
+          </h3>
+          {user.publishedPostCount > 0 ? (
+            <button
+              className="rounded-lg px-3 py-2 text-sm font-extrabold text-cyan-700 transition hover:bg-cyan-50 focus:outline-none focus:ring-4 focus:ring-cyan-100"
+              onClick={onSeeAllPosts}
+              type="button"
+            >
+              See all posts
+            </button>
+          ) : null}
+        </div>
         {user.recentPosts.length === 0 ? (
           <p className="mt-3 rounded-lg bg-slate-50 px-4 py-5 text-sm text-slate-500">
             No recent published posts.
           </p>
         ) : (
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            {user.recentPosts.map((post) => (
-              <article
-                className="rounded-lg border border-slate-200 p-4"
-                key={post.id}
-              >
-                <h4 className="font-extrabold">{post.title}</h4>
-                <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">
-                  {post.content}
-                </p>
-              </article>
-            ))}
+          <div className="mt-3">
+            <RecentPostsCarousel
+              onOpenPost={onOpenPost}
+              posts={user.recentPosts}
+            />
           </div>
         )}
       </section>

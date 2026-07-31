@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { FullScreenDialog } from '../../components/casework/FullScreenDialog';
 import { StatusBadge } from '../../components/casework/StatusBadge';
+import { AsyncState } from '../../components/casework/AsyncState';
 import type {
   AdminCommentView,
   AdminPostDetailView,
@@ -13,16 +14,44 @@ type Props = {
   post: AdminPostDetailView | null;
   onClose: () => void;
   onBack?: () => void;
+  loading?: boolean;
+  errorMessage?: string | null;
+  onRetry?: () => void;
 };
 
-export function PostDetailModal({ isOpen, post, onClose, onBack }: Props) {
+export function PostDetailModal({
+  isOpen,
+  post,
+  onClose,
+  onBack,
+  loading = false,
+  errorMessage = null,
+  onRetry,
+}: Props) {
   const [selectedImage, setSelectedImage] = useState(0);
 
   useEffect(() => {
     setSelectedImage(0);
   }, [post?.id]);
 
-  if (!post) return null;
+  if (!post) {
+    return (
+      <FullScreenDialog
+        isOpen={isOpen}
+        label="Post details"
+        onClose={onClose}
+      >
+        {loading ? <AsyncState state="loading" /> : null}
+        {errorMessage ? (
+          <AsyncState
+            errorMessage={errorMessage}
+            onRetry={onRetry}
+            state="error"
+          />
+        ) : null}
+      </FullScreenDialog>
+    );
+  }
 
   const image = post.images[selectedImage];
 

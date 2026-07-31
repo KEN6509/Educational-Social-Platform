@@ -2,6 +2,7 @@ import { FileText, MessageCircle } from 'lucide-react';
 
 import { FullScreenDialog } from '../../components/casework/FullScreenDialog';
 import { StatusBadge } from '../../components/casework/StatusBadge';
+import { AsyncState } from '../../components/casework/AsyncState';
 import type { PostSummaryView } from '../../types/admin';
 
 type Props = {
@@ -9,6 +10,9 @@ type Props = {
   posts: PostSummaryView[];
   onClose: () => void;
   onOpenPost: (postId: string) => void;
+  loading?: boolean;
+  errorMessage?: string | null;
+  onRetry?: () => void;
 };
 
 export function AllPostsModal({
@@ -16,6 +20,9 @@ export function AllPostsModal({
   posts,
   onClose,
   onOpenPost,
+  loading = false,
+  errorMessage = null,
+  onRetry,
 }: Props) {
   return (
     <FullScreenDialog
@@ -23,6 +30,15 @@ export function AllPostsModal({
       label="All published posts"
       onClose={onClose}
     >
+      {loading ? <AsyncState state="loading" /> : null}
+      {errorMessage ? (
+        <AsyncState
+          errorMessage={errorMessage}
+          onRetry={onRetry}
+          state="error"
+        />
+      ) : null}
+      {!loading && !errorMessage ? (
       <div className="h-full overflow-y-auto bg-slate-50 p-5 sm:p-7">
         <div className="mb-5">
           <p className="text-sm font-bold text-slate-500">
@@ -79,6 +95,7 @@ export function AllPostsModal({
           ))}
         </div>
       </div>
+      ) : null}
     </FullScreenDialog>
   );
 }

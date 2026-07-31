@@ -16,11 +16,15 @@ import {
   type AdminApi,
 } from '../../lib/adminApi';
 import type {
+  AdminPostDetailView,
   PageResult,
+  PostSummaryView,
   UserDetailView,
   UserSummaryView,
 } from '../../types/admin';
 import { UserDetail } from './UserDetail';
+import { AllPostsModal } from './AllPostsModal';
+import { PostDetailModal } from './PostDetailModal';
 
 type Filters = {
   search: string;
@@ -60,6 +64,16 @@ export function UsersPage({
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [mobileDetail, setMobileDetail] = useState(false);
+  const [allPostsOpen, setAllPostsOpen] = useState(false);
+  const [allPosts, setAllPosts] = useState<PostSummaryView[]>([]);
+  const [allPostsLoading, setAllPostsLoading] = useState(false);
+  const [allPostsError, setAllPostsError] = useState<string | null>(null);
+  const [postDetailOpen, setPostDetailOpen] = useState(false);
+  const [postDetail, setPostDetail] = useState<AdminPostDetailView | null>(null);
+  const [postDetailLoading, setPostDetailLoading] = useState(false);
+  const [postDetailError, setPostDetailError] = useState<string | null>(null);
+  const [postDetailId, setPostDetailId] = useState<string | null>(null);
+  const [postSource, setPostSource] = useState<'recent' | 'all' | null>(null);
 
   const loadList = useCallback(async () => {
     setListError(null);
@@ -113,6 +127,69 @@ export function UsersPage({
       active = false;
     };
   }, [api, selectedId, reload]);
+
+  useEffect(() => {
+    setAllPostsOpen(false);
+    setAllPosts([]);
+    setAllPostsError(null);
+    setPostDetailOpen(false);
+    setPostDetail(null);
+    setPostDetailError(null);
+    setPostDetailId(null);
+    setPostSource(null);
+  }, [selectedId]);
+
+  async function loadAllPosts(userId: string) {
+    setAllPostsLoading(true);
+    setAllPostsError(null);
+    try {
+      setAllPosts(
+        await api.get<PostSummaryView[]>(`/admin/users/${userId}/posts`),
+      );
+    } catch (error) {
+      setAllPostsError(
+        messageOf(error, 'Published posts could not be loaded.'),
+      );
+    } finally {
+      setAllPostsLoading(false);
+    }
+  }
+
+  function openAllPosts() {
+    if (!detail) return;
+    setAllPostsOpen(true);
+    if (allPosts.length === 0) void loadAllPosts(detail.id);
+  }
+
+  async function loadPost(postId: string) {
+    setPostDetailLoading(true);
+    setPostDetailError(null);
+    try {
+      setPostDetail(
+        await api.get<AdminPostDetailView>(`/admin/posts/${postId}`),
+      );
+    } catch (error) {
+      setPostDetailError(messageOf(error, 'Post details could not be loaded.'));
+    } finally {
+      setPostDetailLoading(false);
+    }
+  }
+
+  function openPost(postId: string, source: 'recent' | 'all') {
+    setPostSource(source);
+    setPostDetailId(postId);
+    setPostDetail(null);
+    setPostDetailOpen(true);
+    void loadPost(postId);
+  }
+
+  function closePostDetail() {
+    setPostDetailOpen(false);
+    setPostDetail(null);
+    setPostDetailError(null);
+    setPostDetailId(null);
+    setPostSource(null);
+  }
 
   function applyFilters(event: FormEvent) {
     event.preventDefault();
@@ -317,7 +394,11 @@ export function UsersPage({
           ) : null}
           {detail ? (
             <>
-              <UserDetail user={detail} />
+              <UserDetail
+                onOpenPost={(postId) => openPost(postId, 'recent')}
+                onSeeAllPosts={openAllPosts}
+                user={detail}
+              />
               {decisionError ? (
                 <p
                   className="mx-5 mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
@@ -401,6 +482,25 @@ export function UsersPage({
           ) : null}
         </div>
       </div>
+
+      <AllPostsModal
+        errorMessage={allPostsError}
+        isOpen={allPostsOpen && !postDetailOpen}
+        loading={allPostsLoading}
+        onClose={() => setAllPostsOpen(false)}
+        onOpenPost={(postId) => openPost(postId, 'all')}
+        onRetry={detail ? () => void loadAllPosts(detail.id) : undefined}
+        posts={allPosts}
+      />
+      <PostDetailModal
+        errorMessage={postDetailError}
+        isOpen={postDetailOpen}
+        loading={postDetailLoading}
+        onBack={postSource === 'all' ? closePostDetail : undefined}
+        onClose={closePostDetail}
+        onRetry={postDetailId ? () => void loadPost(postDetailId) : undefined}
+        post={postDetail}
+      />
     </section>
   );
 }
