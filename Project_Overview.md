@@ -1,6 +1,6 @@
 # CyanZone Project Overview and SRS Delivery Handover
 
-Last reviewed against the workspace and **Software Requirement Specification.docx**: **July 31, 2026**
+Last reviewed against the workspace and **Software Requirement Specification.docx**: **August 1, 2026**
 
 This is the canonical starting point for a developer or AI session. Source code, tests, and SQL remain authoritative for what is implemented. The Software Requirement Specification (SRS) is authoritative for what CyanZone must deliver.
 
@@ -85,11 +85,11 @@ Status meanings:
 | F004 / REQ_F004 | Intermediate | Social Feed | **Partial** | Feed browsing, search, create/edit/soft-delete, selection of one to five predefined tags, `Others` fallback, image and text posts, profiles, saves/following views, and media flows are implemented. New and edited posts are not yet processed by the required Gemini publication workflow. UC004 must state one to five predefined tags, not exactly one tag. |
 | F005 / REQ_F005 | Intermediate | Post Engagement | **Partial** | Comments/replies, likes, saves, chat sharing, and private 14-day dislike hiding are implemented. Public comments are still missing Gemini moderation before publication. |
 | F006 / REQ_F006 | Intermediate | Content Reporting | **Implemented** | Users submit reason-only reports for public posts and comments. The repository report lifecycle is `pending_review` to `resolved` (Remove) or `dismissed` (Retain), with no separate Open/Reviewing state or reporter description. The Administration Portal groups cases by target, shows total/unique counts in a reason pie chart and legend, keeps two-line queue previews, and opens complete post evidence through the shared Post Detail viewer. `REPORT_REVIEW_THRESHOLD=1` is a testing convenience only and must be changed to `1000` before deployment. The destructive `report_flow_simplification.sql` migration is committed but has not been applied to the live Supabase project. |
-| F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Not implemented** | Moderation fields, pending/rejected UI states, post-appeal storage, and rejection-notification foundations exist, but there is no Gemini route or worker. The below-40% approve, 40%-60% administrator review, above-60% reject, 20-second timeout, retry/failure behavior, and post/comment integration remain required. |
+| F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Not implemented** | Moderation fields, pending/rejected UI states, post-appeal storage, rejected-post notifications, and a Pending-to-Approved publication-success notification foundation exist, but there is no Gemini route or worker. The below-40% approve, 40%-60% administrator review, above-60% reject, 20-second timeout, retry/failure behavior, and post/comment integration remain required. |
 | F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Link retrieval/status display, basic repository methods, screen-time table access, a family page, and basic SOS record creation exist. Linking acceptance/rejection, role rules, usage tracking/alerts, check-ins, location, linked-parent alerts, records, and two-party unlinking are incomplete. |
 | F009 / REQ_F009 | Intermediate | Real-Time Communication | **Partial** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. Message-request database/repository foundations exist and a sender is capped at three messages while a request is pending, but the recipient Accept action is not exposed in the mobile UI and the complete request flow has not been verified end to end. Do not claim message requests are complete yet. Group-member eligibility also accepts users from accepted recent chats, while the current SRS limits selection to Followers and Following; this rule still needs a product decision or SRS revision. |
-| F010 / REQ_F010 | Intermediate | Notifications | **Partial** | Activity, New Followers, System lists, per-section/conversation unread counts, total Messaging-tab badge, preferences, rejected-post details, appeal submission, and verified creator award notification foundations exist. FCM background/closed-app delivery and complete moderation/report/appeal decision notifications are missing. |
-| F011 / REQ_F011 | Advanced | Administration Portal | **Partial** | The functional portal includes Overview, Users, Creator Requests, grouped Reports, Appeals, and a production-facing AI-Flagged Content workflow with confirmations. Users excludes administrator profiles at the API query boundary and currently exposes creator decisions only. AI-Flagged data is still isolated locally; Gemini and the real AI queue remain deferred. |
+| F010 / REQ_F010 | Intermediate | Notifications | **Partial** | Activity, New Followers, System lists, per-section/conversation unread counts, total Messaging-tab badge, preferences, rejected-post details, appeal submission, verified creator assignment/removal, rejected posts, Pending-to-Approved publication, reported-content removal, and both appeal-outcome notification foundations exist. Retaining reported content intentionally sends no author notification. FCM background/closed-app delivery, Pending Administrator Review feedback, and real Gemini moderation integration remain missing. |
+| F011 / REQ_F011 | Advanced | Administration Portal | **Partial** | The functional portal includes Overview, Users, Creator Requests, grouped Reports, Appeals, and a production-facing AI-Flagged Content workflow with confirmations. Assign Creator, Retain Content, and AI Approve do not require manual reasons; Remove Creator, Remove Content, AI Reject, and both Appeal actions require 10-500 characters. Reason-free persisted actions receive stable internal audit text. Users excludes administrator profiles at the API query boundary and currently exposes creator decisions only. AI-Flagged data is still isolated locally; Gemini and the real AI queue remain deferred. |
 
 ## Current mobile implementation
 
@@ -160,7 +160,11 @@ Implemented:
 
 Still required:
 
-- System notifications for every automatic and administrator moderation outcome, reported-content removal, and appeal decision.
+- Pending Administrator Review feedback and the remaining automatic moderation
+  notifications once the real Gemini workflow exists. Creator status,
+  rejected posts, Pending-to-Approved publication, reported-content removal,
+  and both appeal outcomes already have in-app notification foundations;
+  retaining reported content intentionally sends none.
 - FCM token registration, Android runtime notification permission, secure server-side delivery, background/terminated handling, deep links, retries, and device tests.
 
 ### Sharing and post image preview
@@ -227,12 +231,18 @@ Implemented:
 - `is_admin` and active-account authorization check.
 - Responsive Casework Desk navigation and accessible confirmation-based logout with cancel, progress, and failure states.
 - Operational Overview shortcuts and the latest 15 audited decisions in an internally scrollable panel.
-- User search/filter/detail and confirmed assign/remove creator controls. Administrator profiles are excluded from Users rows and totals by the API repository. Suspend/Reactivate is hidden from the current Users scope, while its API/RPC foundation remains available. Permanent user deletion is intentionally unavailable. Creator identity uses the same blue circular check as the mobile app; **Approved** remains a content-moderation status and is not an identity badge.
-- User detail exposes a latest-five horizontal post carousel whose side controls appear only on real overflow. Cover media fills each card with `object-cover`; the filter-free four-column **See All** modal reuses a large Post Detail viewer with complete `object-contain` images, side Previous/Next controls, bottom dots, title, full content, tags, publication date, moderation status, and approved comments/replies.
+- User search/filter/detail and confirmed assign/remove creator controls. Assigning creator access requires no manual reason and automatically uses the existing creator-award notification trigger; removal requires a 10-500 character reason and sends the removal notification. Administrator profiles are excluded from Users rows and totals by the API repository. Suspend/Reactivate is hidden from the current Users scope, while its API/RPC foundation remains available. Permanent user deletion is intentionally unavailable. Creator identity uses the same blue circular check as the mobile app; **Approved** remains a content-moderation status and is not an identity badge.
+- User detail exposes a latest-five horizontal post carousel whose side controls appear only on real overflow. Cards use an explicit top-aligned column layout, cover media fills the image region edge-to-edge with `object-cover`, and hover clearance keeps the lifted border visible. The filter-free four-column **See All** modal reuses a large Post Detail viewer whose stage-bounded `object-contain` images remain fully visible, with side Previous/Next controls, bottom dots, title, full content, tags, publication date, moderation status, and approved comments/replies.
 - Creator Request Pending/Approved/Rejected queues with profile evidence and confirmed approval/rejection.
-- Grouped Report queues for Pending Review, Resolved, and Dismissed with two-line target previews, visibility evidence, a horizontal report-reason pie chart/legend, post-only **View Post >** access to the shared Post Detail viewer, inline comment evidence, and confirmed Retain/Remove decisions. The current `REPORT_REVIEW_THRESHOLD=1` is for functional testing; set it to `1000` before deployment.
-- Appeal Pending/Approved/Rejected queues with rejected content, original moderation evidence, owner-only mobile appeal submission, and confirmed approval/rejection. The mobile submission and administrator decision paths are functionally testable now.
-- AI-Flagged Content uses normal production-facing queue/detail/status/score/decision wording and preserves confirmation dialogs. Its six-case adapter/data remains isolated locally for later replacement.
+- Grouped Report queues for Pending Review, Resolved, and Dismissed with two-line target previews, visibility evidence, a horizontal report-reason pie chart/legend, post-only **View Post >** access to the shared Post Detail viewer, inline comment evidence, and confirmed Retain/Remove decisions. Retain requires no manual reason and sends no author notification; Remove requires a 10-500 character reason and sends the existing removal notification. The current `REPORT_REVIEW_THRESHOLD=1` is for functional testing; set it to `1000` before deployment.
+- Appeal Pending/Approved/Rejected queues with rejected content, original moderation evidence, owner-only mobile appeal submission, and confirmed approval/rejection. Both administrator actions require a 10-500 character reason and send their existing outcome notification. The mobile submission and administrator decision paths are functionally testable now.
+- AI-Flagged Content uses normal production-facing queue/detail/status/score/decision wording, count-free queue tabs, and confirmation dialogs. Approve requires no manual reason; Reject requires a 10-500 character reason. Its six-case adapter/data remains isolated locally and does not create real notifications.
+
+Reason-free persisted Assign Creator and Retain Content requests are converted by
+the API service to stable internal audit reasons before the existing non-null SQL
+audit boundary. The real moderation foundation also creates a publication-success
+System notification only when a post changes specifically from `pending` to
+`approved`, avoiding duplicate generic messages for approved appeals.
 
 The AI preview must be replaced, not extended, when Gemini integration begins.
 Delete or replace these temporary files:
@@ -294,7 +304,7 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [ ] Complete the initial assessment within 20 seconds under normal conditions; on timeout/failure keep content unpublished and show retry/error feedback.
 - [ ] Add bounded retry handling and idempotency so repeated submissions do not duplicate content or decisions.
 - [ ] Persist risk score, evidence/reason, status, timestamps, model/version, and decision source for audit.
-- [ ] Generate user feedback/System notifications for Approved, Rejected, and Pending Administrator Review states.
+- [ ] Connect the implemented Approved/Rejected notification foundations and add Pending Administrator Review feedback through the real Gemini workflow.
 - [ ] Add text, image, combined-content, comment, timeout, quota, malformed-response, and retry tests.
 
 ### 3. Reporting, appeals, and Administration Portal
@@ -309,7 +319,7 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] On approved appeal, publish the content; on rejected appeal, retain rejection; record an owner notification in both cases.
 - [x] Build user listing/search/detail with public profile, true published-post counts, latest-five horizontal carousel, See All grid, complete post media/content/status, and approved comment/reply review.
 - [x] Build confirmed assign/remove verified creator controls mapped consistently to `is_content_creator`.
-- [x] Record user notifications when creator status or moderation/report/appeal decisions change.
+- [x] Record creator assignment/removal, rejected-post, Pending-to-Approved publication, reported-content removal, and both appeal-outcome notifications; Retain intentionally sends none.
 - [x] Replace placeholder dashboard links/metrics with functional SRS pages; advanced analytics remain out of scope.
 - [x] Add administrator authorization, RLS, API, audit, component, and responsive browser workflow tests.
 - [ ] Apply and verify `supabase/admin_portal.sql` against the live Supabase project before acceptance or deployment.
@@ -387,7 +397,7 @@ Passing unit/widget tests and builds do not prove the SRS timing, concurrency, u
 
 ## Verification state
 
-Verification run directly in the user's PowerShell environment on **July 31, 2026**:
+Verification run directly in the user's PowerShell environment on **August 1, 2026**:
 
 ```powershell
 cd apps/mobile
@@ -405,26 +415,31 @@ Observed:
 
 - Mobile test suite: **184 tests passed**.
 - Flutter analyzer: **no issues found**.
-- Administration Portal: **43 tests passed**; TypeScript type-check and Vite production build passed.
-- Express API: **41 tests passed**; TypeScript type-check and production build passed.
+- Administration Portal: **48 tests passed** across 14 test files; TypeScript type-check and Vite production build passed. The build reports only the existing large-chunk advisory.
+- Express API: **46 tests passed**; TypeScript type-check and production build passed.
 - Mobile appeal regressions: owner appeal widget failure-state preservation and repository appeal actions both passed.
 - Earlier in-app-browser acceptance: approved Creator Requests visual compared side by side at
   **1510 x 1075**; narrow list/detail, Back action, navigation drawer, decision
   validation, and confirmation verified at **390 x 844** with no horizontal
   overflow.
 - Current in-app-browser acceptance: verified the Users queue excludes administrators;
-  carousel controls appear only when content overflows; creator verification uses the
-  blue tick; post media uses contained images with side controls and dots; comments
-  appear in the full post viewer; and AI-Flagged Content uses production-facing copy
-  with a confirmation step before decisions.
+  a single-card carousel hides its controls; the card media fills its region and keeps
+  eight pixels of hover clearance; creator verification uses the blue tick; and the
+  shared Post Detail viewer contains media inside its stage and includes comments.
+  Assign Creator opens confirmation without a reason, while Remove Creator validates a
+  10-500 character reason before confirmation. Reports loaded three live Pending Review
+  cases with the horizontal reason chart and shared **View Post >** dialog; Retain opens
+  confirmation without a reason, while Remove validates its reason first. AI-Flagged
+  Content uses count-free tabs and production-facing copy; Approve opens confirmation
+  without a reason, while Reject validates its reason first. No browser console errors
+  were recorded. The live database had no pending appeal to exercise non-destructively;
+  both reason-required Appeal actions are covered by the passing component regression.
 
 Not covered by this verification:
 
 - Live Supabase migration/application state.
-- Reports case details, its reason chart, shared post viewer, and Overview live data
-  still require a final browser pass after `supabase/report_flow_simplification.sql`
-  is applied. The portal shell correctly displayed only Pending Review, Resolved, and
-  Dismissed, but the existing remote schema rejected the new report query as expected.
+- Remote application of the latest `chat.sql` notification trigger remains required;
+  the local SQL and static regressions verify the Pending-to-Approved transition rule.
 - Gemini moderation or FCM, because they are not implemented.
 - Android physical-device, location, background/terminated notification, or screen-size acceptance.
 - Latest Chrome and Edge acceptance outside the in-app browser.

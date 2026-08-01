@@ -54,10 +54,14 @@ by the current mobile app. At minimum, the live project should include:
 9. `supabase/admin_portal.sql`
 10. `supabase/report_flow_simplification.sql` for an existing database only
 
-The latest `chat.sql` is required for group-chat mentions. Run it manually in
-the Supabase SQL Editor after updating the application. It creates
-`chat_message_mentions` and the mention fetch/visit RPCs. Inspect any SQL Editor
-error before rerunning the script.
+The latest `chat.sql` is required for group-chat mentions and current System
+notifications. Run it manually in the Supabase SQL Editor after updating the
+application. It creates `chat_message_mentions`, the mention fetch/visit RPCs,
+and system triggers for verified creator awards, rejected posts, and posts
+moving specifically from `pending` to `approved`. The last transition sends the
+author a successful-publication notification without duplicating the separate
+approved-appeal notification. Inspect any SQL Editor error before rerunning the
+script.
 
 `admin_portal.sql` must run after `chat.sql`. It creates the administrator audit
 table, duplicate unresolved-report guard, administrator appeal access, and the
@@ -78,6 +82,9 @@ do not backfill old Activity/New Followers rows.
 ## Current Notification Boundary
 
 - In-app notification rows, unread dots, and badges use Supabase.
+- Creator assignment/removal, rejected posts, Pending-to-Approved publication,
+  reported-content removal, and both appeal outcomes have in-app notification
+  foundations. Retaining reported content intentionally sends no notification.
 - External FCM/APNs push delivery is deferred to the next notification phase.
 - Chat messages are not sent to Gemini moderation.
 - `GEMINI_API_KEY` remains optional until post/comment moderation is connected.
