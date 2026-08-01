@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/security/password_policy.dart';
+import '../../../core/widgets/password_checklist.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -21,6 +22,7 @@ class _AuthPageState extends State<AuthPage> {
   bool _isLoading = false;
   bool _showPassword = false;
   bool _showConfirmPassword = false;
+  PasswordPolicyResult _passwordStatus = PasswordPolicy.evaluate('');
   String? _message;
   bool _isSuccessMessage = false;
 
@@ -87,6 +89,7 @@ class _AuthPageState extends State<AuthPage> {
       _message = null;
       _isSuccessMessage = false;
       _showConfirmPassword = false;
+      _passwordStatus = PasswordPolicy.evaluate(_passwordController.text);
       _formKey = GlobalKey<FormState>();
     });
   }
@@ -161,7 +164,14 @@ class _AuthPageState extends State<AuthPage> {
                                   _confirmPasswordController,
                               showPassword: _showPassword,
                               showConfirmPassword: _showConfirmPassword,
+                              passwordStatus: _passwordStatus,
                               onModeChanged: _changeAuthMode,
+                              onPasswordChanged: (value) {
+                                setState(() {
+                                  _passwordStatus =
+                                      PasswordPolicy.evaluate(value);
+                                });
+                              },
                               onTogglePassword: () => setState(
                                 () => _showPassword = !_showPassword,
                               ),
@@ -264,7 +274,9 @@ class _AuthPanel extends StatelessWidget {
     required this.confirmPasswordController,
     required this.showPassword,
     required this.showConfirmPassword,
+    required this.passwordStatus,
     required this.onModeChanged,
+    required this.onPasswordChanged,
     required this.onTogglePassword,
     required this.onToggleConfirmPassword,
     required this.onSubmit,
@@ -281,7 +293,9 @@ class _AuthPanel extends StatelessWidget {
   final TextEditingController confirmPasswordController;
   final bool showPassword;
   final bool showConfirmPassword;
+  final PasswordPolicyResult passwordStatus;
   final ValueChanged<bool> onModeChanged;
+  final ValueChanged<String> onPasswordChanged;
   final VoidCallback onTogglePassword;
   final VoidCallback onToggleConfirmPassword;
   final VoidCallback onSubmit;
@@ -370,9 +384,6 @@ class _AuthPanel extends StatelessWidget {
                     : const [AutofillHints.password],
                 decoration: InputDecoration(
                   labelText: 'Password',
-                  helperText: isRegistering
-                      ? 'Use 12+ characters with upper/lowercase, a number, and a symbol.'
-                      : null,
                   prefixIcon: const Icon(Icons.lock_outline_rounded),
                   suffixIcon: IconButton(
                     tooltip: showPassword ? 'Hide password' : 'Show password',
@@ -391,6 +402,7 @@ class _AuthPanel extends StatelessWidget {
                   }
                   return PasswordPolicy.validationError(password);
                 },
+                onChanged: isRegistering ? onPasswordChanged : null,
                 onFieldSubmitted: (_) {
                   if (!isRegistering) {
                     onSubmit();
@@ -398,6 +410,8 @@ class _AuthPanel extends StatelessWidget {
                 },
               ),
               if (isRegistering) ...[
+                const SizedBox(height: 14),
+                PasswordChecklist(status: passwordStatus),
                 const SizedBox(height: 14),
                 TextFormField(
                   key: const ValueKey('register-confirm-password-field'),

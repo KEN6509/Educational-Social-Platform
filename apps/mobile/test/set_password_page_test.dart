@@ -201,6 +201,9 @@ void main() {
     expect(find.text('Contains an uppercase letter'), findsOneWidget);
     expect(find.text('Contains a lowercase letter'), findsOneWidget);
     expect(find.text('Contains a number'), findsOneWidget);
-    expect(find.text('Contains a symbol such as . or _'), findsOneWidget);
+    expect(
+      find.text('Contains a symbol such as !, @, #, \$, %, or &'),
+      findsOneWidget,
+    );
   });
 }

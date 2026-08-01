@@ -54,7 +54,15 @@ void main() {
     );
     expect(find.text('Enter your name.'), findsNothing);
 
-    await tester.tap(find.text('Log in').first);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    final loginMode = find.ancestor(
+      of: find.text('Log in').first,
+      matching: find.byType(InkWell),
+    );
+    await tester.ensureVisible(loginMode);
+    await tester.pumpAndSettle();
+    await tester.tap(loginMode);
     await tester.pump();
 
     expect(find.text('Enter a valid email address.'), findsNothing);
@@ -118,9 +126,51 @@ void main() {
     expect(
       find.text(
         'Use at least 12 characters with uppercase, lowercase, a number, '
-        'and a symbol such as . or _.',
+        'and a symbol such as !, @, #, \$, %, or &.',
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('registration shows and updates the live password checklist',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const CyanZoneApp());
+    await tester.pump();
+
+    expect(find.text('At least 12 characters'), findsNothing);
+
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+
+    expect(find.text('At least 12 characters'), findsOneWidget);
+    expect(find.text('Contains an uppercase letter'), findsOneWidget);
+    expect(find.text('Contains a lowercase letter'), findsOneWidget);
+    expect(find.text('Contains a number'), findsOneWidget);
+    expect(
+      find.text('Contains a symbol such as !, @, #, \$, %, or &'),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.check_circle_rounded), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('register-password-field')),
+      'StrongPass12!',
+    );
+    await tester.pump();
+
+    expect(find.byIcon(Icons.check_circle_rounded), findsNWidgets(5));
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    final loginMode = find.ancestor(
+      of: find.text('Log in').first,
+      matching: find.byType(InkWell),
+    );
+    await tester.ensureVisible(loginMode);
+    await tester.pumpAndSettle();
+    await tester.tap(loginMode);
+    await tester.pump();
+
+    expect(find.text('At least 12 characters'), findsNothing);
   });
 }

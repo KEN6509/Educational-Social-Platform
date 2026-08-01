@@ -26,7 +26,7 @@ class PasswordPolicy {
 
   static const validationMessage =
       'Use at least 12 characters with uppercase, lowercase, a number, '
-      'and a symbol such as . or _.';
+      'and a symbol such as !, @, #, \$, %, or &.';
 
   static PasswordPolicyResult evaluate(String value) {
     return PasswordPolicyResult(

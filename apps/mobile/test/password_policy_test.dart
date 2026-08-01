@@ -50,7 +50,7 @@ void main() {
       expect(
         PasswordPolicy.validationError('weakpassword'),
         'Use at least 12 characters with uppercase, lowercase, a number, '
-        'and a symbol such as . or _.',
+        'and a symbol such as !, @, #, \$, %, or &.',
       );
       expect(PasswordPolicy.validationError('StrongPass12.'), isNull);
     });
