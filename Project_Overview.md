@@ -98,9 +98,10 @@ Status meanings:
 Implemented:
 
 - Supabase auth/session gate, login and registration validation, confirmation-based logout, and password update with current-password reauthentication.
-- A shared mobile strong-password policy for registration and password change: 12 or more characters with uppercase, lowercase, number, and any non-whitespace symbol; `.` and `_` are accepted.
+- A shared mobile confirmation dialog standard covers logout, post update/deletion, chat message and group danger actions, notification deletion, and SOS submission.
+- A shared mobile strong-password policy and live checklist are used by registration and password change: 12 or more characters with uppercase, lowercase, number, and any non-whitespace symbol. The checklist examples are `!`, `@`, `#`, `$`, `%`, and `&`; other symbols including `.` and `_` remain accepted.
 - Five-tab shell: Home, Parent-Child, Create, Chats, and Profile.
-- Waterfall feed with Feeds, Following, and Saves modes, refresh, filtering, and image/text posts.
+- Waterfall feed with Feeds, Following, and Saves modes, refresh, filtering, and image/text posts; moderation-status badges use the same top-left card placement for both post types.
 - Search across posts and profiles with local/server history.
 - Own/other profiles, follow graph, avatar editing/caching, post grids, and settings.
 - Post creation/editing with up to nine images, custom picker/camera, tags, and storage cleanup.
@@ -121,7 +122,7 @@ Implemented chat home:
 - Search by user, group, or chat name, including cached offline chat-history search.
 - All, Unread, Groups, and Requests filters.
 - Conversation previews, timestamps, unread badges, and 30-day request display behavior.
-- Bottom navigation badge combining unread messages and notification-section sources.
+- Bottom navigation badge combining unread messages and notification-section sources; it preserves the last confirmed count while the Messages page or a refresh is loading and on temporary refresh failure.
 
 Implemented conversations:
 
@@ -413,7 +414,7 @@ cd ../../services/api
 
 Observed:
 
-- Mobile test suite: **184 tests passed**.
+- Mobile test suite: **189 tests passed**.
 - Flutter analyzer: **no issues found**.
 - Administration Portal: **48 tests passed** across 14 test files; TypeScript type-check and Vite production build passed. The build reports only the existing large-chunk advisory.
 - Express API: **46 tests passed**; TypeScript type-check and production build passed.
