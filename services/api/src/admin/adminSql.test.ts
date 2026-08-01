@@ -17,6 +17,10 @@ const migrationSql = readFileSync(
   ),
   'utf8',
 ).toLowerCase();
+const chatSql = readFileSync(
+  new URL('../../../../supabase/chat.sql', import.meta.url),
+  'utf8',
+).toLowerCase();
 
 test('admin portal SQL defines audit and decision boundaries', () => {
   assert.match(sql, /create table if not exists public\.admin_action_audit/);
@@ -75,6 +79,39 @@ test('admin decisions enforce authorization, locking, audit, and notifications',
   assert.match(sql, /insert into public\.notifications/);
   assert.match(sql, /revoke all on function public\.decide_report_case/);
   assert.match(sql, /grant execute on function public\.decide_report_case/);
+});
+
+test('creator, moderation, report, and appeal notification rules stay explicit', () => {
+  assert.match(
+    chatSql,
+    /create or replace function public\.notify_content_creator_awarded/,
+  );
+  assert.match(
+    chatSql,
+    /create or replace function public\.notify_post_rejected/,
+  );
+  assert.match(
+    chatSql,
+    /create or replace function public\.notify_post_approved/,
+  );
+  assert.match(
+    chatSql,
+    /old\.moderation_status = 'pending'[\s\S]*new\.moderation_status = 'approved'/,
+  );
+  assert.match(chatSql, /'template_type', 'post_approved'/);
+
+  const reportFunction = sql.slice(
+    sql.indexOf('create or replace function public.decide_report_case'),
+    sql.indexOf('create or replace function public.decide_post_appeal'),
+  );
+  assert.match(
+    reportFunction,
+    /if p_decision = 'remove' then[\s\S]*perform public\.admin_portal_notify/,
+  );
+  assert.doesNotMatch(
+    reportFunction,
+    /if p_decision = 'retain' then[\s\S]*perform public\.admin_portal_notify/,
+  );
 });
 
 test('trusted RPCs cooperate with the profile privilege guard', () => {

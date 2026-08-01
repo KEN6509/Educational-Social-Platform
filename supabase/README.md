@@ -121,7 +121,8 @@ Run `follow.sql` after `schema.sql`, then run `comment_mentions.sql`, then run `
 - Chat RPC helpers for conversations, messages, read state, and clearing chats
 - Notification preferences and notifications
 - Activity notification triggers for follows, likes, saves, comments, and mentions
-- System notification triggers for creator badges and rejected posts
+- System notification triggers for creator badges, rejected posts, and posts
+  moving from Pending to Approved
 - Rejected-post appeal storage and submission validation
 - RLS policies and realtime publication entries for chat/notification tables
 - Structured group-chat mentions, admin-only `@all`, and per-recipient mention visit state
@@ -162,7 +163,8 @@ from information_schema.triggers
 where trigger_schema = 'public'
   and trigger_name in (
     'notify_content_creator_awarded_on_update',
-    'notify_post_rejected_on_update'
+    'notify_post_rejected_on_update',
+    'notify_post_approved_on_update'
   )
 order by trigger_name;
 
@@ -184,15 +186,19 @@ where routine_schema = 'public'
 Expected results:
 
 - `post_appeals_table` is `public.post_appeals`.
-- Both notification triggers are present, one on `profiles` and one on `posts`.
+- All three notification triggers are present: one on `profiles` and two on
+  `posts`.
 - The notification Delete and appeal Select policies are present.
 - `submit_post_appeal` returns one routine row.
 
-Existing creator badges and rejected posts are not backfilled. To verify live
-generation, use a test account and create a new state transition after applying
-the SQL: change `is_content_creator` from false to true, or change a post from a
-non-rejected status to `rejected`. Re-saving the same final state does not create
-another notification.
+Existing creator badges and moderation outcomes are not backfilled. To verify
+live generation, use a test account and create a new state transition after
+applying the SQL: change `is_content_creator` from false to true, change a post
+from a non-rejected status to `rejected`, or change a post specifically from
+`pending` to `approved`. Re-saving the same final state does not create another
+notification. The Administration Portal AI queue remains an isolated local
+adapter and does not create database notifications until the real moderation
+workflow replaces it.
 
 ### Administration Portal
 

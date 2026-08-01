@@ -1703,6 +1703,66 @@ begin
 end;
 $$;
 
+create or replace function public.notify_post_approved()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_author_name text;
+begin
+  if old.moderation_status = 'pending'
+    and new.moderation_status = 'approved'
+  then
+    select p.name
+    into v_author_name
+    from public.profiles p
+    where p.id = new.author_id;
+
+    insert into public.notifications (
+      user_id,
+      type,
+      post_id,
+      title,
+      body,
+      action_type,
+      action_payload
+    )
+    select
+      new.author_id,
+      'system',
+      new.id,
+      'Your post was published successfully',
+      format(
+        E'Hi %s,\n\nYour post “%s” passed moderation and was published successfully.',
+        coalesce(v_author_name, 'CyanZone creator'),
+        new.title
+      ),
+      'post_detail',
+      jsonb_build_object(
+        'template_type', 'post_approved',
+        'post_title', new.title
+      )
+    where coalesce((
+      select np.in_app_enabled and np.system_enabled
+      from public.notification_preferences np
+      where np.user_id = new.author_id
+    ), true)
+      and not exists (
+        select 1
+        from public.notifications existing
+        where existing.user_id = new.author_id
+          and existing.type = 'system'
+          and existing.post_id = new.id
+          and existing.action_payload->>'template_type' = 'post_approved'
+      );
+  end if;
+
+  return new;
+end;
+$$;
+
 drop trigger if exists notify_new_follower_on_insert on public.follows;
 create trigger notify_new_follower_on_insert
 after insert on public.follows
@@ -1738,6 +1798,11 @@ drop trigger if exists notify_post_rejected_on_update on public.posts;
 create trigger notify_post_rejected_on_update
 after update of moderation_status on public.posts
 for each row execute function public.notify_post_rejected();
+
+drop trigger if exists notify_post_approved_on_update on public.posts;
+create trigger notify_post_approved_on_update
+after update of moderation_status on public.posts
+for each row execute function public.notify_post_approved();
 
 alter table public.chat_conversations enable row level security;
 alter table public.chat_conversation_members enable row level security;
