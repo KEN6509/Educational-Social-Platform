@@ -92,7 +92,7 @@ class _MainShellState extends State<MainShell> {
       final count = await _chatRepository.fetchUnreadChatTabBadgeCount();
       if (mounted) setState(() => _chatBadgeCount = count);
     } catch (_) {
-      if (mounted) setState(() => _chatBadgeCount = 0);
+      // Keep the last confirmed count when a refresh temporarily fails.
     }
   }
 
@@ -255,9 +255,6 @@ class _MainShellState extends State<MainShell> {
               _index = value;
               if (value == 4) {
                 _profileRefreshSignal += 1;
-              }
-              if (value == 3) {
-                _chatBadgeCount = 0;
               }
             });
             if (value == 3) {

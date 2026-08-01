@@ -424,5 +424,29 @@ void main() {
       expect(source, contains('fetchUnreadChatTabBadgeCount'));
       expect(source, isNot(contains('fetchUnreadChatCount();')));
     });
+
+    test('main shell preserves the last known chat badge while refreshing', () {
+      final source = File('lib/src/features/shell/presentation/main_shell.dart')
+          .readAsStringSync();
+
+      final navigationStart = source.indexOf('onTap: (value)');
+      final navigationEnd =
+          source.indexOf('chatBadgeCount: _chatBadgeCount', navigationStart);
+      expect(navigationStart, greaterThanOrEqualTo(0));
+      expect(navigationEnd, greaterThan(navigationStart));
+      final navigationSource = source.substring(navigationStart, navigationEnd);
+      expect(navigationSource, isNot(contains('_chatBadgeCount = 0')));
+
+      final refreshStart = source.indexOf('Future<void> _refreshChatBadge()');
+      final refreshEnd =
+          source.indexOf('void _handleChatBadgeCountChanged', refreshStart);
+      expect(refreshStart, greaterThanOrEqualTo(0));
+      expect(refreshEnd, greaterThan(refreshStart));
+      final refreshSource = source.substring(refreshStart, refreshEnd);
+      expect(
+        refreshSource,
+        isNot(contains('setState(() => _chatBadgeCount = 0)')),
+      );
+    });
   });
 }
