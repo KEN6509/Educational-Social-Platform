@@ -297,45 +297,40 @@ class _FeedCardState extends State<FeedCard> {
     ThemeData theme,
     ImageProvider<Object>? authorAvatarImage,
   ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final hasStatus = _currentPost.isPending || _currentPost.isRejected;
+    return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
-          child: Text(
-            _currentPost.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              height: 1.18,
-            ),
-          ),
-        ),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final cardWidth = constraints.maxWidth.isFinite
-                ? constraints.maxWidth
-                : MediaQuery.sizeOf(context).width;
-            final surfaceHeight = estimateTextOnlyPostSurfaceHeight(
-                _currentPost.content, cardWidth);
-            final minSurfaceHeight =
-                _currentPost.isPending || _currentPost.isRejected ? 42.0 : 0.0;
-            final maxSurfaceHeight = surfaceHeight < minSurfaceHeight
-                ? minSurfaceHeight
-                : surfaceHeight;
-            return ConstrainedBox(
-              key: const ValueKey('text_post_content_surface'),
-              constraints: BoxConstraints(
-                maxHeight: maxSurfaceHeight,
-                minHeight: minSurfaceHeight,
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(10, hasStatus ? 45 : 8, 10, 2),
+              child: Text(
+                _currentPost.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  height: 1.18,
+                ),
               ),
-              child: Stack(
-                children: [
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cardWidth = constraints.maxWidth.isFinite
+                    ? constraints.maxWidth
+                    : MediaQuery.sizeOf(context).width;
+                final surfaceHeight = estimateTextOnlyPostSurfaceHeight(
+                    _currentPost.content, cardWidth);
+                return ConstrainedBox(
+                  key: const ValueKey('text_post_content_surface'),
+                  constraints: BoxConstraints(maxHeight: surfaceHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 2,
+                    ),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final style = theme.textTheme.bodySmall?.copyWith(
@@ -345,10 +340,7 @@ class _FeedCardState extends State<FeedCard> {
                         final fontSize = style?.fontSize ?? 12;
                         final lineHeight = fontSize * (style?.height ?? 1);
                         final maxLines =
-                            (surfaceHeight / lineHeight).floor().clamp(
-                                  1,
-                                  100,
-                                );
+                            (surfaceHeight / lineHeight).floor().clamp(1, 100);
                         return Text(
                           _currentPost.content,
                           key: const ValueKey('text_post_content'),
@@ -359,27 +351,23 @@ class _FeedCardState extends State<FeedCard> {
                       },
                     ),
                   ),
-                  if (_currentPost.isPending || _currentPost.isRejected)
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: _buildStatusBadge(),
-                    ),
-                ],
-              ),
-            );
-          },
+                );
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+              child: _buildAuthorRow(theme, authorAvatarImage),
+            ),
+          ],
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
-          child: _buildAuthorRow(theme, authorAvatarImage),
-        ),
+        if (hasStatus) Positioned(top: 8, left: 8, child: _buildStatusBadge()),
       ],
     );
   }
 
   Widget _buildStatusBadge() {
     return _StatusBadge(
+      key: const ValueKey('post_status_badge'),
       label: _currentPost.isRejected ? 'Rejected' : 'Pending',
       icon: _currentPost.isRejected
           ? Icons.error_outline_rounded
@@ -1020,6 +1008,7 @@ class _StatusBadge extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.backgroundColor,
+    super.key,
   });
 
   final String label;
