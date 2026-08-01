@@ -80,17 +80,14 @@ export function AiFlaggedContentPage() {
               {
                 id: 'pending',
                 label: 'Pending',
-                count: rows.filter((item) => item.status === 'pending').length,
               },
               {
                 id: 'approved',
                 label: 'Approved',
-                count: rows.filter((item) => item.status === 'approved').length,
               },
               {
                 id: 'rejected',
                 label: 'Rejected',
-                count: rows.filter((item) => item.status === 'rejected').length,
               },
             ]}
             onChange={changeStatus}
@@ -203,12 +200,14 @@ export function AiFlaggedContentPage() {
               {selected.status === 'pending' ? (
                 <DecisionPanel
                   dangerLabel="Reject content"
-                  helperText="Provide a clear reason for the moderation decision."
+                  dangerRequiresReason
+                  helperText="Approval publishes eligible uncertain content. Rejection requires a clear moderation reason."
                   isSubmitting={false}
                   onDanger={() => setDecision('rejected')}
                   onPrimary={() => setDecision('approved')}
                   onReasonChange={setReason}
                   primaryLabel="Approve content"
+                  primaryRequiresReason={false}
                   reason={reason}
                   title="Moderation decision"
                 />

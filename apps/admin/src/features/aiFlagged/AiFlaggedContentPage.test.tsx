@@ -32,12 +32,16 @@ describe('AiFlaggedContentPage', () => {
     const user = userEvent.setup();
     const { unmount } = render(<AiFlaggedContentPage />);
 
-    await user.type(
-      screen.getByLabelText(/Decision reason/),
-      'The context is educational and does not violate policy.',
+    expect(screen.getByRole('tab', { name: 'Pending' })).toHaveTextContent(
+      /^Pending$/,
+    );
+    expect(screen.getByRole('tab', { name: 'Approved' })).toHaveTextContent(
+      /^Approved$/,
+    );
+    expect(screen.getByRole('tab', { name: 'Rejected' })).toHaveTextContent(
+      /^Rejected$/,
     );
     await user.click(screen.getByRole('button', { name: 'Approve content' }));
-    expect(screen.getByRole('tab', { name: /Pending/ })).toHaveTextContent('3');
     const dialog = screen.getByRole('dialog', { name: 'Approve content?' });
     await user.click(within(dialog).getByRole('button', { name: 'Confirm approval' }));
     expect(await screen.findByText('Decision saved.')).toBeVisible();
@@ -48,6 +52,19 @@ describe('AiFlaggedContentPage', () => {
     expect(screen.getByRole('tab', { name: /Pending/ })).toHaveAttribute(
       'aria-selected',
       'true',
+    );
+  });
+
+  it('requires a reason before rejecting content', async () => {
+    const user = userEvent.setup();
+    render(<AiFlaggedContentPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Reject content' }));
+    expect(
+      screen.queryByRole('dialog', { name: 'Reject content?' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Enter a reason between 10 and 500 characters before choosing "Reject content".',
     );
   });
 });

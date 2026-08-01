@@ -57,18 +57,23 @@ const postDetail: AdminPostDetailView = {
   comments: [],
 };
 
-function createApi() {
+function createApi(selectedDetail: UserDetailView = detail) {
   return {
     get: vi.fn(async (path: string) => {
       if (path === '/admin/users') {
         return {
-          items: [userSummary],
+          items: [
+            {
+              ...userSummary,
+              isContentCreator: selectedDetail.isContentCreator,
+            },
+          ],
           page: 1,
           pageSize: 20,
           total: 1,
         } satisfies PageResult<UserSummaryView>;
       }
-      return detail;
+      return selectedDetail;
     }),
     post: vi.fn().mockResolvedValue(undefined),
   } as unknown as AdminApi;
@@ -125,21 +130,35 @@ describe('UsersPage', () => {
     });
   });
 
-  it('confirms creator changes with the preserved reason', async () => {
+  it('confirms creator assignment without a manual reason', async () => {
     const user = userEvent.setup();
     const api = createApi();
     render(<UsersPage api={api} />);
 
     await screen.findByText('Science educator');
-    const reason = screen.getByLabelText(/Decision reason/);
-    await user.type(reason, 'Profile now meets the educational creator standard.');
     await user.click(screen.getByRole('button', { name: 'Assign creator' }));
     const creatorDialog = screen.getByRole('dialog', { name: 'Assign creator access?' });
     await user.click(within(creatorDialog).getByRole('button', { name: 'Confirm assignment' }));
     expect(api.post).toHaveBeenCalledWith('/admin/users/user-1/creator-status', {
       isCreator: true,
-      reason: 'Profile now meets the educational creator standard.',
+      reason: '',
     });
+  });
+
+  it('shows validation before removing creator access without a reason', async () => {
+    const user = userEvent.setup();
+    const api = createApi({ ...detail, isContentCreator: true });
+    render(<UsersPage api={api} />);
+
+    await screen.findByText('Science educator');
+    await user.click(screen.getByRole('button', { name: 'Remove creator' }));
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Remove creator access?' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Enter a reason between 10 and 500 characters before choosing "Remove creator".',
+    );
   });
 
   it('does not expose account suspension actions', async () => {

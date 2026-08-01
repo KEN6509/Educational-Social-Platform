@@ -162,6 +162,14 @@ describe('ReportsPage', () => {
     render(<ReportsPage api={api} />);
     await screen.findByText('7 total reports');
 
+    await user.click(screen.getByRole('button', { name: 'Remove content' }));
+    expect(
+      screen.queryByRole('dialog', { name: 'Remove this content?' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Enter a reason between 10 and 500 characters before choosing "Remove content".',
+    );
+
     await user.type(
       screen.getByLabelText(/Decision reason/),
       'The post contains unsafe health misinformation.',
@@ -176,6 +184,24 @@ describe('ReportsPage', () => {
         decision: 'remove',
         reason: 'The post contains unsafe health misinformation.',
       },
+    );
+  });
+
+  it('confirms retention without a manual reason', async () => {
+    const user = userEvent.setup();
+    const api = createApi();
+    render(<ReportsPage api={api} />);
+    await screen.findByText('7 total reports');
+
+    await user.click(screen.getByRole('button', { name: 'Retain content' }));
+    const dialog = screen.getByRole('dialog', { name: 'Retain this content?' });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Confirm retention' }),
+    );
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/admin/report-cases/post/post-1/decision',
+      { decision: 'retain', reason: '' },
     );
   });
 });

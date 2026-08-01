@@ -392,7 +392,11 @@ export function UsersPage({
                 </p>
               ) : null}
               <DecisionPanel
-                helperText="Creator changes are audited and the member is notified."
+                helperText={
+                  detail.isContentCreator
+                    ? 'Removing creator access requires a reason and notifies the member.'
+                    : 'Assigning creator access is audited and automatically notifies the member.'
+                }
                 isSubmitting={submitting}
                 onPrimary={() =>
                   setDecision({
@@ -401,6 +405,7 @@ export function UsersPage({
                 }
                 onReasonChange={setReason}
                 primaryLabel={creatorButton}
+                primaryRequiresReason={detail.isContentCreator}
                 reason={reason}
                 title="Creator decision"
               />

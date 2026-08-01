@@ -91,4 +91,18 @@ describe('AppealsPage', () => {
       reason: 'The educational context is clear and safe for publication.',
     });
   });
+
+  it('keeps both appeal decisions reason-required', async () => {
+    const user = userEvent.setup();
+    render(<AppealsPage api={createApi()} />);
+    await screen.findByText('Rejected content');
+
+    await user.click(screen.getByRole('button', { name: 'Approve appeal' }));
+    expect(
+      screen.queryByRole('dialog', { name: 'Approve this appeal?' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Enter a reason between 10 and 500 characters before choosing "Approve appeal".',
+    );
+  });
 });

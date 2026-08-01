@@ -296,12 +296,14 @@ export function ReportsPage({ api = adminApi }: { api?: AdminApi }) {
               {detail.status === 'pending_review' ? (
                 <DecisionPanel
                   dangerLabel="Remove content"
-                  helperText="Retaining keeps the content visible. Removing hides it and records the reason."
+                  dangerRequiresReason
+                  helperText="Retaining keeps the content visible without notifying the author. Removing hides it, records the reason, and notifies the author."
                   isSubmitting={submitting}
                   onDanger={() => setDecision('remove')}
                   onPrimary={() => setDecision('retain')}
                   onReasonChange={setReason}
                   primaryLabel="Retain content"
+                  primaryRequiresReason={false}
                   reason={reason}
                 />
               ) : null}
