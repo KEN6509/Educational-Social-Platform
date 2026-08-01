@@ -77,11 +77,14 @@ export function PostDetailModal({
             </button>
           ) : null}
 
-          <div className="relative grid min-h-0 flex-1 place-items-center overflow-hidden rounded-xl bg-white shadow-sm">
+          <div
+            className="relative grid min-h-0 flex-1 place-items-center overflow-hidden rounded-xl bg-slate-900 shadow-sm"
+            data-testid="post-media-stage"
+          >
             {image ? (
               <img
                 alt={`${post.title} image ${selectedImage + 1}`}
-                className="h-full max-h-full w-full object-contain"
+                className="absolute inset-0 h-full w-full object-contain"
                 src={image.url}
               />
             ) : (
@@ -94,7 +97,7 @@ export function PostDetailModal({
               <>
                 <button
                   aria-label="Previous image"
-                  className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-lg transition hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-35"
+                  className="absolute left-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-lg transition hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-35"
                   disabled={selectedImage === 0}
                   onClick={() => setSelectedImage((index) => index - 1)}
                   type="button"
@@ -103,14 +106,14 @@ export function PostDetailModal({
                 </button>
                 <button
                   aria-label="Next image"
-                  className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-lg transition hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-35"
+                  className="absolute right-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-lg transition hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-35"
                   disabled={selectedImage === post.images.length - 1}
                   onClick={() => setSelectedImage((index) => index + 1)}
                   type="button"
                 >
                   <ChevronRight className="h-5 w-5" aria-hidden="true" />
                 </button>
-                <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 rounded-full bg-slate-950/45 px-3 py-2">
+                <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2 rounded-full bg-slate-950/45 px-3 py-2">
                   {post.images.map((item, index) => (
                     <button
                       aria-current={

@@ -79,14 +79,29 @@ describe('administrator post review UI', () => {
     expect(
       screen.getAllByRole('button', { name: /Open post/ }),
     ).toHaveLength(5);
+    const firstCard = screen.getByRole('button', {
+      name: 'Open post Repair guide',
+    });
+    expect(firstCard).toHaveClass(
+      'flex',
+      'flex-col',
+      'hover:-translate-y-0.5',
+    );
+    expect(screen.getByTestId('recent-post-media-post-1')).toHaveClass(
+      'h-28',
+      'w-full',
+      'shrink-0',
+      'overflow-hidden',
+    );
     expect(
       document.querySelector('img[src="https://img.test/post-1.jpg"]'),
     ).toHaveClass(
       'block',
-      'h-28',
+      'h-full',
       'w-full',
       'object-cover',
     );
+    expect(screen.getByTestId('recent-posts-rail')).toHaveClass('pt-2');
     expect(
       screen.getByRole('button', { name: 'Previous posts' }),
     ).toBeDisabled();
@@ -164,7 +179,18 @@ describe('administrator post review UI', () => {
     expect(within(dialog).getByText('Creator')).toBeVisible();
     expect(
       within(dialog).getByRole('img', { name: 'Repair guide image 1' }),
-    ).toHaveClass('object-contain');
+    ).toHaveClass(
+      'absolute',
+      'inset-0',
+      'h-full',
+      'w-full',
+      'object-contain',
+    );
+    expect(within(dialog).getByTestId('post-media-stage')).toHaveClass(
+      'relative',
+      'overflow-hidden',
+      'bg-slate-900',
+    );
     expect(
       within(dialog).getByRole('button', { name: 'Previous image' }),
     ).toBeDisabled();
