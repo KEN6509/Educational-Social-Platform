@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../data/parent_child_repository.dart';
 
 class ParentChildPage extends StatefulWidget {
@@ -80,37 +82,24 @@ class _ParentChildPageState extends State<ParentChildPage> {
     );
   }
 
-  void _showSOSDialog(BuildContext context) {
-    showDialog(
+  Future<void> _showSOSDialog(BuildContext context) async {
+    final confirmed = await showAppConfirmationDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Send SOS Alert?'),
-        content: const Text(
+      icon: Icons.sos_rounded,
+      iconColor: const Color(0xFFE11D48),
+      iconBackgroundColor: const Color(0xFFFFE4E6),
+      title: 'Send SOS Alert?',
+      message:
           'This will immediately notify your linked parents that you need help.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await _repository.createSOS('Emergency SOS triggered');
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('SOS Alert Sent!')),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE11D48),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Send SOS'),
-          ),
-        ],
-      ),
+      primaryLabel: 'Send SOS',
+      primaryColor: const Color(0xFFE11D48),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await _repository.createSOS('Emergency SOS triggered');
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('SOS Alert Sent!')),
     );
   }
 }

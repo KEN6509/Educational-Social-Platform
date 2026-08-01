@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/widgets/app_confirmation_dialog.dart';
 import 'set_password_page.dart';
 
 typedef NotificationPreferenceLoader = Future<Map<String, bool>> Function();
@@ -99,25 +100,15 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _confirmLogout() async {
     if (_isSigningOut) return;
 
-    final shouldLogout = await showDialog<bool>(
+    final shouldLogout = await showAppConfirmationDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Log out?'),
-        content: const Text('Are you sure you want to log out of CyanZone?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFE11D48),
-            ),
-            child: const Text('Log out'),
-          ),
-        ],
-      ),
+      icon: Icons.logout_rounded,
+      iconColor: const Color(0xFFE11D48),
+      iconBackgroundColor: const Color(0xFFFFE4E6),
+      title: 'Log out?',
+      message: 'Are you sure you want to log out of CyanZone?',
+      primaryLabel: 'Log out',
+      primaryColor: const Color(0xFFE11D48),
     );
     if (shouldLogout != true || !mounted) return;
 

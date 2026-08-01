@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/app_input_decoration.dart';
+import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../data/feed_post.dart';
 import '../data/posts_repository.dart';
 import '../data/tag_catalog.dart';
@@ -319,108 +320,16 @@ class _CreatePostPageState extends State<CreatePostPage> {
   }
 
   Future<bool?> _showEditConfirmation() {
-    return showDialog<bool>(
+    return showAppConfirmationDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.42),
-      builder: (context) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-          backgroundColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.14),
-                  blurRadius: 28,
-                  offset: const Offset(0, 14),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE7F8F5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.edit_note_rounded,
-                    color: Color(0xFF2C7189),
-                    size: 30,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Update this post?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Updating will send this post back to pending review before it appears publicly again.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 14,
-                    height: 1.42,
-                  ),
-                ),
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(true),
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0B1F3E),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Text(
-                        'Update post',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  height: 42,
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(false),
-                    behavior: HitTestBehavior.opaque,
-                    child: const Center(
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: Color(0xFF475569),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      icon: Icons.edit_note_rounded,
+      iconColor: const Color(0xFF2C7189),
+      iconBackgroundColor: const Color(0xFFE7F8F5),
+      title: 'Update this post?',
+      message:
+          'Updating will send this post back to pending review before it appears publicly again.',
+      primaryLabel: 'Update post',
+      primaryColor: const Color(0xFF0B1F3E),
     );
   }
 

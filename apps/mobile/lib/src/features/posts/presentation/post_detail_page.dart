@@ -9,6 +9,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
+import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../../chat/data/chat_models.dart';
 import '../../chat/data/chat_repository.dart';
 import '../../chat/presentation/chat_widgets.dart' show ChatAvatar, GroupAvatar;
@@ -1153,104 +1154,15 @@ class _PostDetailPageState extends State<PostDetailPage> {
     required String primaryLabel,
     required Color primaryColor,
   }) {
-    return showDialog<bool>(
+    return showAppConfirmationDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.42),
-      builder: (context) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-          backgroundColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.14),
-                  blurRadius: 28,
-                  offset: const Offset(0, 14),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    color: iconBackgroundColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: iconColor, size: 30),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 14,
-                    height: 1.42,
-                  ),
-                ),
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(true),
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: primaryColor,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Text(
-                        primaryLabel,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  height: 42,
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(false),
-                    behavior: HitTestBehavior.opaque,
-                    child: const Center(
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: Color(0xFF475569),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      icon: icon,
+      iconColor: iconColor,
+      iconBackgroundColor: iconBackgroundColor,
+      title: title,
+      message: message,
+      primaryLabel: primaryLabel,
+      primaryColor: primaryColor,
     );
   }
 

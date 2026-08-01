@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:cyanzone_mobile/src/core/widgets/app_confirmation_dialog.dart';
 import 'package:cyanzone_mobile/src/features/profile/presentation/settings_page.dart';
 
 void main() {
@@ -90,7 +91,7 @@ void main() {
 
     await tester.tap(
       find.descendant(
-        of: find.byType(AlertDialog),
+        of: find.byType(AppConfirmationDialog),
         matching: find.text('Log out'),
       ),
     );
@@ -108,7 +109,7 @@ void main() {
 
     await tester.tap(
       find.descendant(
-        of: find.byType(AlertDialog),
+        of: find.byType(AppConfirmationDialog),
         matching: find.text('Log out'),
       ),
     );

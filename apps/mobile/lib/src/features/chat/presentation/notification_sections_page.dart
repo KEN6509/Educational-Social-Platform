@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../../posts/presentation/post_detail_page.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_page.dart';
@@ -254,25 +255,17 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
   Future<void> _deleteSystemNotification(
     ChatNotification notification,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppConfirmationDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete notification?'),
-        content: const Text(
+      icon: Icons.delete_outline_rounded,
+      iconColor: chatDanger,
+      iconBackgroundColor: chatDanger.withValues(alpha: 0.1),
+      title: 'Delete notification?',
+      message:
           'This removes the notification only. Related posts and appeals are not deleted.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            key: const ValueKey('confirm-delete-system-notification'),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      primaryLabel: 'Delete',
+      primaryColor: chatDanger,
+      primaryKey: const ValueKey('confirm-delete-system-notification'),
     );
     if (confirmed != true || !mounted) return;
 

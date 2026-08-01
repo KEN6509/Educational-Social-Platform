@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
 import '../../posts/presentation/post_detail_page.dart';
 import '../../profile/presentation/profile_page.dart';
@@ -830,51 +831,16 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     required String actionLabel,
     bool danger = false,
   }) {
-    return showDialog<bool>(
+    return showAppConfirmationDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 0),
-          contentPadding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
-          actionsPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          title: Text(
-            title,
-            style: const TextStyle(
-              color: chatNavy,
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.2,
-            ),
-          ),
-          content: Text(
-            body,
-            style: const TextStyle(
-              color: Color(0xFF64748B),
-              fontSize: 14,
-              height: 1.35,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: TextButton.styleFrom(
-                foregroundColor: danger ? chatDanger : chatCyan,
-              ),
-              child: Text(actionLabel),
-            ),
-          ],
-        );
-      },
+      icon: danger ? Icons.delete_forever_rounded : Icons.check_rounded,
+      iconColor: danger ? chatDanger : chatCyan,
+      iconBackgroundColor:
+          (danger ? chatDanger : chatCyan).withValues(alpha: 0.1),
+      title: title,
+      message: body,
+      primaryLabel: actionLabel,
+      primaryColor: danger ? chatDanger : chatCyan,
     );
   }
 
