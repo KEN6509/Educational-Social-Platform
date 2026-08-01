@@ -70,38 +70,77 @@ describe('casework components', () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
-  it('validates a 10–500 character reason before opening confirmation', async () => {
+  it('allows a blank optional reason but validates every supplied reason', async () => {
     const user = userEvent.setup();
     const onReasonChange = vi.fn();
     const onPrimary = vi.fn();
+    const onDanger = vi.fn();
     const { rerender } = render(
       <DecisionPanel
-        reason="short"
+        dangerLabel="Remove content"
+        dangerRequiresReason
+        reason=""
         onReasonChange={onReasonChange}
-        primaryLabel="Approve creator"
+        primaryLabel="Retain content"
+        primaryRequiresReason={false}
         isSubmitting={false}
         onPrimary={onPrimary}
+        onDanger={onDanger}
       />,
     );
 
-    expect(
-      screen.getByRole('button', { name: 'Approve creator' }),
-    ).toBeDisabled();
-    expect(screen.getByText('5 / 500')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Retain content' }));
+    expect(onPrimary).toHaveBeenCalledOnce();
 
     rerender(
       <DecisionPanel
-        reason="Profile and content meet the creator guidelines."
+        dangerLabel="Remove content"
+        dangerRequiresReason
+        reason="short"
         onReasonChange={onReasonChange}
-        primaryLabel="Approve creator"
-        dangerLabel="Reject request"
+        primaryLabel="Retain content"
+        primaryRequiresReason={false}
         isSubmitting={false}
         onPrimary={onPrimary}
-        onDanger={vi.fn()}
+        onDanger={onDanger}
       />,
     );
-    await user.click(screen.getByRole('button', { name: 'Approve creator' }));
+
+    await user.click(screen.getByRole('button', { name: 'Retain content' }));
     expect(onPrimary).toHaveBeenCalledOnce();
+    expect(screen.getByRole('alert')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Remove content' }));
+    expect(onDanger).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Enter a reason between 10 and 500 characters before choosing "Remove content".',
+    );
+    expect(screen.getByLabelText(/Decision reason/)).toHaveFocus();
+  });
+
+  it('requires a valid reason for both actions by default', async () => {
+    const user = userEvent.setup();
+    const onPrimary = vi.fn();
+    const onDanger = vi.fn();
+
+    render(
+      <DecisionPanel
+        dangerLabel="Reject appeal"
+        isSubmitting={false}
+        onDanger={onDanger}
+        onPrimary={onPrimary}
+        onReasonChange={vi.fn()}
+        primaryLabel="Approve appeal"
+        reason="short"
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Approve appeal' }));
+    expect(onPrimary).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Reject appeal' }));
+    expect(onDanger).not.toHaveBeenCalled();
   });
 
   it('describes consequences and only closes an idle confirmation with Escape', async () => {
