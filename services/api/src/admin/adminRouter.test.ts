@@ -10,6 +10,8 @@ import {
   AdminValidationError,
   type AdminService,
   type OverviewView,
+  type ReportCaseDecisionInput,
+  type UserCreatorStatusInput,
 } from './adminTypes.js';
 import { createProtectedAdminRouter } from './adminRouter.js';
 
@@ -246,6 +248,47 @@ test('rejects short reasons before changing account status', async () => {
 
   assert.equal(response.status, 400);
   assert.equal(decisionCalled, false);
+});
+
+test('accepts omitted reasons only for positive creator and report decisions', async () => {
+  const creatorInputs: UserCreatorStatusInput[] = [];
+  const reportInputs: ReportCaseDecisionInput[] = [];
+  const dependencies = createDependencies(async () => expectedOverview, {
+    setUserCreatorStatus: async (_userId, input) => {
+      creatorInputs.push(input);
+    },
+    decideReportCase: async (_targetType, _targetId, input) => {
+      reportInputs.push(input);
+    },
+  });
+  const app = createApp(dependencies);
+
+  await request(app)
+    .post('/admin/users/user-1/creator-status')
+    .set('Authorization', 'Bearer valid-token')
+    .send({ isCreator: true })
+    .expect(204);
+
+  await request(app)
+    .post('/admin/report-cases/post/post-1/decision')
+    .set('Authorization', 'Bearer valid-token')
+    .send({ decision: 'retain' })
+    .expect(204);
+
+  assert.deepEqual(creatorInputs, [{ isCreator: true, reason: '' }]);
+  assert.deepEqual(reportInputs, [{ decision: 'retain', reason: '' }]);
+
+  await request(app)
+    .post('/admin/users/user-1/creator-status')
+    .set('Authorization', 'Bearer valid-token')
+    .send({ isCreator: false })
+    .expect(400);
+
+  await request(app)
+    .post('/admin/report-cases/post/post-1/decision')
+    .set('Authorization', 'Bearer valid-token')
+    .send({ decision: 'remove' })
+    .expect(400);
 });
 
 test('returns grouped report cases from the protected endpoint', async () => {

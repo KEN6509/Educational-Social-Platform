@@ -6,6 +6,16 @@ export const pageSchema = z.object({
 });
 
 export const reasonSchema = z.string().trim().min(10).max(500);
+const optionalDecisionReasonSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .refine(
+    (value) => value.length === 0 || value.length >= 10,
+    'Reason must be empty or contain at least 10 characters.',
+  )
+  .optional()
+  .default('');
 
 export const accountStatusSchema = z.enum(['active', 'suspended']);
 export const creatorRequestStatusSchema = z.enum([
@@ -30,10 +40,16 @@ export const creatorRequestDecisionSchema = z.object({
   reason: reasonSchema,
 });
 
-export const reportDecisionSchema = z.object({
-  decision: z.enum(['retain', 'remove']),
-  reason: reasonSchema,
-});
+export const reportDecisionSchema = z.discriminatedUnion('decision', [
+  z.object({
+    decision: z.literal('retain'),
+    reason: optionalDecisionReasonSchema,
+  }),
+  z.object({
+    decision: z.literal('remove'),
+    reason: reasonSchema,
+  }),
+]);
 
 export const appealDecisionSchema = z.object({
   decision: z.enum(['approved', 'rejected']),
@@ -51,10 +67,16 @@ export const userAccountStatusSchema = z.object({
   reason: reasonSchema,
 });
 
-export const userCreatorStatusSchema = z.object({
-  isCreator: z.boolean(),
-  reason: reasonSchema,
-});
+export const userCreatorStatusSchema = z.discriminatedUnion('isCreator', [
+  z.object({
+    isCreator: z.literal(true),
+    reason: optionalDecisionReasonSchema,
+  }),
+  z.object({
+    isCreator: z.literal(false),
+    reason: reasonSchema,
+  }),
+]);
 
 export const creatorRequestListQuerySchema = pageSchema.extend({
   search: z.string().trim().max(100).default(''),

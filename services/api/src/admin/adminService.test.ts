@@ -6,8 +6,10 @@ import {
   appealStatusSchema,
   creatorRequestStatusSchema,
   pageSchema,
+  reportDecisionSchema,
   reportCaseListQuerySchema,
   reportStatusSchema,
+  userCreatorStatusSchema,
 } from './adminSchemas.js';
 import { createAdminService } from './adminService.js';
 import {
@@ -15,7 +17,9 @@ import {
   AdminValidationError,
   type AdminRepository,
   type PageResult,
+  type ReportCaseDecisionInput,
   type ReportCaseRow,
+  type UserCreatorStatusInput,
   type UserSummaryView,
 } from './adminTypes.js';
 
@@ -80,6 +84,103 @@ test('status schemas reject values outside their stored state contracts', () => 
   assert.equal(reportStatusSchema.safeParse('reviewing').success, false);
   assert.equal(reportCaseListQuerySchema.parse({}).status, 'pending_review');
   assert.equal(appealStatusSchema.safeParse('dismissed').success, false);
+});
+
+test('creator and report decisions require reasons only for punitive actions', () => {
+  assert.deepEqual(userCreatorStatusSchema.parse({ isCreator: true }), {
+    isCreator: true,
+    reason: '',
+  });
+  assert.equal(
+    userCreatorStatusSchema.safeParse({ isCreator: false, reason: '' })
+      .success,
+    false,
+  );
+  assert.equal(
+    userCreatorStatusSchema.safeParse({ isCreator: true, reason: 'short' })
+      .success,
+    false,
+  );
+  assert.deepEqual(reportDecisionSchema.parse({ decision: 'retain' }), {
+    decision: 'retain',
+    reason: '',
+  });
+  assert.equal(
+    reportDecisionSchema.safeParse({ decision: 'remove', reason: 'short' })
+      .success,
+    false,
+  );
+  assert.equal(
+    reportDecisionSchema.safeParse({
+      decision: 'remove',
+      reason: 'The reported content violates the community rules.',
+    }).success,
+    true,
+  );
+});
+
+test('reason-free positive decisions receive stable internal audit reasons', async () => {
+  const creatorInputs: UserCreatorStatusInput[] = [];
+  const reportInputs: ReportCaseDecisionInput[] = [];
+  const repository = createRepository({
+    setUserCreatorStatus: async (_userId, input) => {
+      creatorInputs.push(input);
+    },
+    decideReportCase: async (_targetType, _targetId, input) => {
+      reportInputs.push(input);
+    },
+  });
+  const service = createAdminService(repository, 1);
+
+  await service.setUserCreatorStatus('user-1', {
+    isCreator: true,
+    reason: '',
+  });
+  await service.decideReportCase('post', 'post-1', {
+    decision: 'retain',
+    reason: '',
+  });
+
+  assert.equal(
+    creatorInputs[0]?.reason,
+    'Creator status assigned by an administrator.',
+  );
+  assert.equal(
+    reportInputs[0]?.reason,
+    'Reported content retained by an administrator.',
+  );
+});
+
+test('punitive decision reasons are trimmed and preserved', async () => {
+  const creatorInputs: UserCreatorStatusInput[] = [];
+  const reportInputs: ReportCaseDecisionInput[] = [];
+  const repository = createRepository({
+    setUserCreatorStatus: async (_userId, input) => {
+      creatorInputs.push(input);
+    },
+    decideReportCase: async (_targetType, _targetId, input) => {
+      reportInputs.push(input);
+    },
+  });
+  const service = createAdminService(repository, 1);
+
+  await service.setUserCreatorStatus('user-1', {
+    isCreator: false,
+    reason: '  Creator standards were repeatedly breached.  ',
+  });
+  await service.decideReportCase('post', 'post-1', {
+    decision: 'remove',
+    reason: '  The reported content violates community rules.  ',
+  });
+
+  assert.equal(
+    creatorInputs[0]?.reason,
+    'Creator standards were repeatedly breached.',
+  );
+  assert.equal(
+    reportInputs[0]?.reason,
+    'The reported content violates community rules.',
+  );
 });
 
 test('overview counts grouped report targets meeting three unique reporters', async () => {

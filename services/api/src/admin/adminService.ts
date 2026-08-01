@@ -22,6 +22,11 @@ import {
   AdminValidationError,
 } from './adminTypes.js';
 
+const CREATOR_ASSIGN_AUDIT_REASON =
+  'Creator status assigned by an administrator.';
+const REPORT_RETAIN_AUDIT_REASON =
+  'Reported content retained by an administrator.';
+
 export function createAdminService(
   repository: AdminRepository,
   reportReviewThreshold: number,
@@ -113,9 +118,13 @@ export function createAdminService(
       userId: string,
       input: UserCreatorStatusInput,
     ) => {
+      const reason = input.reason.trim();
       await repository.setUserCreatorStatus(userId, {
         ...input,
-        reason: input.reason.trim(),
+        reason:
+          input.isCreator && reason.length === 0
+            ? CREATOR_ASSIGN_AUDIT_REASON
+            : reason,
       });
     },
     listCreatorRequests: async (query: CreatorRequestListQuery) =>
@@ -227,9 +236,13 @@ export function createAdminService(
       targetId: string,
       input: ReportCaseDecisionInput,
     ) => {
+      const reason = input.reason.trim();
       await repository.decideReportCase(targetType, targetId, {
         ...input,
-        reason: input.reason.trim(),
+        reason:
+          input.decision === 'retain' && reason.length === 0
+            ? REPORT_RETAIN_AUDIT_REASON
+            : reason,
       });
     },
     listAppeals: async (query: AppealListQuery) =>
