@@ -8,6 +8,360 @@ exception
   when duplicate_object then null;
 end $$;
 
+create or replace function public.parent_supervision_assert_role(
+  p_user_id uuid,
+  p_role text,
+  p_excluded_link_id uuid default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_role not in ('parent', 'child') then
+    raise exception 'Invalid family role';
+  end if;
+
+  if p_role = 'parent' and exists (
+    select 1
+    from public.parent_child_links link
+    where link.child_id = p_user_id
+      and link.status in ('pending', 'active')
+      and (p_excluded_link_id is null or link.id <> p_excluded_link_id)
+  ) then
+    raise exception 'This account already has the child role';
+  end if;
+
+  if p_role = 'child' and exists (
+    select 1
+    from public.parent_child_links link
+    where link.parent_id = p_user_id
+      and link.status in ('pending', 'active')
+      and (p_excluded_link_id is null or link.id <> p_excluded_link_id)
+  ) then
+    raise exception 'This account already has the parent role';
+  end if;
+end;
+$$;
+
+create or replace function public.create_parent_child_link(
+  p_candidate_id uuid,
+  p_requester_role text
+)
+returns public.parent_child_links
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_parent_id uuid;
+  v_child_id uuid;
+  v_requester_name text;
+  v_link public.parent_child_links;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if p_candidate_id is null or p_candidate_id = v_user_id then
+    raise exception 'Choose another account for a family link';
+  end if;
+  if p_requester_role not in ('parent', 'child') then
+    raise exception 'Choose either the parent or child role';
+  end if;
+  if not exists (
+    select 1 from public.profiles profile
+    where profile.id = p_candidate_id
+      and profile.account_status = 'active'
+  ) then
+    raise exception 'This account is not available for family linking';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended(least(v_user_id, p_candidate_id)::text, 0)
+  );
+  perform pg_advisory_xact_lock(
+    hashtextextended(greatest(v_user_id, p_candidate_id)::text, 0)
+  );
+
+  if exists (
+    select 1
+    from public.parent_child_links link
+    where least(link.parent_id, link.child_id) = least(v_user_id, p_candidate_id)
+      and greatest(link.parent_id, link.child_id) = greatest(v_user_id, p_candidate_id)
+      and link.status in ('pending', 'active')
+  ) then
+    raise exception 'A pending or active family link already exists';
+  end if;
+
+  if p_requester_role = 'parent' then
+    v_parent_id := v_user_id;
+    v_child_id := p_candidate_id;
+    perform public.parent_supervision_assert_role(v_user_id, 'parent');
+    perform public.parent_supervision_assert_role(p_candidate_id, 'child');
+  else
+    v_parent_id := p_candidate_id;
+    v_child_id := v_user_id;
+    perform public.parent_supervision_assert_role(v_user_id, 'child');
+    perform public.parent_supervision_assert_role(p_candidate_id, 'parent');
+  end if;
+
+  insert into public.parent_child_links (
+    parent_id,
+    child_id,
+    status,
+    requested_by
+  ) values (
+    v_parent_id,
+    v_child_id,
+    'pending',
+    v_user_id
+  )
+  returning * into v_link;
+
+  select profile.name
+  into v_requester_name
+  from public.profiles profile
+  where profile.id = v_user_id;
+
+  insert into public.supervision_notifications (
+    user_id,
+    event_type,
+    title,
+    body,
+    event_key,
+    link_id,
+    child_id
+  ) values (
+    p_candidate_id,
+    'link_request',
+    'Family link request',
+    coalesce(v_requester_name, 'A CyanZone user') || ' sent you a family link request.',
+    'link:' || v_link.id::text || ':request:' || p_candidate_id::text,
+    v_link.id,
+    v_child_id
+  );
+
+  return v_link;
+end;
+$$;
+
+create or replace function public.accept_parent_child_link(p_link_id uuid)
+returns public.parent_child_links
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_link public.parent_child_links;
+  v_acceptor_name text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  select * into v_link
+  from public.parent_child_links link
+  where link.id = p_link_id
+  for update;
+
+  if not found then
+    raise exception 'Family link request not found';
+  end if;
+  if v_link.status <> 'pending' then
+    raise exception 'This family link request is no longer pending';
+  end if;
+  if v_link.requested_by = v_user_id then
+    raise exception 'The requester cannot accept their own request';
+  end if;
+  if v_user_id not in (v_link.parent_id, v_link.child_id) then
+    raise exception 'Only the recipient can accept this request' using errcode = '42501';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended(least(v_link.parent_id, v_link.child_id)::text, 0)
+  );
+  perform pg_advisory_xact_lock(
+    hashtextextended(greatest(v_link.parent_id, v_link.child_id)::text, 0)
+  );
+  perform public.parent_supervision_assert_role(
+    v_link.parent_id,
+    'parent',
+    v_link.id
+  );
+  perform public.parent_supervision_assert_role(
+    v_link.child_id,
+    'child',
+    v_link.id
+  );
+
+  update public.parent_child_links
+  set status = 'active',
+      linked_at = now(),
+      responded_at = now(),
+      cancelled_at = null
+  where id = v_link.id
+  returning * into v_link;
+
+  select profile.name into v_acceptor_name
+  from public.profiles profile
+  where profile.id = v_user_id;
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, link_id, child_id
+  ) values (
+    v_link.requested_by,
+    'link_accepted',
+    'Family link accepted',
+    coalesce(v_acceptor_name, 'The recipient') || ' accepted your family link request.',
+    'link:' || v_link.id::text || ':accepted:' || v_link.requested_by::text,
+    v_link.id,
+    v_link.child_id
+  );
+
+  return v_link;
+end;
+$$;
+
+create or replace function public.reject_parent_child_link(p_link_id uuid)
+returns public.parent_child_links
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_link public.parent_child_links;
+  v_recipient_name text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  select * into v_link
+  from public.parent_child_links link
+  where link.id = p_link_id
+  for update;
+
+  if not found then
+    raise exception 'Family link request not found';
+  end if;
+  if v_link.status <> 'pending' then
+    raise exception 'This family link request is no longer pending';
+  end if;
+  if v_link.requested_by <> v_user_id
+    and v_user_id in (v_link.parent_id, v_link.child_id) then
+    null;
+  else
+    raise exception 'Only the recipient can reject this request' using errcode = '42501';
+  end if;
+
+  update public.parent_child_links
+  set status = 'rejected',
+      responded_at = now()
+  where id = v_link.id
+  returning * into v_link;
+
+  select profile.name into v_recipient_name
+  from public.profiles profile
+  where profile.id = v_user_id;
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, link_id, child_id
+  ) values (
+    v_link.requested_by,
+    'link_rejected',
+    'Family link declined',
+    coalesce(v_recipient_name, 'The recipient') || ' declined your family link request.',
+    'link:' || v_link.id::text || ':rejected:' || v_link.requested_by::text,
+    v_link.id,
+    v_link.child_id
+  );
+
+  return v_link;
+end;
+$$;
+
+create or replace function public.cancel_parent_child_link(p_link_id uuid)
+returns public.parent_child_links
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_link public.parent_child_links;
+  v_recipient_id uuid;
+  v_requester_name text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  select * into v_link
+  from public.parent_child_links link
+  where link.id = p_link_id
+  for update;
+
+  if not found then
+    raise exception 'Family link request not found';
+  end if;
+  if v_link.status <> 'pending' then
+    raise exception 'This family link request is no longer pending';
+  end if;
+  if not (v_link.requested_by = v_user_id) then
+    raise exception 'Only the requester can cancel this request' using errcode = '42501';
+  end if;
+
+  v_recipient_id := case
+    when v_link.parent_id = v_user_id then v_link.child_id
+    else v_link.parent_id
+  end;
+
+  update public.parent_child_links
+  set status = 'cancelled',
+      cancelled_at = now()
+  where id = v_link.id
+  returning * into v_link;
+
+  select profile.name into v_requester_name
+  from public.profiles profile
+  where profile.id = v_user_id;
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, link_id, child_id
+  ) values (
+    v_recipient_id,
+    'link_cancelled',
+    'Family link request cancelled',
+    coalesce(v_requester_name, 'The requester') || ' cancelled the family link request.',
+    'link:' || v_link.id::text || ':cancelled:' || v_recipient_id::text,
+    v_link.id,
+    v_link.child_id
+  );
+
+  return v_link;
+end;
+$$;
+
+revoke all on function public.parent_supervision_assert_role(uuid, text, uuid)
+from public, anon, authenticated;
+revoke all on function public.create_parent_child_link(uuid, text) from public;
+revoke all on function public.accept_parent_child_link(uuid) from public;
+revoke all on function public.reject_parent_child_link(uuid) from public;
+revoke all on function public.cancel_parent_child_link(uuid) from public;
+
+grant execute on function public.create_parent_child_link(uuid, text)
+to authenticated;
+grant execute on function public.accept_parent_child_link(uuid)
+to authenticated;
+grant execute on function public.reject_parent_child_link(uuid)
+to authenticated;
+grant execute on function public.cancel_parent_child_link(uuid)
+to authenticated;
+
 alter table public.parent_child_links
   add column if not exists responded_at timestamptz,
   add column if not exists cancelled_at timestamptz;

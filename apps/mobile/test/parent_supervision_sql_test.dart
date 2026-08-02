@@ -78,4 +78,27 @@ void main() {
       ),
     );
   });
+
+  test('defines server-authoritative family link transitions', () {
+    for (final name in [
+      'create_parent_child_link',
+      'accept_parent_child_link',
+      'reject_parent_child_link',
+      'cancel_parent_child_link',
+    ]) {
+      expect(migration, contains('function public.$name'));
+    }
+    expect(
+      migration,
+      contains("p_requester_role not in ('parent', 'child')"),
+    );
+    expect(migration, contains('requested_by <> v_user_id'));
+    expect(migration, contains('requested_by = v_user_id'));
+    expect(migration, contains("status <> 'pending'"));
+    expect(migration, contains('pg_advisory_xact_lock'));
+    expect(migration, contains("'link_request'"));
+    expect(migration, contains("'link_accepted'"));
+    expect(migration, contains("'link_rejected'"));
+    expect(migration, contains("'link_cancelled'"));
+  });
 }
