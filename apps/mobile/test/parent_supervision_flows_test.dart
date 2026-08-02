@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cyanzone_mobile/src/core/widgets/app_confirmation_dialog.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/data/parent_child_repository.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/data/parent_supervision_models.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/check_in_page.dart';
@@ -34,7 +35,7 @@ void main() {
     );
   });
 
-  testWidgets('unlinked candidate request asks for requester role',
+  testWidgets('unlinked request uses shared Child and Parent role actions',
       (tester) async {
     final repository = FlowFakeRepository();
     await tester.pumpWidget(MaterialApp(
@@ -42,17 +43,25 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('Followers & Following'), findsOneWidget);
+    expect(find.text('Request Account Linking'), findsOneWidget);
+    expect(find.text('Followers & Following'), findsNothing);
     expect(find.byType(TextField), findsOneWidget);
-    await tester.tap(find.text('Link Request'));
+    await tester.tap(find.text('Request'));
     await tester.pumpAndSettle();
-    expect(find.text('I am the parent'), findsOneWidget);
-    expect(find.text('I am the child'), findsOneWidget);
+    expect(find.byType(AppConfirmationDialog), findsOneWidget);
+    expect(find.text('Child'), findsOneWidget);
+    expect(find.text('Parent'), findsOneWidget);
+    expect(find.text('I am the parent'), findsNothing);
+    expect(find.text('I am the child'), findsNothing);
+    expect(find.byIcon(Icons.supervisor_account_outlined), findsNothing);
+    expect(find.byIcon(Icons.child_care_rounded), findsNothing);
 
-    await tester.tap(find.text('I am the parent'));
+    await tester.tap(find.text('Child'));
     await tester.pumpAndSettle();
-    expect(repository.createdRole, FamilyRole.parent);
+    expect(repository.createdRole, FamilyRole.child);
     expect(repository.createdCandidateId, 'candidate-1');
+    expect(find.byType(LinkCandidatesPage), findsOneWidget);
+    expect(find.text('Pending'), findsOneWidget);
   });
 
   testWidgets('established role sends request without asking again',
@@ -65,10 +74,69 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Link Request'));
+    await tester.tap(find.text('Request'));
     await tester.pumpAndSettle();
-    expect(find.text('I am the parent'), findsNothing);
+    expect(find.text('Choose your role'), findsNothing);
     expect(repository.createdRole, FamilyRole.child);
+    expect(find.text('Pending'), findsOneWidget);
+  });
+
+  testWidgets('candidate list uses an indented divider', (tester) async {
+    final repository = FlowFakeRepository(
+      candidates: const [
+        LinkCandidate(
+          profile: ProfileSummary(id: 'candidate-1', name: 'Alex Tan'),
+          isFollower: true,
+          isFollowing: true,
+        ),
+        LinkCandidate(
+          profile: ProfileSummary(id: 'candidate-2', name: 'Jamie Lee'),
+          isFollower: true,
+          isFollowing: false,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: LinkCandidatesPage(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    final divider = tester.widget<Divider>(
+      find.byKey(const Key('link-candidate-divider-0')),
+    );
+    expect(divider.indent, 58);
+    expect(divider.color, const Color(0xFFE2E8F0));
+  });
+
+  testWidgets('pending candidate uses a disabled soft-grey action',
+      (tester) async {
+    final repository = FlowFakeRepository(
+      candidates: const [
+        LinkCandidate(
+          profile: ProfileSummary(id: 'candidate-1', name: 'Alex Tan'),
+          isFollower: true,
+          isFollowing: true,
+          linkState: LinkCandidateState.pending,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: LinkCandidatesPage(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    final button = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Pending'),
+    );
+    expect(button.onPressed, isNull);
+    expect(
+      button.style?.backgroundColor?.resolve({WidgetState.disabled}),
+      const Color(0xFFF1F5F9),
+    );
+    expect(
+      button.style?.foregroundColor?.resolve({WidgetState.disabled}),
+      const Color(0xFF4490AD),
+    );
   });
 
   testWidgets('candidate rows fit narrow screens with enlarged text',
@@ -90,7 +158,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alex Tan'), findsOneWidget);
-    expect(find.text('Link Request'), findsOneWidget);
+    expect(find.text('Request'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -139,12 +207,17 @@ void main() {
     await tester.tap(find.byTooltip('Add family link'));
     await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsOneWidget);
-    expect(find.text('Followers & Following'), findsOneWidget);
+    expect(find.text('Request Account Linking'), findsOneWidget);
 
-    await tester.tap(find.text('Link Request'));
+    await tester.tap(find.text('Request'));
     await tester.pumpAndSettle();
-    expect(find.text('I am the parent'), findsNothing);
+    expect(find.text('Choose your role'), findsNothing);
     expect(repository.createdRole, FamilyRole.child);
+    expect(find.text('Pending'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+    expect(repository.dashboardFetchCalls, 2);
   });
 
   testWidgets('dashboard add sheet stays visible while candidates load',
@@ -163,7 +236,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(BottomSheet), findsOneWidget);
-    expect(find.text('Followers & Following'), findsOneWidget);
+    expect(find.text('Request Account Linking'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
@@ -604,6 +677,13 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
     this.failMarkRead = false,
     this.dashboardNotifications = const [],
     this.screenTimeSeconds = 0,
+    this.candidates = const [
+      LinkCandidate(
+        profile: ProfileSummary(id: 'candidate-1', name: 'Alex Tan'),
+        isFollower: true,
+        isFollowing: true,
+      ),
+    ],
   });
 
   final FamilyRole? dashboardRole;
@@ -611,11 +691,13 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
   final Completer<SosAlert>? pendingSos;
   int checkInFailures;
   int sosFailures;
+  int dashboardFetchCalls = 0;
   final List<SafetyCheckIn> checkIns;
   final List<SosAlert> sosAlerts;
   final bool failMarkRead;
   final List<SupervisionNotification> dashboardNotifications;
   final int screenTimeSeconds;
+  final List<LinkCandidate> candidates;
   String? markedNotificationId;
   FamilyRole? createdRole;
   String? createdCandidateId;
@@ -625,26 +707,21 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
   @override
   Future<SupervisionDashboardState> fetchDashboard({
     required DateTime localDay,
-  }) async =>
-      SupervisionDashboardState.fromParts(
-        currentUserId: 'user-1',
-        links: dashboardRole == null
-            ? const []
-            : [_activeLink(role: dashboardRole!)],
-        ownScreenTime: ScreenTimeSummary.zero('user-1', localDay),
-        notifications: dashboardNotifications,
-      );
+  }) async {
+    dashboardFetchCalls += 1;
+    return SupervisionDashboardState.fromParts(
+      currentUserId: 'user-1',
+      links: dashboardRole == null
+          ? const []
+          : [_activeLink(role: dashboardRole!)],
+      ownScreenTime: ScreenTimeSummary.zero('user-1', localDay),
+      notifications: dashboardNotifications,
+    );
+  }
 
   @override
   Future<List<LinkCandidate>> fetchLinkCandidates() =>
-      pendingCandidates?.future ??
-      Future.value(const [
-        LinkCandidate(
-          profile: ProfileSummary(id: 'candidate-1', name: 'Alex Tan'),
-          isFollower: true,
-          isFollowing: true,
-        ),
-      ]);
+      pendingCandidates?.future ?? Future.value(candidates);
 
   @override
   Future<FamilyLink> createLinkRequest(

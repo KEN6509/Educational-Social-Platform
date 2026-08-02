@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
+
+const _navy = Color(0xFF0B1F3E);
+const _cyan = Color(0xFF4490AD);
+const _softGrey = Color(0xFFF1F5F9);
+const _divider = Color(0xFFE2E8F0);
 
 class LinkCandidatesPage extends StatefulWidget {
   const LinkCandidatesPage({
@@ -9,11 +15,13 @@ class LinkCandidatesPage extends StatefulWidget {
     required this.repository,
     this.establishedRole,
     this.embedded = false,
+    this.onRequestCreated,
   });
 
   final ParentChildRepositoryContract repository;
   final FamilyRole? establishedRole;
   final bool embedded;
+  final VoidCallback? onRequestCreated;
 
   @override
   State<LinkCandidatesPage> createState() => _LinkCandidatesPageState();
@@ -23,6 +31,7 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
   late Future<List<LinkCandidate>> _candidatesFuture;
   String _query = '';
   String? _busyCandidateId;
+  final Set<String> _locallyPendingCandidateIds = <String>{};
 
   @override
   void initState() {
@@ -43,11 +52,15 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
     try {
       await widget.repository.createLinkRequest(candidate.profile.id, role);
       if (!mounted) return;
+      setState(() {
+        _busyCandidateId = null;
+        _locallyPendingCandidateIds.add(candidate.profile.id);
+      });
+      widget.onRequestCreated?.call();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text('Link request sent to ${candidate.profile.name}.')),
       );
-      if (Navigator.of(context).canPop()) Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -58,27 +71,22 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
     }
   }
 
-  Future<FamilyRole?> _chooseRole() => showDialog<FamilyRole>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Choose your role'),
-          content: const Text(
-            'Your role stays the same while you have pending or active family links.',
-          ),
-          actions: [
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context, FamilyRole.parent),
-              icon: const Icon(Icons.supervisor_account_outlined),
-              label: const Text('I am the parent'),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(context, FamilyRole.child),
-              icon: const Icon(Icons.child_care_rounded),
-              label: const Text('I am the child'),
-            ),
-          ],
-        ),
-      );
+  Future<FamilyRole?> _chooseRole() async {
+    final childSelected = await showAppConfirmationDialog(
+      context: context,
+      icon: Icons.family_restroom_rounded,
+      iconColor: _cyan,
+      iconBackgroundColor: const Color(0xFFE7F4F8),
+      title: 'Choose your role',
+      message:
+          'Your role stays the same while you have pending or active family links.',
+      primaryLabel: 'Child',
+      secondaryLabel: 'Parent',
+      primaryColor: _cyan,
+    );
+    if (childSelected == null) return null;
+    return childSelected ? FamilyRole.child : FamilyRole.parent;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,10 +106,10 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
           child: Row(children: [
             const Expanded(
               child: Text(
-                'Followers & Following',
+                'Request Account Linking',
                 style: TextStyle(
-                  color: Color(0xFF0D2344),
-                  fontSize: 20,
+                  color: _navy,
+                  fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -122,7 +130,7 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
             hintText: 'Search people',
             prefixIcon: const Icon(Icons.search_rounded),
             filled: true,
-            fillColor: const Color(0xFFF1F5F7),
+            fillColor: _softGrey,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
@@ -164,22 +172,34 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
               );
             }
             return ListView.separated(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               itemCount: candidates.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, index) => Divider(
+                key: Key('link-candidate-divider-$index'),
+                height: 1,
+                indent: 58,
+                color: _divider,
+              ),
               itemBuilder: (context, index) {
                 final candidate = candidates[index];
                 final profile = candidate.profile;
                 final busy = _busyCandidateId == profile.id;
+                final linkState =
+                    _locallyPendingCandidateIds.contains(profile.id)
+                        ? LinkCandidateState.pending
+                        : candidate.linkState;
+                final requestable = linkState == LinkCandidateState.requestable;
+                final label = switch (linkState) {
+                  LinkCandidateState.requestable => 'Request',
+                  LinkCandidateState.pending => 'Pending',
+                  LinkCandidateState.linked => 'Linked',
+                };
                 return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 12,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(4, 10, 4, 10),
                   child: Row(children: [
                     CircleAvatar(
-                      radius: 22,
-                      backgroundColor: const Color(0xFFE0F7FA),
+                      radius: 23,
+                      backgroundColor: _cyan.withValues(alpha: 0.14),
                       backgroundImage: profile.avatarUrl == null
                           ? null
                           : NetworkImage(profile.avatarUrl!),
@@ -189,7 +209,7 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
                                   ? '?'
                                   : profile.name[0].toUpperCase(),
                               style: const TextStyle(
-                                color: Color(0xFF087F8C),
+                                color: _navy,
                                 fontWeight: FontWeight.w800,
                               ),
                             )
@@ -204,7 +224,10 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
                             profile.name,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              color: _navy,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                           const SizedBox(height: 3),
                           Text(
@@ -212,8 +235,9 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Color(0xFF607284),
-                              fontSize: 12,
+                              color: Color(0xFF475569),
+                              fontSize: 14,
+                              height: 1.25,
                             ),
                           ),
                         ],
@@ -221,23 +245,44 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
                     ),
                     const SizedBox(width: 8),
                     SizedBox(
-                      width: 112,
-                      child: FilledButton.tonal(
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                      width: 94,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: requestable ? Colors.white : _cyan,
+                          disabledForegroundColor:
+                              requestable ? Colors.white : _cyan,
+                          backgroundColor: requestable ? _cyan : _softGrey,
+                          disabledBackgroundColor:
+                              requestable ? _cyan : _softGrey,
+                          side: const BorderSide(color: Colors.transparent),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          minimumSize: const Size(78, 36),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
                         ),
-                        onPressed: !candidate.isEligible || busy
+                        onPressed: !requestable || busy
                             ? null
                             : () => _request(candidate),
                         child: busy
                             ? const SizedBox.square(
                                 dimension: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
                               )
-                            : const FittedBox(
+                            : FittedBox(
                                 fit: BoxFit.scaleDown,
-                                child: Text('Link Request'),
+                                child: Text(
+                                  label,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ),
                       ),
                     ),
@@ -262,9 +307,14 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
+        centerTitle: false,
         title: const Text(
-          'Followers & Following',
-          style: TextStyle(fontWeight: FontWeight.w900),
+          'Request Account Linking',
+          style: TextStyle(
+            color: _navy,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
       body: content,

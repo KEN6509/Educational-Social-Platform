@@ -69,7 +69,8 @@ class _ParentChildPageState extends State<ParentChildPage>
     try {
       final state = await _dashboardFuture;
       if (!mounted) return;
-      final changed = await showModalBottomSheet<bool>(
+      var changed = false;
+      await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
@@ -80,10 +81,11 @@ class _ParentChildPageState extends State<ParentChildPage>
             repository: _repository,
             establishedRole: state.role,
             embedded: true,
+            onRequestCreated: () => changed = true,
           ),
         ),
       );
-      if (changed == true) _refresh();
+      if (changed) _refresh();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
