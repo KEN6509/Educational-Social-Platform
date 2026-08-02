@@ -44,6 +44,28 @@ final class ProfileSummary {
   final String? avatarUrl;
 }
 
+final class LinkCandidate {
+  const LinkCandidate({
+    required this.profile,
+    required this.isFollower,
+    required this.isFollowing,
+    this.ineligibleReason,
+  });
+
+  final ProfileSummary profile;
+  final bool isFollower;
+  final bool isFollowing;
+  final String? ineligibleReason;
+  bool get isEligible => ineligibleReason == null;
+
+  LinkCandidate copyWith({bool? isFollower, bool? isFollowing}) => LinkCandidate(
+        profile: profile,
+        isFollower: isFollower ?? this.isFollower,
+        isFollowing: isFollowing ?? this.isFollowing,
+        ineligibleReason: ineligibleReason,
+      );
+}
+
 final class LocationCapture {
   const LocationCapture._({
     required this.status,
@@ -227,6 +249,80 @@ final class SosAlert {
   final String? resolvedBy;
   final DateTime? resolvedAt;
   bool get hasLocation => location.status == LocationStatus.available;
+}
+
+final class CheckInDraft {
+  const CheckInDraft({required this.message, required this.location});
+  final String message;
+  final LocationCapture location;
+}
+
+final class SosDraft {
+  const SosDraft({required this.location});
+  final LocationCapture location;
+}
+
+final class SafetyCheckIn {
+  const SafetyCheckIn({
+    required this.id,
+    required this.childId,
+    required this.message,
+    required this.location,
+    required this.createdAt,
+    this.child,
+  });
+
+  factory SafetyCheckIn.fromMap(Map<String, dynamic> map) => SafetyCheckIn(
+        id: map['id'] as String,
+        childId: map['user_id'] as String,
+        message: map['message'] as String,
+        location: LocationCapture.fromMap(map),
+        createdAt: _date(map['created_at']),
+        child: map['child'] is Map
+            ? ProfileSummary.fromMap(
+                Map<String, dynamic>.from(map['child'] as Map),
+              )
+            : null,
+      );
+
+  final String id;
+  final String childId;
+  final String message;
+  final LocationCapture location;
+  final DateTime createdAt;
+  final ProfileSummary? child;
+}
+
+final class ScreenTimeSession {
+  const ScreenTimeSession({
+    required this.clientSessionId,
+    required this.localDay,
+    required this.secondsUsed,
+    required this.timezoneOffsetMinutes,
+  });
+  final String clientSessionId;
+  final DateTime localDay;
+  final int secondsUsed;
+  final int timezoneOffsetMinutes;
+}
+
+final class ScreenTimeSyncResult {
+  const ScreenTimeSyncResult({
+    required this.dailySeconds,
+    required this.nextThresholdHours,
+    required this.applied,
+  });
+
+  factory ScreenTimeSyncResult.fromMap(Map<String, dynamic> map) =>
+      ScreenTimeSyncResult(
+        dailySeconds: map['daily_seconds'] as int,
+        nextThresholdHours: map['next_threshold_hours'] as int,
+        applied: map['applied'] as bool,
+      );
+
+  final int dailySeconds;
+  final int nextThresholdHours;
+  final bool applied;
 }
 
 final class SupervisionNotification {
