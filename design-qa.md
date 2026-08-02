@@ -63,3 +63,52 @@ The rendered device account is unlinked, while the approved reference shows a li
 ## Result
 
 final result: passed
+
+---
+
+# Parent Supervision Dashboard and Link Sheet Refinement
+
+Date: 3 August 2026
+
+## Sources and captures
+
+- linked-parent dashboard reference: `C:\Users\KEN\AppData\Local\Temp\codex-clipboard-fae40c15-5055-41dc-8b7a-15bd8cfcc899.png`
+- New Followers list reference: `C:\Users\KEN\AppData\Local\Temp\codex-clipboard-eed7b97c-bb83-4820-85fe-c651a74cb7db.jpg`
+- linked-parent Flutter capture: `apps/mobile/parent-supervision-dashboard-grid-device.png`
+- account-linking sheet Flutter capture: `apps/mobile/request-account-linking-sheet-device.png`
+- combined reference-versus-implementation comparison: `apps/mobile/parent-supervision-refinement-visual-qa.png`
+
+The previously connected Android device was unavailable during this pass. The implementation images were therefore rendered deterministically from the real Flutter widgets with Roboto and Material Icons: the linked-parent dashboard at 390 × 760 logical pixels and the request-account-linking sheet at 360 × 800 logical pixels. This ensures the dashboard comparison uses the required linked-parent state instead of the unrelated unlinked device account.
+
+## Visual comparison
+
+- The app bar follows the Messages-page pattern: normal toolbar height, left-aligned `Parent Supervision`, 16-pixel title spacing, navy typography, and a plain trailing add-person icon.
+- The dashboard canvas and light notification surfaces use `0xFFF1F5F9`.
+- The screen-time hero has the same height as the responsive square tile extent.
+- Parent Family links and Check-In & SOS records are equal square cards in one row with aligned actions and no clipping.
+- The linking sheet title is left-aligned and reads `Request Account Linking`.
+- Candidate rows match the New Followers visual structure: 46-pixel avatars, bold names, relationship copy, indented dividers, and compact pill actions.
+- Available accounts use a cyan `Request` button with white text. Pending accounts use a soft-gray button with cyan `Pending` text.
+- The title and equal-height hero are intentional approved overrides to the older dashboard reference, which still says `Family Connection` and uses a shorter hero.
+- No P0, P1, or P2 visual mismatches remain against the final approved requirements.
+
+## Interaction and resilience checks
+
+- Successful requests keep the bottom sheet open and immediately change the selected account to `Pending`.
+- Dismissing a changed sheet refreshes the dashboard.
+- Existing pending and active family links reopen as disabled `Pending` and `Linked` states.
+- Unlinked users see the shared confirmation dialog with text-only `Child` and `Parent` actions; established roles skip the prompt.
+- The candidate list remains overflow-free at 360 logical pixels with 2× text scaling.
+- Child Safety Check-In and SOS remain connected to their existing flows while displaying as equal square cards in one row.
+- Parent records and supervision-notification destinations remain functional after the layout change.
+
+## Verification
+
+- Focused Parent Supervision suites: passed (38 tests)
+- Full Flutter suite: passed (264 tests)
+- Flutter analyzer: passed with `No issues found!`
+- Deterministic visual capture tests: passed (2 captures)
+
+## Result
+
+final result: passed
