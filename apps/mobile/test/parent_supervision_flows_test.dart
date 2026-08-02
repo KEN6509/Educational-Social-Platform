@@ -52,6 +52,29 @@ void main() {
     expect(repository.createdRole, FamilyRole.child);
   });
 
+  testWidgets('candidate rows fit narrow screens with enlarged text',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(
+          size: Size(360, 760),
+          textScaler: TextScaler.linear(2),
+        ),
+        child: LinkCandidatesPage(repository: FlowFakeRepository()),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alex Tan'), findsOneWidget);
+    expect(find.text('Link Request'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('incoming request exposes accept and reject actions',
       (tester) async {
     final repository = FlowFakeRepository();
@@ -96,12 +119,37 @@ void main() {
 
     await tester.tap(find.byTooltip('Add family link'));
     await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsOneWidget);
     expect(find.text('Followers & Following'), findsOneWidget);
 
     await tester.tap(find.text('Link Request'));
     await tester.pumpAndSettle();
     expect(find.text('I am the parent'), findsNothing);
     expect(repository.createdRole, FamilyRole.child);
+  });
+
+  testWidgets('dashboard add sheet stays visible while candidates load',
+      (tester) async {
+    final candidates = Completer<List<LinkCandidate>>();
+    final repository = FlowFakeRepository(pendingCandidates: candidates);
+    await tester.pumpWidget(MaterialApp(
+      home: ParentChildPage(
+        repository: repository,
+        subscribeToRealtime: false,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Add family link'));
+    await tester.pump();
+
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.text('Followers & Following'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    candidates.complete(const []);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('check in requires a message and skips unselected location',
@@ -279,6 +327,12 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.text('SOS'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('SOS'));
     await tester.pumpAndSettle();
     expect(find.byType(SosPage), findsOneWidget);
@@ -483,7 +537,8 @@ void main() {
     final tile = find.byKey(
       const Key('supervision-notification-tile-notification-1'),
     );
-    await tester.ensureVisible(tile);
+    await tester.drag(find.byType(ListView).first, const Offset(0, -360));
+    await tester.pumpAndSettle();
     await tester.tap(tile);
     await tester.pumpAndSettle();
     expect(repository.markedNotificationId, 'notification-1');
@@ -521,6 +576,7 @@ FamilyLink _pendingLink({required String requestedBy}) => FamilyLink.fromMap({
 final class FlowFakeRepository implements ParentChildRepositoryContract {
   FlowFakeRepository({
     this.dashboardRole,
+    this.pendingCandidates,
     this.pendingSos,
     this.checkInFailures = 0,
     this.sosFailures = 0,
@@ -532,6 +588,7 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
   });
 
   final FamilyRole? dashboardRole;
+  final Completer<List<LinkCandidate>>? pendingCandidates;
   final Completer<SosAlert>? pendingSos;
   int checkInFailures;
   int sosFailures;
@@ -560,13 +617,15 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
       );
 
   @override
-  Future<List<LinkCandidate>> fetchLinkCandidates() async => [
-        const LinkCandidate(
+  Future<List<LinkCandidate>> fetchLinkCandidates() =>
+      pendingCandidates?.future ??
+      Future.value(const [
+        LinkCandidate(
           profile: ProfileSummary(id: 'candidate-1', name: 'Alex Tan'),
           isFollower: true,
           isFollowing: true,
         ),
-      ];
+      ]);
 
   @override
   Future<FamilyLink> createLinkRequest(

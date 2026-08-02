@@ -7,10 +7,14 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('renders the approved unlinked dashboard', (tester) async {
     await _pump(tester, _state(role: null, activeLinks: 0));
-    expect(find.text('Parent Supervision'), findsOneWidget);
-    expect(find.byIcon(Icons.add_rounded), findsOneWidget);
-    expect(find.text('My screen time'), findsOneWidget);
+    expect(find.text('Family Connection'), findsOneWidget);
+    expect(find.byIcon(Icons.person_add_alt_1_rounded), findsOneWidget);
+    expect(find.byKey(const Key('screen-time-hero')), findsOneWidget);
+    expect(find.text('My screen time · Today'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(find.text('No active family links yet.'), findsOneWidget);
+    expect(find.text('View links'), findsOneWidget);
+    expect(find.text('Live · Latest 10'), findsOneWidget);
     expect(find.text('Safety Check-In'), findsNothing);
     expect(find.text('SOS'), findsNothing);
   });
@@ -19,6 +23,11 @@ void main() {
     await _pump(tester, _state(role: FamilyRole.child, activeLinks: 2));
     expect(find.text('Child role · 2 linked parents'), findsOneWidget);
     expect(find.text('Safety Check-In'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('SOS'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('SOS'), findsOneWidget);
   });
 
@@ -37,6 +46,8 @@ void main() {
     expect(family.width, closeTo(records.width, 0.1));
     expect(find.text('Parent role · 2 linked children'), findsOneWidget);
     expect(find.text('Check-In & SOS records'), findsOneWidget);
+    expect(find.text('View links'), findsOneWidget);
+    expect(find.text('View records'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

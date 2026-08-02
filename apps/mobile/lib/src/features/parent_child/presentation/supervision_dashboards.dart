@@ -41,7 +41,7 @@ abstract class _DashboardBase extends StatelessWidget {
   final SupervisionDashboardCallbacks callbacks;
 
   List<Widget> commonTail() => [
-        const SizedBox(height: 14),
+        const SizedBox(height: 18),
         SupervisionNotificationsCard(
           notifications: state.notifications,
           onTap: callbacks.onNotification,
@@ -49,7 +49,7 @@ abstract class _DashboardBase extends StatelessWidget {
       ];
 
   Widget list(List<Widget> children) => ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 22, 16, 32),
         children: children,
       );
 }
@@ -59,12 +59,13 @@ class _Unlinked extends _DashboardBase {
   @override
   Widget build(BuildContext context) => list([
         ScreenTimeCard(summary: state.ownScreenTime),
-        const SizedBox(height: 14),
+        const SizedBox(height: 18),
         SummaryActionCard(
           key: const Key('family-links-card'),
-          icon: Icons.family_restroom_rounded,
+          icon: Icons.people_outline_rounded,
           title: 'Family links',
           subtitle: 'No active family links yet.',
+          actionLabel: 'View links',
           onTap: callbacks.onFamily,
         ),
         ...commonTail(),
@@ -76,15 +77,16 @@ class _Child extends _DashboardBase {
   @override
   Widget build(BuildContext context) => list([
         ScreenTimeCard(summary: state.ownScreenTime),
-        const SizedBox(height: 14),
+        const SizedBox(height: 18),
         SummaryActionCard(
           key: const Key('family-links-card'),
-          icon: Icons.family_restroom_rounded,
+          icon: Icons.people_outline_rounded,
           title: 'Family links',
           subtitle: 'Child role · ${state.activeLinkCount} linked parents',
+          actionLabel: 'View links',
           onTap: callbacks.onFamily,
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 18),
         SafetyActionCard(
           title: 'Safety Check-In',
           description: 'Tell your linked parents that you are safe.',
@@ -111,31 +113,31 @@ class _Parent extends _DashboardBase {
   @override
   Widget build(BuildContext context) => list([
         ScreenTimeCard(summary: state.ownScreenTime),
-        const SizedBox(height: 14),
-        IntrinsicHeight(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Expanded(
-              child: SummaryActionCard(
-                key: const Key('family-links-card'),
-                icon: Icons.family_restroom_rounded,
-                title: 'Family links',
-                subtitle:
-                    'Parent role · ${state.activeLinkCount} linked children',
-                onTap: callbacks.onFamily,
-              ),
+        const SizedBox(height: 18),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: SummaryActionCard(
+              key: const Key('family-links-card'),
+              icon: Icons.people_outline_rounded,
+              title: 'Family links',
+              subtitle:
+                  'Parent role · ${state.activeLinkCount} linked children',
+              actionLabel: 'View links',
+              onTap: callbacks.onFamily,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: SummaryActionCard(
-                key: const Key('safety-records-card'),
-                icon: Icons.health_and_safety_outlined,
-                title: 'Check-In & SOS records',
-                subtitle: 'Review linked child safety updates',
-                onTap: callbacks.onRecords,
-              ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: SummaryActionCard(
+              key: const Key('safety-records-card'),
+              icon: Icons.assignment_late_outlined,
+              title: 'Check-In & SOS records',
+              subtitle: 'Review linked child safety updates',
+              actionLabel: 'View records',
+              onTap: callbacks.onRecords,
             ),
-          ]),
-        ),
+          ),
+        ]),
         ...commonTail(),
       ]);
 }

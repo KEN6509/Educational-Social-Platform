@@ -69,11 +69,17 @@ class _ParentChildPageState extends State<ParentChildPage>
     try {
       final state = await _dashboardFuture;
       if (!mounted) return;
-      final changed = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (_) => LinkCandidatesPage(
+      final changed = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => FractionallySizedBox(
+          heightFactor: .86,
+          child: LinkCandidatesPage(
             repository: _repository,
             establishedRole: state.role,
+            embedded: true,
           ),
         ),
       );
@@ -139,16 +145,33 @@ class _ParentChildPageState extends State<ParentChildPage>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF3F6F8),
         appBar: AppBar(
           backgroundColor: Colors.white,
-          title: const Text('Parent Supervision',
-              style: TextStyle(fontWeight: FontWeight.w900)),
+          surfaceTintColor: Colors.white,
+          toolbarHeight: 74,
+          titleSpacing: 20,
+          title: const Text(
+            'Family Connection',
+            style: TextStyle(
+              color: Color(0xFF0D2344),
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           actions: [
-            IconButton(
-              tooltip: 'Add family link',
-              onPressed: _openCandidates,
-              icon: const Icon(Icons.add_rounded),
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: IconButton.filledTonal(
+                tooltip: 'Add family link',
+                onPressed: _openCandidates,
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFFE7F4F8),
+                  foregroundColor: const Color(0xFF397D99),
+                  minimumSize: const Size.square(50),
+                ),
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 22),
+              ),
             ),
           ],
         ),
