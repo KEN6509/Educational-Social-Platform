@@ -404,6 +404,7 @@ void main() {
   });
 
   testWidgets('child dashboard safety cards open their flows', (tester) async {
+    _usePhoneViewport(tester);
     final repository = FlowFakeRepository(dashboardRole: FamilyRole.child);
     await tester.pumpWidget(MaterialApp(
       home: ParentChildPage(
@@ -580,6 +581,7 @@ void main() {
 
   testWidgets('parent records card opens merged safety records',
       (tester) async {
+    _usePhoneViewport(tester);
     final repository = FlowFakeRepository(
       dashboardRole: FamilyRole.parent,
       checkIns: [
@@ -606,6 +608,7 @@ void main() {
 
   testWidgets('dashboard notification marks read and uses typed route',
       (tester) async {
+    _usePhoneViewport(tester);
     final notification = _notification(SupervisionEventType.checkInReceived);
     final repository = FlowFakeRepository(
       dashboardRole: FamilyRole.parent,
@@ -664,6 +667,13 @@ FamilyLink _pendingLink({required String requestedBy}) => FamilyLink.fromMap({
       'status': 'pending',
       'created_at': '2026-08-02T08:00:00Z',
     });
+
+void _usePhoneViewport(WidgetTester tester) {
+  tester.view.physicalSize = const Size(360, 800);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
 
 final class FlowFakeRepository implements ParentChildRepositoryContract {
   FlowFakeRepository({

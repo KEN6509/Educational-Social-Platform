@@ -9,8 +9,10 @@ const _border = Color(0xFFD7E0E7);
 const _paleCyan = Color(0xFFE7F4F8);
 
 class ScreenTimeCard extends StatelessWidget {
-  const ScreenTimeCard({super.key, required this.summary});
+  const ScreenTimeCard(
+      {super.key, required this.summary, required this.height});
   final ScreenTimeSummary summary;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -23,51 +25,56 @@ class ScreenTimeCard extends StatelessWidget {
         ? 0.0
         : (summary.secondsUsed / thresholdSeconds).clamp(0.0, 1.0);
 
-    return Container(
+    return SizedBox(
       key: const Key('screen-time-hero'),
-      padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
-      decoration: BoxDecoration(
-        color: _navy,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Row(children: [
-          Expanded(
-            child: Text(
-              'My screen time · Today',
-              style: TextStyle(color: Color(0xFFDCE6F2), fontSize: 15),
+      height: height,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _navy,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Row(children: [
+            Expanded(
+              child: Text(
+                'My screen time · Today',
+                style: TextStyle(color: Color(0xFFDCE6F2), fontSize: 13),
+              ),
+            ),
+            Icon(Icons.schedule_rounded, color: Color(0xFFBFCDDC), size: 20),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            _formatUsed(summary.secondsUsed),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 34,
+              height: 1,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1,
             ),
           ),
-          Icon(Icons.schedule_rounded, color: Color(0xFFBFCDDC), size: 22),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: progress,
+              color: const Color(0xFF55A6C4),
+              backgroundColor: const Color(0xFF53667F),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${_formatRemaining(remainingSeconds)} until your '
+            '${summary.nextThresholdHours}-hour reminder',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFFCFD9E6), fontSize: 11),
+          ),
         ]),
-        const SizedBox(height: 8),
-        Text(
-          _formatUsed(summary.secondsUsed),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 38,
-            height: 1,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1,
-          ),
-        ),
-        const SizedBox(height: 14),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            minHeight: 10,
-            value: progress,
-            color: const Color(0xFF55A6C4),
-            backgroundColor: const Color(0xFF53667F),
-          ),
-        ),
-        const SizedBox(height: 13),
-        Text(
-          '${_formatRemaining(remainingSeconds)} until your '
-          '${summary.nextThresholdHours}-hour reminder',
-          style: const TextStyle(color: Color(0xFFCFD9E6), fontSize: 13),
-        ),
-      ]),
+      ),
     );
   }
 
@@ -96,33 +103,35 @@ class SummaryActionCard extends StatelessWidget {
     required this.subtitle,
     required this.actionLabel,
     required this.onTap,
+    required this.height,
   });
   final IconData icon;
   final String title;
   final String subtitle;
   final String actionLabel;
   final VoidCallback onTap;
+  final double height;
 
   @override
-  Widget build(BuildContext context) => _Surface(
-        onTap: onTap,
-        padding: const EdgeInsets.all(20),
-        child: SizedBox(
-          height: 190,
+  Widget build(BuildContext context) => SizedBox(
+        height: height,
+        child: _Surface(
+          onTap: onTap,
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 54,
-                height: 54,
+                width: 36,
+                height: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: _paleCyan,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(icon, color: const Color(0xFF67808E), size: 25),
+                child: Icon(icon, color: const Color(0xFF67808E), size: 20),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 6),
               Text(
                 title,
                 maxLines: 2,
@@ -130,19 +139,19 @@ class SummaryActionCard extends StatelessWidget {
                 style: const TextStyle(
                   color: _text,
                   fontWeight: FontWeight.w800,
-                  fontSize: 17,
-                  height: 1.15,
+                  fontSize: 14,
+                  height: 1.1,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
                 subtitle,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: _secondary,
-                  fontSize: 12,
-                  height: 1.3,
+                  fontSize: 10,
+                  height: 1.2,
                 ),
               ),
               const Spacer(),
@@ -152,7 +161,7 @@ class SummaryActionCard extends StatelessWidget {
                     actionLabel,
                     style: const TextStyle(
                       color: _secondary,
-                      fontSize: 13,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -160,7 +169,7 @@ class SummaryActionCard extends StatelessWidget {
                 const Icon(
                   Icons.chevron_right_rounded,
                   color: Color(0xFF718493),
-                  size: 22,
+                  size: 18,
                 ),
               ]),
             ],
@@ -177,6 +186,8 @@ class SafetyActionCard extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.onTap,
+    required this.actionLabel,
+    required this.height,
     this.enabled = true,
   });
   final String title;
@@ -184,46 +195,76 @@ class SafetyActionCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
+  final String actionLabel;
+  final double height;
   final bool enabled;
 
   @override
-  Widget build(BuildContext context) => _Surface(
-        onTap: enabled ? onTap : null,
-        child: Row(children: [
-          Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Icon(icon, color: color),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: _text,
-                    fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) => SizedBox(
+        height: height,
+        child: _Surface(
+          onTap: enabled ? onTap : null,
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .1),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, color: color, size: 21),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _text,
+                  fontSize: 14,
+                  height: 1.1,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                enabled ? description : 'Available after the link is accepted.',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _secondary,
+                  fontSize: 10,
+                  height: 1.2,
+                ),
+              ),
+              const Spacer(),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      actionLabel,
+                      style: const TextStyle(
+                        color: _secondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  enabled
-                      ? description
-                      : 'Available after the link is accepted.',
-                  style: const TextStyle(color: _secondary, fontSize: 12),
-                ),
-              ],
-            ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF94A3B8),
+                    size: 18,
+                  ),
+                ],
+              ),
+            ],
           ),
-          const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
-        ]),
+        ),
       );
 }
 
@@ -272,10 +313,11 @@ class SupervisionNotificationsCard extends StatelessWidget {
           const SizedBox(height: 16),
           if (notifications.isEmpty)
             Container(
+              key: const Key('supervision-notifications-empty'),
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF4F7F9),
+                color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: const Text(
@@ -304,7 +346,7 @@ class _NotificationTile extends StatelessWidget {
     final visual = _notificationVisual(notification.eventType);
     return Material(
       key: ValueKey('supervision-notification-tile-${notification.id}'),
-      color: const Color(0xFFF4F7F9),
+      color: const Color(0xFFF1F5F9),
       borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

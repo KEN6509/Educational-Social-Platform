@@ -6,8 +6,19 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('renders the approved unlinked dashboard', (tester) async {
+    _usePhoneViewport(tester);
     await _pump(tester, _state(role: null, activeLinks: 0));
-    expect(find.text('Family Connection'), findsOneWidget);
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    final appBar = tester.widget<AppBar>(find.byType(AppBar));
+    expect(find.text('Parent Supervision'), findsOneWidget);
+    expect(find.text('Family Connection'), findsNothing);
+    expect(scaffold.backgroundColor, const Color(0xFFF1F5F9));
+    expect(appBar.backgroundColor, Colors.white);
+    expect(appBar.titleSpacing, 16);
+    expect(appBar.elevation, 0);
+    expect(appBar.scrolledUnderElevation, 0);
+    expect(appBar.centerTitle, isFalse);
+    expect(appBar.toolbarHeight, isNull);
     expect(find.byIcon(Icons.person_add_alt_1_rounded), findsOneWidget);
     expect(find.byKey(const Key('screen-time-hero')), findsOneWidget);
     expect(find.text('My screen time · Today'), findsOneWidget);
@@ -17,26 +28,44 @@ void main() {
     expect(find.text('Live · Latest 10'), findsOneWidget);
     expect(find.text('Safety Check-In'), findsNothing);
     expect(find.text('SOS'), findsNothing);
+
+    final hero = tester.getRect(find.byKey(const Key('screen-time-hero')));
+    final family = tester.getRect(find.byKey(const Key('family-links-card')));
+    expect(hero.height, closeTo(family.height, .1));
+    expect(
+      tester
+          .widget<Container>(
+            find.byKey(const Key('supervision-notifications-empty')),
+          )
+          .decoration,
+      isA<BoxDecoration>().having(
+        (decoration) => decoration.color,
+        'color',
+        const Color(0xFFF1F5F9),
+      ),
+    );
   });
 
   testWidgets('renders the approved linked child dashboard', (tester) async {
+    _usePhoneViewport(tester);
     await _pump(tester, _state(role: FamilyRole.child, activeLinks: 2));
     expect(find.text('Child role · 2 linked parents'), findsOneWidget);
     expect(find.text('Safety Check-In'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('SOS'),
-      240,
-      scrollable: find.byType(Scrollable).first,
-    );
     expect(find.text('SOS'), findsOneWidget);
+    final hero = tester.getRect(find.byKey(const Key('screen-time-hero')));
+    final checkIn =
+        tester.getRect(find.byKey(const Key('safety-check-in-card')));
+    final sos = tester.getRect(find.byKey(const Key('sos-card')));
+    expect(checkIn.top, sos.top);
+    expect(checkIn.width, closeTo(checkIn.height, .1));
+    expect(sos.width, closeTo(sos.height, .1));
+    expect(hero.height, closeTo(checkIn.height, .1));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('keeps parent summary cards side by side at phone width',
       (tester) async {
-    tester.view.physicalSize = const Size(360, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    _usePhoneViewport(tester);
 
     await _pump(tester, _state(role: FamilyRole.parent, activeLinks: 2));
     final family = tester.getRect(find.byKey(const Key('family-links-card')));
@@ -44,6 +73,10 @@ void main() {
         tester.getRect(find.byKey(const Key('safety-records-card')));
     expect(family.top, records.top);
     expect(family.width, closeTo(records.width, 0.1));
+    expect(family.width, closeTo(family.height, 0.1));
+    expect(records.width, closeTo(records.height, 0.1));
+    final hero = tester.getRect(find.byKey(const Key('screen-time-hero')));
+    expect(hero.height, closeTo(family.height, 0.1));
     expect(find.text('Parent role · 2 linked children'), findsOneWidget);
     expect(find.text('Check-In & SOS records'), findsOneWidget);
     expect(find.text('View links'), findsOneWidget);
@@ -52,6 +85,7 @@ void main() {
   });
 
   testWidgets('shows only ten supervision notifications', (tester) async {
+    _usePhoneViewport(tester);
     await _pump(
       tester,
       _state(role: null, activeLinks: 0, notificationCount: 12),
@@ -65,6 +99,13 @@ void main() {
       findsNWidgets(10),
     );
   });
+}
+
+void _usePhoneViewport(WidgetTester tester) {
+  tester.view.physicalSize = const Size(360, 800);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
 }
 
 Future<void> _pump(

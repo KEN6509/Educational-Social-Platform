@@ -147,34 +147,32 @@ class _ParentChildPageState extends State<ParentChildPage>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF3F6F8),
+        backgroundColor: const Color(0xFFF1F5F9),
         appBar: AppBar(
           backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          toolbarHeight: 74,
-          titleSpacing: 20,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          centerTitle: false,
+          titleSpacing: 16,
           title: const Text(
-            'Family Connection',
+            'Parent Supervision',
             style: TextStyle(
-              color: Color(0xFF0D2344),
-              fontSize: 22,
+              color: Color(0xFF0B1F3E),
+              fontSize: 24,
               fontWeight: FontWeight.w800,
             ),
           ),
           actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: IconButton.filledTonal(
-                tooltip: 'Add family link',
-                onPressed: _openCandidates,
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFFE7F4F8),
-                  foregroundColor: const Color(0xFF397D99),
-                  minimumSize: const Size.square(50),
-                ),
-                icon: const Icon(Icons.person_add_alt_1_rounded, size: 22),
+            IconButton(
+              tooltip: 'Add family link',
+              icon: const Icon(
+                Icons.person_add_alt_1_rounded,
+                color: Color(0xFF0B1F3E),
+                size: 28,
               ),
+              onPressed: _openCandidates,
             ),
+            const SizedBox(width: 8),
           ],
         ),
         body: FutureBuilder<SupervisionDashboardState>(
