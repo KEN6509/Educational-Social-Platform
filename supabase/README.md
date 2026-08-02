@@ -91,6 +91,88 @@ where schemaname = 'public'
 
 Expected result: `rowsecurity` is `true` for each listed table.
 
+### Parent Supervision
+
+Fresh projects receive the complete Parent Supervision contract from the current
+`schema.sql`. For an existing project that was created from an earlier schema,
+run the complete `parent_supervision.sql` in the Supabase SQL Editor after
+`schema.sql` and before mobile verification. Do not run only a copied function
+or policy fragment; the tables, RPCs, notification fan-out, RLS policies, grants,
+and Realtime publication entries are designed to be applied together.
+
+Verify the four core module tables:
+
+```sql
+select table_name
+from information_schema.tables
+where table_schema = 'public'
+  and table_name in (
+    'parent_child_links',
+    'check_ins',
+    'sos_alerts',
+    'supervision_notifications'
+  )
+order by table_name;
+```
+
+Expected result: four rows. The supporting `screen_time_logs`,
+`screen_time_sync_events`, and `screen_time_threshold_events` tables must also
+exist for CyanZone usage synchronization and threshold events.
+
+Verify all ten authenticated Parent Supervision RPCs:
+
+```sql
+select routine_name
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name in (
+    'create_parent_child_link',
+    'accept_parent_child_link',
+    'reject_parent_child_link',
+    'cancel_parent_child_link',
+    'submit_safety_check_in',
+    'submit_sos_alert',
+    'acknowledge_sos_alert',
+    'resolve_sos_alert',
+    'sync_screen_time_session',
+    'mark_supervision_notification_read'
+  )
+order by routine_name;
+```
+
+Expected result: ten rows.
+
+Verify the owner/family read policies and Realtime publication:
+
+```sql
+select policyname, tablename, cmd
+from pg_policies
+where schemaname = 'public'
+  and tablename in (
+    'parent_child_links',
+    'screen_time_logs',
+    'check_ins',
+    'sos_alerts',
+    'supervision_notifications'
+  )
+order by tablename, policyname;
+
+select tablename
+from pg_publication_tables
+where pubname = 'supabase_realtime'
+  and schemaname = 'public'
+  and tablename in (
+    'parent_child_links',
+    'sos_alerts',
+    'supervision_notifications'
+  )
+order by tablename;
+```
+
+The publication query must return all three listed tables. Current delivery is
+in-app Realtime only. FCM remains deferred until device push delivery is added
+later; Supervision Notifications remain separate from Messages notifications.
+
 ## 5. Configure Authentication
 
 Run `auth.sql` in the Supabase SQL editor after `schema.sql`.

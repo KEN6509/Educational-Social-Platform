@@ -4,9 +4,36 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late String migration;
+  late String schema;
+  late String readme;
 
   setUpAll(() {
-    migration = File('../../supabase/parent_supervision.sql').readAsStringSync();
+    migration =
+        File('../../supabase/parent_supervision.sql').readAsStringSync();
+    schema = File('../../supabase/schema.sql').readAsStringSync();
+    readme = File('../../supabase/README.md').readAsStringSync();
+  });
+
+  test('canonical schema matches parent supervision migration contracts', () {
+    for (final token in [
+      'supervision_notifications',
+      'screen_time_sync_events',
+      'screen_time_threshold_events',
+      'create_parent_child_link',
+      'submit_safety_check_in',
+      'submit_sos_alert',
+      'sync_screen_time_session',
+    ]) {
+      expect(schema, contains(token));
+    }
+    expect(schema, contains('screen_time_logs.user_id'));
+  });
+
+  test('Supabase README documents parent supervision rollout', () {
+    expect(readme, contains('parent_supervision.sql'));
+    expect(readme, contains('supervision_notifications'));
+    expect(readme, contains('FCM remains deferred'));
+    expect(readme, contains('in-app Realtime only'));
   });
 
   test('creates dedicated supervision storage and cancellation state', () {
@@ -26,7 +53,8 @@ void main() {
     );
     expect(
       migration,
-      contains('create table if not exists public.screen_time_threshold_events'),
+      contains(
+          'create table if not exists public.screen_time_threshold_events'),
     );
     expect(migration, contains('parent_child_links_one_live_pair_idx'));
     expect(
