@@ -1,13 +1,13 @@
 import {
   BadgeCheck,
   CalendarDays,
-  Check,
   Mail,
   ShieldAlert,
   UserRound,
 } from 'lucide-react';
 
 import { StatusBadge } from '../../components/casework/StatusBadge';
+import { VerifiedCreatorBadge } from '../../components/casework/VerifiedCreatorBadge';
 import type { UserDetailView } from '../../types/admin';
 import { RecentPostsCarousel } from './RecentPostsCarousel';
 
@@ -44,17 +44,7 @@ export function UserDetail({
             <span className="inline-flex items-center gap-1.5">
               <h2 className="text-2xl font-black">{user.name}</h2>
               {user.isContentCreator ? (
-                <span
-                  aria-label="Verified content creator"
-                  className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-[#2F8FED] text-white"
-                  role="img"
-                >
-                  <Check
-                    aria-hidden="true"
-                    className="h-3 w-3"
-                    strokeWidth={3.5}
-                  />
-                </span>
+                <VerifiedCreatorBadge />
               ) : null}
             </span>
             <StatusBadge status={user.accountStatus} />

@@ -56,23 +56,29 @@ export function AllPostsModal({
           {posts.map((post) => (
             <button
               aria-label={`Open post ${post.title}`}
-              className="group overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-cyan-100"
+              className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-cyan-100"
               data-testid="all-post-card"
               key={post.id}
               onClick={() => onOpenPost(post.id)}
               type="button"
             >
-              {post.coverImageUrl ? (
-                <img
-                  alt=""
-                  className="aspect-[4/3] w-full object-cover"
-                  src={post.coverImageUrl}
-                />
-              ) : (
-                <span className="grid aspect-[4/3] w-full place-items-center bg-slate-100 text-slate-400">
-                  <FileText className="h-10 w-10" aria-hidden="true" />
-                </span>
-              )}
+              <span
+                className="block aspect-[4/3] w-full shrink-0 overflow-hidden bg-slate-100"
+                data-testid={`all-post-media-${post.id}`}
+              >
+                {post.coverImageUrl ? (
+                  <img
+                    alt=""
+                    className="block h-full w-full object-cover"
+                    data-testid={`all-post-image-${post.id}`}
+                    src={post.coverImageUrl}
+                  />
+                ) : (
+                  <span className="grid h-full w-full place-items-center text-slate-400">
+                    <FileText className="h-10 w-10" aria-hidden="true" />
+                  </span>
+                )}
+              </span>
               <span className="block p-4">
                 <span className="flex items-start justify-between gap-2">
                   <span className="line-clamp-2 font-extrabold leading-5 text-cyanZone-ink">

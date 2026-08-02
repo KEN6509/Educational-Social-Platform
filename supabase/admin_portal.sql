@@ -131,6 +131,8 @@ begin
   insert into public.notifications (
     user_id,
     type,
+    post_id,
+    comment_id,
     title,
     body,
     action_type,
@@ -139,6 +141,8 @@ begin
   select
     p_user_id,
     'system',
+    nullif(p_action_payload->>'post_id', '')::uuid,
+    nullif(p_action_payload->>'comment_id', '')::uuid,
     p_title,
     p_body,
     p_action_type,
@@ -148,6 +152,209 @@ begin
     from public.notification_preferences np
     where np.user_id = p_user_id
   ), true);
+end;
+$$;
+
+-- Backfill report-removal notifications created before structured payloads.
+update public.notifications notification
+set
+  post_id = post.id,
+  action_payload = notification.action_payload || jsonb_build_object(
+    'post_id', post.id,
+    'template_type', 'reported_post_removed',
+    'brief', 'We reviewed community reports about your post.',
+    'decision_message', post.moderation_reason
+  )
+from public.posts post
+where notification.type = 'system'
+  and notification.title = 'Content removed after reports'
+  and notification.user_id = post.author_id
+  and post.moderation_reason is not null
+  and (
+    notification.post_id = post.id
+    or notification.action_payload->>'post_id' = post.id::text
+  );
+
+update public.notifications notification
+set
+  post_id = comment.post_id,
+  comment_id = comment.id,
+  action_payload = notification.action_payload || jsonb_build_object(
+    'post_id', comment.post_id,
+    'comment_id', comment.id,
+    'template_type', 'reported_comment_removed',
+    'brief', 'We reviewed community reports about your comment.',
+    'decision_message', comment.moderation_reason
+  )
+from public.comments comment
+where notification.type = 'system'
+  and notification.title = 'Content removed after reports'
+  and notification.user_id = comment.author_id
+  and comment.moderation_reason is not null
+  and notification.action_payload->>'comment_id' = comment.id::text;
+
+create or replace function public.fetch_system_notification_reason(
+  p_notification_id uuid
+)
+returns text
+language plpgsql
+security definer
+set search_path = public
+stable
+as $$
+declare
+  v_current_user uuid := auth.uid();
+  v_notification public.notifications%rowtype;
+  v_template text;
+  v_reason text;
+  v_creator_request_id uuid;
+  v_post_id uuid;
+  v_comment_id uuid;
+  v_audit_action text;
+begin
+  if v_current_user is null then
+    raise exception 'Authentication required';
+  end if;
+
+  select notification.*
+  into v_notification
+  from public.notifications notification
+  where notification.id = p_notification_id
+    and notification.user_id = v_current_user
+    and notification.type = 'system';
+
+  if not found then
+    raise exception 'System notification not found';
+  end if;
+
+  v_reason := nullif(
+    btrim(v_notification.action_payload->>'decision_message'),
+    ''
+  );
+  if v_reason is not null then
+    return v_reason;
+  end if;
+
+  v_template := coalesce(
+    nullif(v_notification.action_payload->>'template_type', ''),
+    case v_notification.title
+      when 'Verification Application' then 'creator_badge_awarded'
+      when 'You are now a verified content creator' then 'creator_badge_awarded'
+      when 'Request rejected' then 'creator_request_rejected'
+      when 'Creator status updated' then 'creator_status_removed'
+      when 'Account suspended' then 'account_suspended'
+      when 'Account reactivated' then 'account_reactivated'
+      when 'Post has been rejected' then 'post_rejected'
+      when 'Your post was not approved' then 'post_rejected'
+      when 'Appeal approved' then 'post_appeal_approved'
+      when 'Appeal rejected' then 'post_appeal_rejected'
+      when 'Content removed after reports' then
+        case
+          when coalesce(
+            v_notification.comment_id::text,
+            v_notification.action_payload->>'comment_id'
+          ) is null then 'reported_post_removed'
+          else 'reported_comment_removed'
+        end
+      else null
+    end
+  );
+
+  if v_notification.action_payload->>'creator_request_id' is not null then
+    v_creator_request_id :=
+      (v_notification.action_payload->>'creator_request_id')::uuid;
+  end if;
+  v_post_id := coalesce(
+    v_notification.post_id,
+    nullif(v_notification.action_payload->>'post_id', '')::uuid
+  );
+  v_comment_id := coalesce(
+    v_notification.comment_id,
+    nullif(v_notification.action_payload->>'comment_id', '')::uuid
+  );
+
+  if v_template in ('creator_badge_awarded', 'creator_request_rejected') then
+    select request.admin_note
+    into v_reason
+    from public.content_creator_requests request
+    where request.user_id = v_current_user
+      and nullif(btrim(request.admin_note), '') is not null
+      and (
+        (v_creator_request_id is not null and request.id = v_creator_request_id)
+        or (
+          v_creator_request_id is null
+          and request.status::text = case
+            when v_template = 'creator_badge_awarded' then 'approved'
+            else 'rejected'
+          end
+        )
+      )
+    order by
+      (request.id = v_creator_request_id) desc,
+      abs(extract(epoch from (
+        coalesce(request.reviewed_at, request.updated_at) -
+        v_notification.created_at
+      )))
+    limit 1;
+
+    if nullif(btrim(coalesce(v_reason, '')), '') is not null then
+      return btrim(v_reason);
+    end if;
+  end if;
+
+  v_audit_action := case v_template
+    when 'creator_badge_awarded' then 'creator_status_assigned'
+    when 'creator_status_removed' then 'creator_status_removed'
+    when 'account_suspended' then 'user_suspended'
+    when 'account_reactivated' then 'user_reactivated'
+    else null
+  end;
+  if v_audit_action is not null then
+    select audit.reason
+    into v_reason
+    from public.admin_action_audit audit
+    where audit.target_type = 'user'
+      and audit.target_id = v_current_user
+      and audit.action_type = v_audit_action
+    order by abs(extract(epoch from (
+      audit.created_at - v_notification.created_at
+    )))
+    limit 1;
+
+    if nullif(btrim(coalesce(v_reason, '')), '') is not null then
+      return btrim(v_reason);
+    end if;
+  end if;
+
+  if v_template in ('post_rejected', 'reported_post_removed')
+    and v_post_id is not null
+  then
+    select post.moderation_reason
+    into v_reason
+    from public.posts post
+    where post.id = v_post_id
+      and post.author_id = v_current_user;
+  elsif v_template = 'reported_comment_removed'
+    and v_comment_id is not null
+  then
+    select comment.moderation_reason
+    into v_reason
+    from public.comments comment
+    where comment.id = v_comment_id
+      and comment.author_id = v_current_user;
+  elsif v_template in ('post_appeal_approved', 'post_appeal_rejected')
+    and v_post_id is not null
+  then
+    select appeal.admin_note
+    into v_reason
+    from public.post_appeals appeal
+    where appeal.post_id = v_post_id
+      and appeal.user_id = v_current_user
+    order by appeal.reviewed_at desc nulls last
+    limit 1;
+  end if;
+
+  return nullif(btrim(coalesce(v_reason, '')), '');
 end;
 $$;
 
@@ -253,7 +460,23 @@ begin
       when p_status = 'suspended'
         then 'Your CyanZone account has been suspended by an administrator.'
       else 'Your CyanZone account has been reactivated.'
-    end
+    end,
+    'none',
+    jsonb_build_object(
+      'template_type',
+      case
+        when p_status = 'suspended' then 'account_suspended'
+        else 'account_reactivated'
+      end,
+      'brief',
+      case
+        when p_status = 'suspended'
+          then 'An administrator has suspended your CyanZone account.'
+        else 'An administrator has reactivated your CyanZone account.'
+      end,
+      'decision_message',
+      v_reason
+    )
   );
 
   return v_new_state;
@@ -346,11 +569,38 @@ begin
     v_new_state
   );
 
-  if not p_is_creator then
+  if p_is_creator then
+    update public.notifications notification
+    set
+      title = 'Verification Application',
+      body = 'Your account verification application has been reviewed.',
+      action_payload = notification.action_payload || jsonb_build_object(
+        'template_type', 'creator_badge_awarded',
+        'brief', 'Your account verification application has been reviewed.',
+        'decision_message', v_reason
+      )
+    where notification.id = (
+      select existing.id
+      from public.notifications existing
+      where existing.user_id = p_user_id
+        and existing.type = 'system'
+        and existing.action_payload->>'template_type' =
+          'creator_badge_awarded'
+      order by existing.created_at desc
+      limit 1
+    );
+  else
     perform public.admin_portal_notify(
       p_user_id,
       'Creator status updated',
-      'Your verified CyanZone content creator status has been removed.'
+      'Your verified CyanZone content creator status has been removed.',
+      'none',
+      jsonb_build_object(
+        'template_type', 'creator_status_removed',
+        'brief',
+          'Your verified CyanZone content creator status has been removed.',
+        'decision_message', v_reason
+      )
     );
   end if;
 
@@ -438,11 +688,49 @@ begin
     where id = v_request.user_id;
 
     perform set_config('cyanzone.trusted_profile_update', 'off', true);
+
+    update public.notifications
+    set
+      title = 'Verification Application',
+      body = 'Your account verification application has been reviewed.',
+      action_payload = action_payload || jsonb_build_object(
+        'template_type', 'creator_badge_awarded',
+        'creator_request_id', v_request.id,
+        'brief', 'Your account verification application has been reviewed.',
+        'decision_label', 'Congratulations',
+        'decision_message', v_reason
+      )
+    where id = (
+      select notification.id
+      from public.notifications notification
+      where notification.user_id = v_request.user_id
+        and notification.type = 'system'
+        and notification.action_payload->>'template_type' =
+          'creator_badge_awarded'
+      order by notification.created_at desc
+      limit 1
+    );
   elsif p_decision = 'rejected' then
     perform public.admin_portal_notify(
       v_request.user_id,
-      'Creator request reviewed',
-      'Your CyanZone content creator request was not approved.'
+      'Request rejected',
+      format(
+        E'Your CyanZone verified badge request was not approved.\n\nReason from the administrator:\n%s\n\nYou may update your profile or content and apply again.',
+        v_reason
+      ),
+      'none',
+      jsonb_build_object(
+        'template_type',
+        'creator_request_rejected',
+        'creator_request_id',
+        v_request.id,
+        'brief',
+        'Your account verification application has been reviewed.',
+        'decision_label',
+        'Administrator feedback',
+        'decision_message',
+        v_reason
+      )
     );
   end if;
 
@@ -682,7 +970,24 @@ begin
         'post_id',
         v_post_id,
         'comment_id',
-        case when p_target_type = 'comment' then p_target_id else null end
+        case when p_target_type = 'comment' then p_target_id else null end,
+        'template_type',
+        case
+          when p_target_type = 'post' then 'reported_post_removed'
+          else 'reported_comment_removed'
+        end,
+        'target_type',
+        p_target_type,
+        'brief',
+        case
+          when p_target_type = 'post'
+            then 'We reviewed community reports about your post.'
+          else 'We reviewed community reports about your comment.'
+        end,
+        'decision_label',
+        'Administrator decision',
+        'decision_message',
+        v_reason
       )
     );
   end if;
@@ -756,10 +1061,13 @@ begin
       message = 'Appealed post not found';
   end if;
 
-  if v_post.moderation_status <> 'rejected'::public.moderation_status then
+  if v_post.moderation_status not in (
+    'rejected'::public.moderation_status,
+    'removed'::public.moderation_status
+  ) then
     raise exception using
       errcode = 'P0001',
-      message = 'Appealed post is no longer rejected';
+      message = 'Appealed post is no longer rejected or removed';
   end if;
 
   v_previous_state := jsonb_build_object(
@@ -829,7 +1137,13 @@ begin
       else 'Your post appeal was reviewed and was not approved.'
     end,
     'post_detail',
-    jsonb_build_object('post_id', v_appeal.post_id)
+    jsonb_build_object(
+      'post_id', v_appeal.post_id,
+      'template_type', 'post_appeal_' || p_decision,
+      'brief', 'Your content appeal has been reviewed.',
+      'decision_label', 'Final decision',
+      'decision_message', v_reason
+    )
   );
 
   return jsonb_build_object(
@@ -853,6 +1167,11 @@ revoke all on function public.admin_portal_notify(
   text,
   jsonb
 ) from public;
+
+revoke all on function public.fetch_system_notification_reason(uuid)
+from public, anon;
+grant execute on function public.fetch_system_notification_reason(uuid)
+to authenticated;
 
 revoke all on function public.set_user_account_status(
   uuid,

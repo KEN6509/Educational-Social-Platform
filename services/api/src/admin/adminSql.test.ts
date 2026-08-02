@@ -99,6 +99,47 @@ test('creator, moderation, report, and appeal notification rules stay explicit',
     /old\.moderation_status = 'pending'[\s\S]*new\.moderation_status = 'approved'/,
   );
   assert.match(chatSql, /'template_type', 'post_approved'/);
+  const postApprovedFunction = chatSql.slice(
+    chatSql.indexOf('create or replace function public.notify_post_approved'),
+    chatSql.indexOf(
+      'drop trigger if exists notify_new_follower_on_insert',
+    ),
+  );
+  assert.match(
+    postApprovedFunction,
+    /'brief'[\s\S]*your post has completed moderation review/,
+  );
+  assert.match(
+    postApprovedFunction,
+    /'decision_message'[\s\S]*passed moderation/,
+  );
+
+  const accountStatusFunction = sql.slice(
+    sql.indexOf('create or replace function public.set_user_account_status'),
+    sql.indexOf('create or replace function public.set_user_creator_status'),
+  );
+  assert.match(accountStatusFunction, /'account_suspended'/);
+  assert.match(accountStatusFunction, /'account_reactivated'/);
+  assert.match(accountStatusFunction, /'decision_message'[\s\S]*v_reason/);
+
+  const creatorStatusFunction = sql.slice(
+    sql.indexOf('create or replace function public.set_user_creator_status'),
+    sql.indexOf('create or replace function public.review_creator_request'),
+  );
+  assert.match(creatorStatusFunction, /'creator_status_removed'/);
+  assert.match(creatorStatusFunction, /'decision_message'[\s\S]*v_reason/);
+
+  const creatorRequestFunction = sql.slice(
+    sql.indexOf('create or replace function public.review_creator_request'),
+    sql.indexOf('create or replace function public.decide_report_case'),
+  );
+  assert.match(creatorRequestFunction, /'request rejected'/);
+  assert.match(
+    creatorRequestFunction,
+    /reason from the administrator:[\s\S]*v_reason/,
+  );
+  assert.match(creatorRequestFunction, /'decision_message'[\s\S]*v_reason/);
+  assert.match(creatorRequestFunction, /'verification application'/);
 
   const reportFunction = sql.slice(
     sql.indexOf('create or replace function public.decide_report_case'),
@@ -108,9 +149,36 @@ test('creator, moderation, report, and appeal notification rules stay explicit',
     reportFunction,
     /if p_decision = 'remove' then[\s\S]*perform public\.admin_portal_notify/,
   );
+  assert.match(reportFunction, /'reported_post_removed'/);
+  assert.match(reportFunction, /'reported_comment_removed'/);
+  assert.match(reportFunction, /'decision_message'[\s\S]*v_reason/);
+  assert.match(
+    sql,
+    /p_action_payload->>'post_id'[\s\S]*p_action_payload->>'comment_id'/,
+  );
   assert.doesNotMatch(
     reportFunction,
     /if p_decision = 'retain' then[\s\S]*perform public\.admin_portal_notify/,
+  );
+});
+
+test('system notification reason resolver is owner checked and covers legacy decisions', () => {
+  const resolver = sql.slice(
+    sql.indexOf(
+      'create or replace function public.fetch_system_notification_reason',
+    ),
+    sql.indexOf('create or replace function public.set_user_account_status'),
+  );
+
+  assert.match(resolver, /auth.uid()/);
+  assert.match(resolver, /notification.user_id = v_current_user/);
+  assert.match(resolver, /notification.type = 'system'/);
+  assert.match(resolver, /content_creator_requests/);
+  assert.match(resolver, /admin_action_audit/);
+  assert.match(resolver, /post_appeals/);
+  assert.match(
+    sql,
+    /grant execute on function public.fetch_system_notification_reason/,
   );
 });
 

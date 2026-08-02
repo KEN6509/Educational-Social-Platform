@@ -63,20 +63,26 @@ export function PostDetailModal({
   const image = post.images[selectedImage];
 
   return (
-    <FullScreenDialog isOpen={isOpen} label={post.title} onClose={onClose}>
+    <FullScreenDialog
+      headerLeading={
+        onBack ? (
+          <button
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 focus:outline-none focus:ring-4 focus:ring-cyan-100"
+            onClick={onBack}
+            type="button"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to all posts
+          </button>
+        ) : undefined
+      }
+      hideTitle
+      isOpen={isOpen}
+      label={post.title}
+      onClose={onClose}
+    >
       <div className="grid h-full min-h-0 lg:grid-cols-[minmax(0,58%)_minmax(22rem,42%)]">
         <section className="flex min-h-[20rem] flex-col bg-slate-100 p-4 sm:p-6 lg:min-h-0">
-          {onBack ? (
-            <button
-              className="mb-4 inline-flex w-fit items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:text-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100"
-              onClick={onBack}
-              type="button"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Back to all posts
-            </button>
-          ) : null}
-
           <div
             className="relative grid min-h-0 flex-1 place-items-center overflow-hidden rounded-xl bg-slate-900 shadow-sm"
             data-testid="post-media-stage"

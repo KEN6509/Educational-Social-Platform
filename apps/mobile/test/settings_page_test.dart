@@ -5,6 +5,64 @@ import 'package:cyanzone_mobile/src/core/widgets/app_confirmation_dialog.dart';
 import 'package:cyanzone_mobile/src/features/profile/presentation/settings_page.dart';
 
 void main() {
+  testWidgets('opens Verified Badge information from Account settings',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          loadNotificationPreferences: () async => const {},
+          saveNotificationPreferences: (_) async {},
+          signOut: () async {},
+          verifiedBadgePageBuilder: (_) => const Scaffold(
+            body: Text('Verified badge requirements'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Verified Badge'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verified badge requirements'), findsOneWidget);
+  });
+
+  testWidgets('opens Notification preferences from General settings',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          loadNotificationPreferences: () async => const {
+            'in_app_enabled': true,
+            'chat_enabled': true,
+            'activity_enabled': true,
+            'system_enabled': true,
+            'followers_enabled': true,
+          },
+          saveNotificationPreferences: (_) async {},
+          signOut: () async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('GENERAL'), findsOneWidget);
+    expect(find.text('Notification'), findsOneWidget);
+    expect(find.text('In-app notifications'), findsNothing);
+
+    await tester.tap(find.text('Notification'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Notification'), findsOneWidget);
+    expect(find.text('IN-APP NOTIFICATIONS'), findsOneWidget);
+    expect(find.text('In-app notifications'), findsOneWidget);
+    expect(find.text('Chat badges'), findsOneWidget);
+    expect(find.text('Activity messages'), findsOneWidget);
+    expect(find.text('System notifications'), findsOneWidget);
+    expect(find.text('New followers'), findsOneWidget);
+    expect(find.byType(SwitchListTile), findsNWidgets(5));
+  });
+
   Future<void> pumpSettings(
     WidgetTester tester, {
     required Future<void> Function() signOut,
@@ -52,6 +110,9 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Notification'));
     await tester.pumpAndSettle();
 
     await tester

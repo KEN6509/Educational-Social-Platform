@@ -383,6 +383,7 @@ void main() {
 
       expect(notification.actionType, 'open_rejected_post');
       expect(notification.systemTemplateType, 'post_rejected');
+      expect(notification.systemDisplayTitle, 'Post has been rejected');
       expect(notification.systemPostTitle, 'My first post');
       expect(
         notification.moderationEvidence,
@@ -411,8 +412,128 @@ void main() {
 
       expect(notification.isCreatorAward, isTrue);
       expect(notification.isPostRejection, isFalse);
+      expect(notification.systemDisplayTitle, 'Verification Application');
+      expect(
+        notification.systemBrief,
+        'Your account verification application has been reviewed.',
+      );
+      expect(notification.systemDecisionLabel, 'Congratulations');
+      expect(
+        notification.systemDecisionMessage,
+        'Your account is now verified as a CyanZone content creator.',
+      );
       expect(notification.moderationEvidence,
           'No additional moderation evidence was provided.');
+    });
+
+    test('separates a published-post greeting from its decision message', () {
+      final notification = ChatNotification.fromMap({
+        'id': 'system-post-approved-1',
+        'type': 'system',
+        'post_id': 'post-1',
+        'title': 'Your post was published successfully',
+        'body':
+            'Hi Ava,\n\nYour post “Morning walk” passed moderation and was published successfully.',
+        'created_at': '2026-08-02T00:00:00Z',
+        'action_payload': {
+          'template_type': 'post_approved',
+          'post_title': 'Morning walk',
+          'brief': 'Hi Ava,',
+        },
+      });
+
+      expect(
+        notification.systemBrief,
+        'Your post has completed moderation review.',
+      );
+      expect(
+        notification.systemDecisionMessage,
+        'Your post “Morning walk” passed moderation and was published successfully.',
+      );
+    });
+
+    test('maps structured reported-post removal and appeal eligibility', () {
+      final postRemoval = ChatNotification.fromMap({
+        'id': 'system-report-post-1',
+        'type': 'system',
+        'post_id': 'post-1',
+        'title': 'Content removed after reports',
+        'body': 'Your post was removed.',
+        'created_at': '2026-08-02T00:00:00Z',
+        'action_payload': {
+          'template_type': 'reported_post_removed',
+          'brief': 'We reviewed reports about your post.',
+          'decision_label': 'Decision',
+          'decision_message': 'The post breaks the safety guideline.',
+        },
+      });
+      final commentRemoval = ChatNotification.fromMap({
+        'id': 'system-report-comment-1',
+        'type': 'system',
+        'post_id': 'post-1',
+        'comment_id': 'comment-1',
+        'title': 'Content removed after reports',
+        'body': 'Your comment was removed.',
+        'created_at': '2026-08-02T00:00:00Z',
+        'action_payload': {
+          'template_type': 'reported_comment_removed',
+        },
+      });
+
+      expect(postRemoval.systemBrief, 'We reviewed reports about your post.');
+      expect(postRemoval.systemDecisionLabel, 'Decision');
+      expect(
+        postRemoval.systemDecisionMessage,
+        'The post breaks the safety guideline.',
+      );
+      expect(postRemoval.isAppealableModerationNotification, isTrue);
+      expect(commentRemoval.isAppealableModerationNotification, isFalse);
+    });
+
+    test('keeps legacy reported-post removal notices appealable', () {
+      final notification = ChatNotification.fromMap({
+        'id': 'legacy-system-report-post-1',
+        'type': 'system',
+        'post_id': 'post-1',
+        'title': 'Content removed after reports',
+        'body': 'Your post was removed after reviewing community reports.',
+        'created_at': '2026-08-01T00:00:00Z',
+        'action_payload': {'post_id': 'post-1'},
+      });
+
+      expect(notification.systemTemplateType, 'reported_post_removed');
+      expect(notification.postId, 'post-1');
+      expect(notification.isAppealableModerationNotification, isTrue);
+    });
+
+    test('only original rejected or report-removed post notices are appealable',
+        () {
+      ChatNotification notification(String templateType) =>
+          ChatNotification.fromMap({
+            'id': templateType,
+            'type': 'system',
+            'post_id': 'post-1',
+            'title': 'Update',
+            'body': 'Update body',
+            'created_at': '2026-08-02T00:00:00Z',
+            'action_payload': {'template_type': templateType},
+          });
+
+      expect(notification('post_rejected').isAppealableModerationNotification,
+          isTrue);
+      expect(
+        notification('reported_post_removed')
+            .isAppealableModerationNotification,
+        isTrue,
+      );
+      expect(
+          notification('post_appeal_rejected')
+              .isAppealableModerationNotification,
+          isFalse);
+      expect(
+          notification('creator_request_rejected')
+              .isAppealableModerationNotification,
+          isFalse);
     });
   });
 }

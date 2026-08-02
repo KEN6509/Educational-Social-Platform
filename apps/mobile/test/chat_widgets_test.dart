@@ -1527,8 +1527,12 @@ void main() {
         find.byKey(const ValueKey('system-notification-card-system-card-1'));
     expect(card, findsOneWidget);
     expect(find.text('System Notification'), findsOneWidget);
-    expect(find.text('Your post was not approved'), findsOneWidget);
+    expect(find.text('Post has been rejected'), findsOneWidget);
     expect(find.text('View more'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('system-notification-footer-system-card-1')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('notification-unread-dot-system-card-1')),
       findsOneWidget,
@@ -1591,6 +1595,8 @@ void main() {
 
   testWidgets('system notification detail renders creator award as email',
       (tester) async {
+    const adminReason =
+        'Your application shows consistent, valuable community contributions.';
     await tester.pumpWidget(
       MaterialApp(
         home: SystemNotificationDetailPage(
@@ -1605,15 +1611,131 @@ void main() {
               'template_type': 'creator_badge_awarded',
             },
           }),
+          loadDecisionReason: (notificationId) async {
+            expect(notificationId, 'creator-detail-1');
+            return adminReason;
+          },
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('You are now a verified content creator'), findsOneWidget);
-    expect(find.textContaining('Congratulations'), findsOneWidget);
+    expect(find.text('Verification Application'), findsOneWidget);
+    expect(
+      find.text('Your account verification application has been reviewed.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('system-notification-decision-card')),
+      findsOneWidget,
+    );
+    expect(find.text('Admin:'), findsOneWidget);
+    final creatorCard = find.byKey(
+      const ValueKey('system-notification-decision-card'),
+    );
+    expect(
+      find.descendant(
+        of: creatorCard,
+        matching: find.text(adminReason),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Your account is now verified as a CyanZone content creator.'),
+      findsNothing,
+    );
+    expect(
+      tester.getBottomLeft(find.text('Admin:')).dy,
+      lessThan(tester.getTopLeft(creatorCard).dy),
+    );
+    expect(find.text('Congratulations'), findsNothing);
+    expect(find.textContaining('We appreciate the time'), findsNothing);
     expect(find.byTooltip('Delete notification'), findsOneWidget);
-    expect(find.text('Send appeal'), findsNothing);
+    expect(find.text('Appeal decision'), findsNothing);
+  });
+
+  testWidgets('creator-status removal resolves the administrator reason',
+      (tester) async {
+    const adminReason =
+        'Creator access was removed after repeated guideline violations.';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'creator-removed-detail-1',
+            'type': 'system',
+            'title': 'Creator status updated',
+            'body':
+                'Your verified CyanZone content creator status has been removed.',
+            'created_at': '2026-08-01T22:28:00',
+          }),
+          loadDecisionReason: (notificationId) async {
+            expect(notificationId, 'creator-removed-detail-1');
+            return adminReason;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(
+      const ValueKey('system-notification-decision-card'),
+    );
+    expect(
+        find.descendant(of: card, matching: find.text(adminReason)), findsOne);
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.text(
+          'Your verified CyanZone content creator status has been removed.',
+        ),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('published-post detail briefly explains the notification',
+      (tester) async {
+    const result =
+        'Your post “Morning walk” passed moderation and was published successfully.';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'published-detail-1',
+            'type': 'system',
+            'post_id': 'post-1',
+            'title': 'Your post was published successfully',
+            'body': 'Hi Ava,\n\n$result',
+            'created_at': '2026-08-02T01:10:00',
+            'action_payload': {
+              'template_type': 'post_approved',
+              'post_title': 'Morning walk',
+              'brief': 'Hi Ava,',
+            },
+          }),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Your post has completed moderation review.'),
+      findsOneWidget,
+    );
+    expect(find.text('Hi Ava,'), findsNothing);
+    expect(find.text('Admin:'), findsOneWidget);
+    final card = find.byKey(
+      const ValueKey('system-notification-decision-card'),
+    );
+    expect(find.descendant(of: card, matching: find.text(result)), findsOne);
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.textContaining('Hi Ava,'),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('rejected system detail opens post and submits valid appeal',
@@ -1638,23 +1760,41 @@ void main() {
             },
           }),
           openRejectedPost: (_) async => openedPost = true,
-          loadAppealSubmitted: (_) async => false,
+          loadAppealState: (_) async => PostAppealState.none,
           submitAppeal: (_, reason) async => submittedReason = reason,
         ),
       ),
     );
     await tester.pumpAndSettle();
 
+    final postLink = find.byKey(
+      const ValueKey('rejected-post-inline-link'),
+    );
+    expect(find.text('View post'), findsOneWidget);
+    expect(find.text('My hiking post'), findsNothing);
+    expect(
+      tester.getBottomLeft(postLink).dy,
+      lessThan(tester.getTopLeft(find.text('Admin:')).dy),
+    );
     await tester.tap(
-      find.byKey(const ValueKey('rejected-post-inline-link')),
+      postLink,
     );
     await tester.pump();
     expect(openedPost, isTrue);
 
-    await tester.tap(find.text('Send appeal'));
-    await tester.pumpAndSettle();
     final field = find.byKey(const ValueKey('post-appeal-reason'));
     expect(field, findsOneWidget);
+    expect(find.byIcon(Icons.gavel_rounded), findsOneWidget);
+    expect(find.text('Appeal decision'), findsNothing);
+    expect(find.text('No appeal submitted'), findsNothing);
+    expect(find.text('Checking appeal status'), findsNothing);
+    expect(find.text('Appeal submitted'), findsNothing);
+    final counter = find.byKey(const ValueKey('post-appeal-counter'));
+    expect(find.text('0 / 500'), findsOneWidget);
+    expect(
+      tester.getTopRight(counter).dx,
+      closeTo(tester.getTopRight(field).dx, 0.1),
+    );
     await tester.enterText(field, 'Too short');
     await tester.pump();
     expect(
@@ -1670,11 +1810,138 @@ void main() {
         'This post is suitable because the image documents a public trail.';
     await tester.enterText(field, validReason);
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, 'Submit appeal'));
+    final submitButton = find.widgetWithText(FilledButton, 'Submit appeal');
+    await tester.ensureVisible(submitButton);
+    await tester.pumpAndSettle();
+    await tester.tap(submitButton);
     await tester.pumpAndSettle();
 
     expect(submittedReason, validReason);
     expect(find.text('Appeal submitted'), findsOneWidget);
+    expect(field, findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Submit appeal'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Submit appeal'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester.getBottomLeft(find.text('Appeal submitted')).dy,
+      lessThan(
+        tester
+            .getTopLeft(find.widgetWithText(FilledButton, 'Submit appeal'))
+            .dy,
+      ),
+    );
+  });
+
+  testWidgets('final rejected appeal is labelled and cannot be submitted again',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'rejected-final-1',
+            'type': 'system',
+            'post_id': 'post-1',
+            'title': 'Your post was not approved',
+            'body': 'Your post was rejected.',
+            'created_at': '2026-07-13T01:10:00',
+            'action_payload': {
+              'template_type': 'post_rejected',
+              'post_title': 'My hiking post',
+            },
+          }),
+          loadAppealState: (_) async => PostAppealState.rejected,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Appeal rejected · Final decision'), findsOneWidget);
+    expect(find.byKey(const ValueKey('post-appeal-reason')), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Submit appeal'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Submit appeal'),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('report-removed post can appeal but removed comment cannot',
+      (tester) async {
+    ChatNotification removal(String template, {String? commentId}) =>
+        ChatNotification.fromMap({
+          'id': template,
+          'type': 'system',
+          'post_id': 'post-1',
+          'comment_id': commentId,
+          'title': 'Content removed after reports',
+          'body': 'An administrator removed your content.',
+          'created_at': '2026-08-02T01:10:00',
+          'action_payload': {'template_type': template},
+        });
+
+    final widget = MaterialApp(
+      home: SystemNotificationDetailPage(
+        notification: removal('reported_post_removed'),
+        loadAppealState: (_) async => PostAppealState.none,
+      ),
+    );
+    await tester.pumpWidget(widget);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('post-appeal-reason')), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: removal(
+            'reported_comment_removed',
+            commentId: 'comment-1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('post-appeal-reason')), findsNothing);
+    expect(find.textContaining('Appeal '), findsNothing);
+  });
+
+  testWidgets('report-removal detail shows only its reason in the white card',
+      (tester) async {
+    const reason = 'The post violates the community safety guideline.';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'legacy-report-post-reason',
+            'type': 'system',
+            'title': 'Content removed after reports',
+            'body': 'An administrator removed your content.',
+            'created_at': '2026-08-02T01:10:00',
+            'action_payload': {'post_id': 'post-1'},
+          }),
+          loadAppealState: (_) async => PostAppealState.none,
+          loadDecisionReason: (_) async => reason,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(
+      const ValueKey('system-notification-decision-card'),
+    );
+    expect(find.text('Admin:'), findsOneWidget);
+    expect(find.descendant(of: card, matching: find.text(reason)), findsOne);
+    expect(find.descendant(of: card, matching: find.text('Decision')),
+        findsNothing);
+    expect(find.byKey(const ValueKey('post-appeal-reason')), findsOneWidget);
   });
 
   testWidgets('missing rejected post disables its link and appeal',
@@ -1695,7 +1962,7 @@ void main() {
             },
           }),
           openRejectedPost: (_) async => throw Exception('missing'),
-          loadAppealSubmitted: (_) async => false,
+          loadAppealState: (_) async => PostAppealState.none,
         ),
       ),
     );
@@ -1710,14 +1977,8 @@ void main() {
       find.byKey(const ValueKey('rejected-post-unavailable-message')),
       findsOneWidget,
     );
-    expect(
-      tester
-          .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Send appeal'),
-          )
-          .onPressed,
-      isNull,
-    );
+    expect(find.byKey(const ValueKey('post-appeal-reason')), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Submit appeal'), findsNothing);
   });
 
   testWidgets('post appeal preserves the reason when submission fails',

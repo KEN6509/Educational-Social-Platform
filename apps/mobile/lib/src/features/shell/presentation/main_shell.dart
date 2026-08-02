@@ -37,7 +37,7 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   final _homeKey = GlobalKey<HomeFeedPageState>();
   int _index = 0;
   int _profileRefreshSignal = 0;
@@ -49,6 +49,7 @@ class _MainShellState extends State<MainShell> {
   late Future<List<TagCategory>> _tagsFuture;
   bool _isInitialized = false;
   int _chatBadgeCount = 0;
+  RealtimeChannel? _notificationBadgeChannel;
 
   // Fixed tags for the horizontal bar
   static const _fixedTags = [
@@ -63,13 +64,35 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tagsRepository = TagsRepository(Supabase.instance.client);
     _chatRepository = ChatRepository(Supabase.instance.client);
     _tagsFuture = _tagsRepository.fetchCatalog();
     // Pre-initialize cache for smoother layout
     AspectRatioCache.init();
     _refreshChatBadge();
+    _notificationBadgeChannel = _chatRepository.subscribeToNotificationChanges(
+      channelName: 'main-shell-notification-badge',
+      onChange: (_) => _refreshChatBadge(),
+    );
     _initAsync();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshChatBadge();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    final channel = _notificationBadgeChannel;
+    if (channel != null) {
+      _chatRepository.unsubscribe(channel);
+    }
+    super.dispose();
   }
 
   Future<void> _initAsync() async {

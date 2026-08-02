@@ -12,10 +12,12 @@ import {
   type AdminApi,
 } from '../../lib/adminApi';
 import type {
+  AdminPostDetailView,
   CreatorRequestDetailView,
   CreatorRequestSummaryView,
   PageResult,
 } from '../../types/admin';
+import { PostDetailModal } from '../users/PostDetailModal';
 import { CreatorRequestDetail } from './CreatorRequestDetail';
 
 type Status = 'pending' | 'approved' | 'rejected';
@@ -41,6 +43,26 @@ export function CreatorRequestsPage({
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [mobileDetail, setMobileDetail] = useState(false);
+  const [postDetailOpen, setPostDetailOpen] = useState(false);
+  const [postDetail, setPostDetail] = useState<AdminPostDetailView | null>(null);
+  const [postDetailLoading, setPostDetailLoading] = useState(false);
+  const [postDetailError, setPostDetailError] = useState<string | null>(null);
+
+  async function openPost(postId: string) {
+    setPostDetailOpen(true);
+    setPostDetail(null);
+    setPostDetailError(null);
+    setPostDetailLoading(true);
+    try {
+      setPostDetail(
+        await api.get<AdminPostDetailView>(`/admin/posts/${postId}`),
+      );
+    } catch (nextError) {
+      setPostDetailError(messageOf(nextError));
+    } finally {
+      setPostDetailLoading(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -241,7 +263,10 @@ export function CreatorRequestsPage({
           ) : null}
           {detail ? (
             <>
-              <CreatorRequestDetail request={detail} />
+              <CreatorRequestDetail
+                onOpenPost={(postId) => void openPost(postId)}
+                request={detail}
+              />
               {decisionError ? (
                 <p
                   className="mx-5 mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
@@ -287,6 +312,17 @@ export function CreatorRequestsPage({
           ) : null}
         </div>
       </div>
+      <PostDetailModal
+        errorMessage={postDetailError}
+        isOpen={postDetailOpen}
+        loading={postDetailLoading}
+        onClose={() => {
+          setPostDetailOpen(false);
+          setPostDetail(null);
+          setPostDetailError(null);
+        }}
+        post={postDetail}
+      />
     </section>
   );
 }

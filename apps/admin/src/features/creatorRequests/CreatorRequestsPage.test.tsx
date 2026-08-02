@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { AdminApi } from '../../lib/adminApi';
 import type {
+  AdminPostDetailView,
   CreatorRequestDetailView,
   CreatorRequestSummaryView,
   PageResult,
@@ -47,6 +48,15 @@ const detail: CreatorRequestDetailView = {
   recentDecisions: [],
 };
 
+const postDetail: AdminPostDetailView = {
+  ...detail.recentPosts[0]!,
+  authorId: 'user-1',
+  authorName: 'Lena Park',
+  authorAvatarUrl: null,
+  images: [],
+  comments: [],
+};
+
 function createApi() {
   return {
     get: vi.fn(async (path: string) => {
@@ -58,6 +68,7 @@ function createApi() {
           total: 1,
         } satisfies PageResult<CreatorRequestSummaryView>;
       }
+      if (path === '/admin/posts/post-1') return postDetail;
       return detail;
     }),
     post: vi.fn().mockResolvedValue(undefined),
@@ -78,6 +89,9 @@ describe('CreatorRequestsPage', () => {
     ).toBeVisible();
     expect(screen.getByText('Build a Lemon Battery')).toBeVisible();
     expect(
+      screen.getByTestId('recent-post-media-post-1'),
+    ).toBeVisible();
+    expect(
       screen.getAllByText(
         'I create practical science lessons for teenagers.',
       ),
@@ -90,6 +104,23 @@ describe('CreatorRequestsPage', () => {
       search: '',
       status: 'approved',
     });
+  });
+
+  it('reuses the Users post card and opens the shared post detail', async () => {
+    const user = userEvent.setup();
+    const api = createApi();
+    render(<CreatorRequestsPage api={api} />);
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Open post Build a Lemon Battery',
+      }),
+    );
+
+    expect(api.get).toHaveBeenCalledWith('/admin/posts/post-1');
+    expect(
+      await screen.findByRole('dialog', { name: 'Build a Lemon Battery' }),
+    ).toBeVisible();
   });
 
   it('requires a reason and confirms approval or rejection', async () => {
@@ -111,6 +142,42 @@ describe('CreatorRequestsPage', () => {
       {
         decision: 'approved',
         reason: 'Profile and educational content meet creator standards.',
+      },
+    );
+  });
+
+  it('requires and sends the administrator reason when rejecting', async () => {
+    const user = userEvent.setup();
+    const api = createApi();
+    render(<CreatorRequestsPage api={api} />);
+    await screen.findByText('Build a Lemon Battery');
+
+    await user.click(screen.getByRole('button', { name: 'Reject request' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Enter a reason between 10 and 500 characters before choosing "Reject request".',
+    );
+    expect(api.post).not.toHaveBeenCalled();
+
+    await user.type(
+      screen.getByLabelText(/Decision reason/),
+      'The account needs more original educational content.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Reject request' }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Reject this creator request?',
+    });
+    expect(dialog).toHaveTextContent(
+      'The request will be rejected and the requester will receive your reason.',
+    );
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Confirm rejection' }),
+    );
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/admin/creator-requests/request-1/decision',
+      {
+        decision: 'rejected',
+        reason: 'The account needs more original educational content.',
       },
     );
   });

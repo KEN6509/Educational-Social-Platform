@@ -28,7 +28,7 @@ class SystemNotificationCard extends StatelessWidget {
       child: InkWell(
         onTap: onOpen,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
           decoration: BoxDecoration(
             border: Border.all(
               color: isUnread
@@ -111,50 +111,54 @@ class SystemNotificationCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
-                notification.title,
+                notification.systemDisplayTitle,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFF0F172A),
-                  fontSize: 19,
+                  fontSize: 18,
                   height: 1.2,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                notification.body,
-                maxLines: 3,
+                notification.systemBrief,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFF64748B),
-                  fontSize: 15,
-                  height: 1.4,
+                  fontSize: 14,
+                  height: 1.35,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  _formatSystemNotificationDate(notification.createdAt),
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
               const SizedBox(height: 12),
-              const Text(
-                'View more',
-                style: TextStyle(
-                  color: Color(0xFF0F172A),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+              Row(
+                key: ValueKey(
+                  'system-notification-footer-${notification.id}',
                 ),
+                children: [
+                  const Text(
+                    'View more',
+                    style: TextStyle(
+                      color: Color(0xFF0F172A),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    _formatSystemNotificationDate(notification.createdAt),
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -187,9 +191,13 @@ class PostAppealForm extends StatefulWidget {
   const PostAppealForm({
     super.key,
     required this.onSubmit,
+    this.onSubmitted,
+    this.appealState = PostAppealState.none,
   });
 
   final Future<void> Function(String reason) onSubmit;
+  final VoidCallback? onSubmitted;
+  final PostAppealState appealState;
 
   @override
   State<PostAppealForm> createState() => _PostAppealFormState();
@@ -217,7 +225,9 @@ class _PostAppealFormState extends State<PostAppealForm> {
     });
     try {
       await widget.onSubmit(_reason);
-      if (mounted) Navigator.of(context).pop(true);
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      widget.onSubmitted?.call();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -229,79 +239,135 @@ class _PostAppealFormState extends State<PostAppealForm> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          20,
-          20,
-          20 + MediaQuery.viewInsetsOf(context).bottom,
+    final canSubmit = widget.appealState == PostAppealState.none;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(
+              Icons.gavel_rounded,
+              size: 22,
+              color: Color(0xFF0F172A),
+            ),
+            SizedBox(width: 9),
+            Text(
+              'Send an appeal',
+              style: TextStyle(
+                color: Color(0xFF0F172A),
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Send an appeal',
-                style: TextStyle(
-                  color: Color(0xFF0F172A),
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Explain why you believe this post is suitable for CyanZone.',
-                style: TextStyle(color: Color(0xFF64748B), height: 1.4),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                key: const ValueKey('post-appeal-reason'),
-                controller: _controller,
-                autofocus: true,
-                minLines: 4,
-                maxLines: 7,
-                maxLength: 500,
-                onChanged: (_) => setState(() => _error = null),
-                decoration: InputDecoration(
-                  hintText: 'Write 20–500 characters',
-                  errorText: _error,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _submitting
-                          ? null
-                          : () => Navigator.of(context).pop(false),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _isValid && !_submitting ? _submit : null,
-                      child: _submitting
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Submit appeal'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+        if (canSubmit) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Explain why you believe this post is suitable for CyanZone.',
+            style: TextStyle(color: Color(0xFF64748B), height: 1.4),
           ),
+          const SizedBox(height: 16),
+          TextField(
+            key: const ValueKey('post-appeal-reason'),
+            controller: _controller,
+            minLines: 4,
+            maxLines: 7,
+            maxLength: 500,
+            onChanged: (_) => setState(() => _error = null),
+            decoration: InputDecoration(
+              hintText: 'Write 20–500 characters',
+              errorText: _error,
+              counterText: '',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            key: const ValueKey('post-appeal-counter'),
+            alignment: Alignment.centerRight,
+            child: Text(
+              '${_controller.text.length} / 500',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+        if (!canSubmit) ...[
+          const SizedBox(height: 16),
+          _InlineAppealStatus(state: widget.appealState),
+        ],
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: canSubmit && _isValid && !_submitting ? _submit : null,
+            child: _submitting
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('Submit appeal'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InlineAppealStatus extends StatelessWidget {
+  const _InlineAppealStatus({required this.state});
+
+  final PostAppealState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = switch (state) {
+      PostAppealState.pending => (
+          label: 'Appeal submitted',
+          color: const Color(0xFF9A6700),
+          background: const Color(0xFFFFF8E1),
+        ),
+      PostAppealState.approved => (
+          label: 'Appeal approved',
+          color: const Color(0xFF047857),
+          background: const Color(0xFFECFDF5),
+        ),
+      PostAppealState.rejected => (
+          label: 'Appeal rejected · Final decision',
+          color: const Color(0xFFB91C1C),
+          background: const Color(0xFFFEF2F2),
+        ),
+      PostAppealState.none => throw StateError(
+          'An appeal status is only rendered after submission.',
+        ),
+    };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: data.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: data.color.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        data.label,
+        style: TextStyle(
+          color: data.color,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );

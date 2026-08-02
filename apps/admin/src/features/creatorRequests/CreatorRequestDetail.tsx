@@ -8,11 +8,14 @@ import {
 
 import { StatusBadge } from '../../components/casework/StatusBadge';
 import type { CreatorRequestDetailView } from '../../types/admin';
+import { RecentPostsCarousel } from '../users/RecentPostsCarousel';
 
 export function CreatorRequestDetail({
   request,
+  onOpenPost,
 }: {
   request: CreatorRequestDetailView;
+  onOpenPost: (postId: string) => void;
 }) {
   return (
     <div className="p-5 lg:p-6">
@@ -73,27 +76,19 @@ export function CreatorRequestDetail({
       </section>
 
       <section className="mt-6">
-        <h3 className="text-base font-black">Recent educational content</h3>
+        <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">
+          Recent published content
+        </h3>
         {request.recentPosts.length === 0 ? (
           <p className="mt-3 rounded-lg bg-slate-50 px-4 py-5 text-sm text-slate-500">
             No recent published posts.
           </p>
         ) : (
-          <div className="mt-3 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-            {request.recentPosts.map((post) => (
-              <article
-                className="rounded-xl border border-slate-200 bg-white p-4"
-                key={post.id}
-              >
-                <h4 className="font-extrabold">{post.title}</h4>
-                <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
-                  {post.content}
-                </p>
-                <p className="mt-3 text-xs text-slate-400">
-                  {post.publishedAt ? formatDate(post.publishedAt) : 'Not published'}
-                </p>
-              </article>
-            ))}
+          <div className="mt-3">
+            <RecentPostsCarousel
+              onOpenPost={onOpenPost}
+              posts={request.recentPosts}
+            />
           </div>
         )}
       </section>

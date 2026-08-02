@@ -14,17 +14,24 @@ class ContentCreatorBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isVisible) return const SizedBox.shrink();
 
-    return Container(
+    return SizedBox(
+      key: const ValueKey('verified-creator-rosette'),
       width: size,
       height: size,
-      decoration: const BoxDecoration(
-        color: Color(0xFF2F8FED),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        Icons.check_rounded,
-        color: Colors.white,
-        size: size * 0.78,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(
+            Icons.verified_rounded,
+            color: const Color(0xFF4490AD),
+            size: size,
+          ),
+          Icon(
+            Icons.check_rounded,
+            color: Colors.white,
+            size: size * 0.58,
+          ),
+        ],
       ),
     );
   }

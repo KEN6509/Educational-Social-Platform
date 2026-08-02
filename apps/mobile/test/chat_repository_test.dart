@@ -308,9 +308,24 @@ void main() {
       expect(source, contains('.delete()'));
       expect(source, contains('Future<bool> hasPostAppeal'));
       expect(source, contains(".from('post_appeals')"));
+      expect(source, contains('Future<PostAppealState> fetchPostAppealState'));
+      expect(source, contains(".select('status')"));
       expect(source, contains('Future<void> submitPostAppeal'));
       expect(source, contains("'p_post_id': postId"));
       expect(source, contains("'p_reason': reason.trim()"));
+      expect(source, contains('fetchSystemNotificationReasonRpc'));
+      expect(source, contains("'fetch_system_notification_reason'"));
+      expect(
+        source,
+        contains('Future<String?> fetchSystemNotificationReason'),
+      );
+      expect(source, contains("'p_notification_id': notificationId"));
+
+      final detailSource = File(
+        'lib/src/features/chat/presentation/system_notification_detail_page.dart',
+      ).readAsStringSync();
+      expect(detailSource, contains('loadDecisionReason'));
+      expect(detailSource, contains('fetchSystemNotificationReason'));
     });
 
     test(
@@ -446,6 +461,33 @@ void main() {
       expect(
         refreshSource,
         isNot(contains('setState(() => _chatBadgeCount = 0)')),
+      );
+    });
+
+    test('main shell owns foreground notification badge realtime lifecycle',
+        () {
+      final repositorySource =
+          File('lib/src/features/chat/data/chat_repository.dart')
+              .readAsStringSync();
+      final shellSource =
+          File('lib/src/features/shell/presentation/main_shell.dart')
+              .readAsStringSync();
+      final sectionSource = File(
+        'lib/src/features/chat/presentation/notification_sections_page.dart',
+      ).readAsStringSync();
+
+      expect(
+        repositorySource,
+        contains('RealtimeChannel subscribeToNotificationChanges'),
+      );
+      expect(shellSource, contains('with WidgetsBindingObserver'));
+      expect(shellSource,
+          contains("channelName: 'main-shell-notification-badge'"));
+      expect(shellSource, contains('AppLifecycleState.resumed'));
+      expect(shellSource, contains('_chatRepository.unsubscribe(channel)'));
+      expect(
+        sectionSource,
+        contains("channelName: 'notification-section-\${_section.name}'"),
       );
     });
   });

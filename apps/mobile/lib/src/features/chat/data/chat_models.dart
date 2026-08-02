@@ -12,6 +12,21 @@ enum NotificationSection { activity, system, followers, chat }
 
 enum NotificationActivityGroup { likesFavorites, comments, mentions, other }
 
+enum PostAppealState {
+  none,
+  pending,
+  approved,
+  rejected;
+
+  static PostAppealState fromValue(Object? value) {
+    final normalized = value?.toString().trim().toLowerCase();
+    return PostAppealState.values.firstWhere(
+      (state) => state.name == normalized,
+      orElse: () => PostAppealState.none,
+    );
+  }
+}
+
 class ChatParticipant {
   const ChatParticipant({
     required this.id,
@@ -519,8 +534,20 @@ class ChatNotification {
   final Map<String, dynamic> actionPayload;
 
   bool get isUnread => readAt == null;
-  String? get systemTemplateType =>
-      _nullableStringValue(actionPayload['template_type']);
+  String? get systemTemplateType {
+    final templateType = _nullableStringValue(actionPayload['template_type']);
+    if (templateType != null) return templateType;
+
+    // Notifications created before structured templates were introduced still
+    // need the same moderation actions as newly created records.
+    if (title == 'Content removed after reports') {
+      return commentId == null
+          ? 'reported_post_removed'
+          : 'reported_comment_removed';
+    }
+    return null;
+  }
+
   String? get systemPostTitle =>
       _nullableStringValue(actionPayload['post_title']);
   String get moderationEvidence =>
@@ -530,6 +557,76 @@ class ChatNotification {
       _dateTimeValue(actionPayload['scheduled_deletion_at']);
   bool get isPostRejection => systemTemplateType == 'post_rejected';
   bool get isCreatorAward => systemTemplateType == 'creator_badge_awarded';
+  bool get isAppealableModerationNotification =>
+      postId != null &&
+      (systemTemplateType == 'post_rejected' ||
+          systemTemplateType == 'reported_post_removed');
+
+  String get systemDisplayTitle => switch (systemTemplateType) {
+        'creator_badge_awarded' => 'Verification Application',
+        'post_rejected' => 'Post has been rejected',
+        _ => title,
+      };
+
+  String get systemBrief {
+    if (systemTemplateType == 'post_approved') {
+      return 'Your post has completed moderation review.';
+    }
+    final structured = _nullableStringValue(actionPayload['brief']);
+    if (structured != null) return structured;
+    return switch (systemTemplateType) {
+      'creator_badge_awarded' ||
+      'creator_request_rejected' =>
+        'Your account verification application has been reviewed.',
+      'post_rejected' => 'An administrator reviewed your flagged post.',
+      'reported_post_removed' =>
+        'We reviewed community reports about your post.',
+      'reported_comment_removed' =>
+        'We reviewed community reports about your comment.',
+      'post_appeal_approved' ||
+      'post_appeal_rejected' =>
+        'Your content appeal has been reviewed.',
+      _ => body.split('\n').firstWhere(
+            (line) => line.trim().isNotEmpty,
+            orElse: () => 'There is an update to your CyanZone account.',
+          ),
+    };
+  }
+
+  String get systemDecisionLabel {
+    final structured = _nullableStringValue(actionPayload['decision_label']);
+    if (structured != null) return structured;
+    return switch (systemTemplateType) {
+      'creator_badge_awarded' => 'Congratulations',
+      'creator_request_rejected' => 'Administrator feedback',
+      _ => 'Decision',
+    };
+  }
+
+  String get systemDecisionMessage {
+    final structured = _nullableStringValue(actionPayload['decision_message']);
+    if (structured != null) return structured;
+    if (isCreatorAward) {
+      return 'Your account is now verified as a CyanZone content creator.';
+    }
+    if (systemTemplateType == 'creator_request_rejected') {
+      const marker = 'Reason from the administrator:';
+      final markerIndex = body.indexOf(marker);
+      if (markerIndex >= 0) {
+        final after = body.substring(markerIndex + marker.length).trim();
+        final paragraphEnd = after.indexOf('\n\n');
+        return paragraphEnd < 0 ? after : after.substring(0, paragraphEnd);
+      }
+    }
+    if (systemTemplateType == 'post_approved') {
+      final paragraphs = body.split(RegExp(r'\r?\n\s*\r?\n'));
+      if (paragraphs.length > 1) {
+        return paragraphs.skip(1).join('\n\n').trim();
+      }
+    }
+    if (isPostRejection) return moderationEvidence;
+    return body;
+  }
 
   NotificationSection get section {
     switch (type) {
@@ -610,8 +707,12 @@ class ChatNotification {
       actorAvatarUrl: _nullableStringValue(
         (map['profiles'] as Map?)?['avatar_url'] ?? map['actor_avatar_url'],
       ),
-      postId: _nullableStringValue(map['post_id'] ?? map['postId']),
-      commentId: _nullableStringValue(map['comment_id'] ?? map['commentId']),
+      postId: _nullableStringValue(
+        map['post_id'] ?? map['postId'] ?? actionPayload['post_id'],
+      ),
+      commentId: _nullableStringValue(
+        map['comment_id'] ?? map['commentId'] ?? actionPayload['comment_id'],
+      ),
       postFirstImageUrl: _nullableStringValue(
         postImages.isEmpty
             ? map['post_first_image_url']

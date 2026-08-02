@@ -6,6 +6,8 @@ type Props = {
   label: string;
   onClose: () => void;
   children: ReactNode;
+  headerLeading?: ReactNode;
+  hideTitle?: boolean;
 };
 
 const focusableSelector = [
@@ -22,6 +24,8 @@ export function FullScreenDialog({
   label,
   onClose,
   children,
+  headerLeading,
+  hideTitle = false,
 }: Props) {
   const dialogRef = useRef<HTMLElement>(null);
   const originRef = useRef<HTMLElement | null>(null);
@@ -95,9 +99,14 @@ export function FullScreenDialog({
         tabIndex={-1}
       >
         <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-3">
-          <h2 className="truncate text-base font-black text-cyanZone-ink">
-            {label}
-          </h2>
+          <div className="min-w-0">
+            {headerLeading ??
+              (!hideTitle ? (
+                <h2 className="truncate text-base font-black text-cyanZone-ink">
+                  {label}
+                </h2>
+              ) : null)}
+          </div>
           <button
             aria-label="Close"
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-cyan-100"

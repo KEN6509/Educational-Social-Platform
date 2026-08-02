@@ -65,6 +65,7 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     with WidgetsBindingObserver {
   late NotificationSection _section;
   ChatRepository? _repository;
+  RealtimeChannel? _notificationChannel;
   late Future<List<ChatNotification>> _future;
   NotificationActivityFilter _activityFilter = NotificationActivityFilter.all;
   bool _showActivityFilters = false;
@@ -83,11 +84,21 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     WidgetsBinding.instance.addObserver(this);
     _section = widget.initialSection;
     _future = _load();
+    if (widget.loadNotifications == null) {
+      _notificationChannel = _repo.subscribeToNotificationChanges(
+        channelName: 'notification-section-${_section.name}',
+        onChange: (_) => _refreshNotifications(),
+      );
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    final channel = _notificationChannel;
+    if (channel != null) {
+      _repo.unsubscribe(channel);
+    }
     super.dispose();
   }
 
@@ -321,7 +332,9 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
       },
       child: ChatNoSplash(
         child: Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: _section == NotificationSection.system
+              ? const Color(0xFFF4F6F8)
+              : Colors.white,
           appBar: AppBar(
             backgroundColor: Colors.white,
             elevation: 0,

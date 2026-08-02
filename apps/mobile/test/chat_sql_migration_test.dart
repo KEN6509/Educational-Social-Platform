@@ -201,7 +201,43 @@ void main() {
     expect(sql, contains('system_enabled'));
     expect(sql, contains('Users delete own notifications'));
     expect(sql, contains("'creator_badge_awarded'"));
+    expect(sql, contains("'Verification Application'"));
+    expect(sql, contains("'decision_message'"));
     expect(sql, contains("'post_rejected'"));
+    expect(sql, contains("'Post has been rejected'"));
+    expect(sql, isNot(contains("'Your post was not approved'")));
+    expect(sql, contains('new.reviewed_by is not null'));
+    expect(sql, contains('An administrator reviewed your flagged post'));
     expect(sql, contains("'scheduled_deletion_at'"));
+    expect(
+      sql,
+      contains("p.moderation_status = 'rejected'"),
+    );
+    expect(sql, contains('p.reviewed_by is not null'));
+    expect(sql, contains("p.moderation_status = 'removed'"));
+  });
+
+  test('admin SQL resolves only the owner system notification reason', () {
+    final sql = File('../../supabase/admin_portal.sql').readAsStringSync();
+
+    expect(
+      sql,
+      contains(
+        'create or replace function public.fetch_system_notification_reason',
+      ),
+    );
+    expect(sql, contains('v_current_user uuid := auth.uid()'));
+    expect(sql, contains('notification.user_id = v_current_user'));
+    expect(sql, contains("notification.type = 'system'"));
+    expect(sql, contains("action_payload->>'decision_message'"));
+    expect(sql, contains('content_creator_requests'));
+    expect(sql, contains('admin_action_audit'));
+    expect(sql, contains('post_appeals'));
+    expect(
+      sql,
+      contains(
+        'grant execute on function public.fetch_system_notification_reason',
+      ),
+    );
   });
 }

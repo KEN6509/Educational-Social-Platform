@@ -1557,9 +1557,15 @@ begin
     from public.posts p
     where p.id = p_post_id
       and p.author_id = v_current_user
-      and p.moderation_status = 'rejected'
+      and (
+        (
+          p.moderation_status = 'rejected'
+          and p.reviewed_by is not null
+        )
+        or p.moderation_status = 'removed'
+      )
   ) then
-    raise exception 'Only the author can appeal a rejected post';
+    raise exception 'Only the author can appeal a rejected or removed post';
   end if;
 
   if exists (
@@ -1597,13 +1603,16 @@ begin
     select
       new.id,
       'system',
-      'You are now a verified content creator',
-      format(
-        E'Hi %s,\n\nWe appreciate the time and effort you have invested in sharing valuable content with the CyanZone community. We are pleased to let you know that you have been awarded the Content Creator badge and are now a verified CyanZone creator.\n\nOur creator programme is still growing. We are planning creator benefits and developing tools such as content analytics, data visualisation, music support, and additional photo-editing options.\n\nCyanZone will continue improving these tools, and we hope you will continue creating content that makes the community more useful, welcoming, and inspiring.\n\nCongratulations, and thank you for being an active part of CyanZone.',
-        new.name
-      ),
+      'Verification Application',
+      'Your account verification application has been reviewed.',
       'none',
-      jsonb_build_object('template_type', 'creator_badge_awarded')
+      jsonb_build_object(
+        'template_type', 'creator_badge_awarded',
+        'brief', 'Your account verification application has been reviewed.',
+        'decision_label', 'Congratulations',
+        'decision_message',
+          'Your account is now verified as a CyanZone content creator.'
+      )
     where coalesce((
       select np.in_app_enabled and np.system_enabled
       from public.notification_preferences np
@@ -1637,6 +1646,7 @@ declare
 begin
   if old.moderation_status is distinct from 'rejected'
     and new.moderation_status = 'rejected'
+    and new.reviewed_by is not null
   then
     select p.name
     into v_author_name
@@ -1668,9 +1678,9 @@ begin
       new.author_id,
       'system',
       new.id,
-      'Your post was not approved',
+      'Post has been rejected',
       format(
-        E'Hi %s,\n\nUnfortunately, your post “%s” was not approved because our moderation system detected content that may not be suitable for CyanZone.\n\nEvidence from moderation:\n%s\n\nYour post will remain in rejected status for seven days and is scheduled for removal on %s. You may edit the content and publish a revised post, or submit an appeal if you believe the moderation result is inaccurate.\n\nAppeals are sent to the CyanZone administration team for careful review. We will notify you when a future moderation workflow records the outcome.\n\nThank you for contributing to CyanZone. We hope you continue creating thoughtful and valuable content for the community.',
+        E'Hi %s,\n\nAn administrator reviewed your flagged post “%s” and rejected it.\n\nReason:\n%s\n\nYour post will remain rejected for seven days and is scheduled for removal on %s. You may edit and resubmit the content, or send one appeal if you believe this decision is incorrect.',
         coalesce(v_author_name, 'CyanZone creator'),
         new.title,
         v_evidence,
@@ -1680,6 +1690,9 @@ begin
       jsonb_build_object(
         'template_type', 'post_rejected',
         'post_title', new.title,
+        'brief', 'An administrator reviewed your flagged post.',
+        'decision_label', 'Decision',
+        'decision_message', v_evidence,
         'moderation_evidence', v_evidence,
         'rejected_at', v_rejected_at,
         'scheduled_deletion_at', v_deletion_at
@@ -1742,7 +1755,12 @@ begin
       'post_detail',
       jsonb_build_object(
         'template_type', 'post_approved',
-        'post_title', new.title
+        'post_title', new.title,
+        'brief', 'Your post has completed moderation review.',
+        'decision_message', format(
+          'Your post “%s” passed moderation and was published successfully.',
+          new.title
+        )
       )
     where coalesce((
       select np.in_app_enabled and np.system_enabled

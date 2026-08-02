@@ -116,6 +116,15 @@ describe('casework components', () => {
       'Enter a reason between 10 and 500 characters before choosing "Remove content".',
     );
     expect(screen.getByLabelText(/Decision reason/)).toHaveFocus();
+    expect(screen.getByTestId('decision-reason-footer')).toHaveClass(
+      'flex',
+      'flex-wrap',
+    );
+    expect(screen.getByTestId('decision-reason-count')).toHaveClass(
+      'ml-auto',
+      'shrink-0',
+      'text-right',
+    );
   });
 
   it('requires a valid reason for both actions by default', async () => {

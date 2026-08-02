@@ -59,6 +59,8 @@ class ChatRepository {
   static const markNotificationReadRpc = 'mark_notification_read';
   static const markNotificationSectionReadRpc =
       'mark_notification_section_read';
+  static const fetchSystemNotificationReasonRpc =
+      'fetch_system_notification_reason';
   static const submitPostAppealRpc = 'submit_post_appeal';
   static const fetchUnvisitedChatMentionsRpc = 'fetch_unvisited_chat_mentions';
   static const markChatMentionVisitedRpc = 'mark_chat_mention_visited';
@@ -514,14 +516,27 @@ class ChatRepository {
   }
 
   Future<bool> hasPostAppeal(String postId) async {
+    return await fetchPostAppealState(postId) != PostAppealState.none;
+  }
+
+  Future<PostAppealState> fetchPostAppealState(String postId) async {
     final currentUserId = _requireCurrentUserId();
     final response = await _client
         .from('post_appeals')
-        .select('id')
+        .select('status')
         .eq('post_id', postId)
         .eq('user_id', currentUserId)
         .maybeSingle();
-    return response != null;
+    return PostAppealState.fromValue(response?['status']);
+  }
+
+  Future<String?> fetchSystemNotificationReason(String notificationId) async {
+    final response = await _client.rpc<dynamic>(
+      fetchSystemNotificationReasonRpc,
+      params: {'p_notification_id': notificationId},
+    );
+    final reason = response?.toString().trim();
+    return reason == null || reason.isEmpty ? null : reason;
   }
 
   Future<void> submitPostAppeal({
@@ -827,6 +842,21 @@ class ChatRepository {
           table: 'chat_messages',
           callback: onChange,
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          callback: onChange,
+        )
+        .subscribe();
+  }
+
+  RealtimeChannel subscribeToNotificationChanges({
+    required String channelName,
+    required void Function(PostgresChangePayload payload) onChange,
+  }) {
+    return _client
+        .channel(channelName)
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',

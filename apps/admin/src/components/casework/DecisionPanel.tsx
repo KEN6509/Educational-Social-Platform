@@ -87,17 +87,25 @@ export function DecisionPanel({
             ref={reasonRef}
             value={reason}
           />
-          {validationError ? (
+          <span
+            className="mt-1 flex flex-wrap items-start gap-x-3 gap-y-1"
+            data-testid="decision-reason-footer"
+          >
+            {validationError ? (
+              <span
+                className="min-w-0 flex-1 basis-72 text-sm font-semibold text-red-600"
+                id="decision-reason-error"
+                role="alert"
+              >
+                {validationError}
+              </span>
+            ) : null}
             <span
-              className="mt-1 block text-sm font-semibold text-red-600"
-              id="decision-reason-error"
-              role="alert"
+              className="ml-auto shrink-0 text-right text-xs font-medium text-slate-500"
+              data-testid="decision-reason-count"
             >
-              {validationError}
+              {reason.length} / 500
             </span>
-          ) : null}
-          <span className="mt-1 block text-right text-xs font-medium text-slate-500">
-            {reason.length} / 500
           </span>
         </label>
         <div className="grid content-start gap-3 pt-7">

@@ -9,7 +9,10 @@ import 'chat_widgets.dart';
 import 'system_notification_widgets.dart';
 
 typedef RejectedPostOpener = Future<void> Function(String postId);
-typedef AppealStateLoader = Future<bool> Function(String postId);
+typedef AppealStateLoader = Future<PostAppealState> Function(String postId);
+typedef SystemNotificationReasonLoader = Future<String?> Function(
+  String notificationId,
+);
 typedef AppealSubmitter = Future<void> Function(
   String postId,
   String reason,
@@ -23,14 +26,16 @@ class SystemNotificationDetailPage extends StatefulWidget {
     super.key,
     required this.notification,
     this.openRejectedPost,
-    this.loadAppealSubmitted,
+    this.loadAppealState,
+    this.loadDecisionReason,
     this.submitAppeal,
     this.deleteNotification,
   });
 
   final ChatNotification notification;
   final RejectedPostOpener? openRejectedPost;
-  final AppealStateLoader? loadAppealSubmitted;
+  final AppealStateLoader? loadAppealState;
+  final SystemNotificationReasonLoader? loadDecisionReason;
   final AppealSubmitter? submitAppeal;
   final SystemNotificationDeleteAction? deleteNotification;
 
@@ -42,7 +47,8 @@ class SystemNotificationDetailPage extends StatefulWidget {
 class _SystemNotificationDetailPageState
     extends State<SystemNotificationDetailPage> {
   ChatRepository? _repository;
-  bool _appealSubmitted = false;
+  PostAppealState _appealState = PostAppealState.none;
+  String? _resolvedDecisionReason;
   bool _loadingAppeal = false;
   bool _postUnavailable = false;
 
@@ -52,9 +58,33 @@ class _SystemNotificationDetailPageState
   @override
   void initState() {
     super.initState();
-    if (widget.notification.isPostRejection &&
+    if (_needsDecisionReasonRecovery) {
+      _loadDecisionReason();
+    }
+    if (widget.notification.isAppealableModerationNotification &&
         widget.notification.postId != null) {
       _loadAppealState();
+    }
+  }
+
+  bool get _needsDecisionReasonRecovery =>
+      (widget.notification.actionPayload['decision_message']
+              ?.toString()
+              .trim()
+              .isEmpty ??
+          true);
+
+  Future<void> _loadDecisionReason() async {
+    try {
+      final loader = widget.loadDecisionReason;
+      final reason = await (loader?.call(widget.notification.id) ??
+          _repo.fetchSystemNotificationReason(widget.notification.id));
+      if (mounted && reason != null && reason.trim().isNotEmpty) {
+        setState(() => _resolvedDecisionReason = reason.trim());
+      }
+    } catch (_) {
+      // Existing fallback copy remains available if a legacy reason cannot be
+      // recovered; new notifications carry the reason in their payload.
     }
   }
 
@@ -62,10 +92,10 @@ class _SystemNotificationDetailPageState
     setState(() => _loadingAppeal = true);
     try {
       final postId = widget.notification.postId!;
-      final loader = widget.loadAppealSubmitted;
-      final submitted =
-          await (loader?.call(postId) ?? _repo.hasPostAppeal(postId));
-      if (mounted) setState(() => _appealSubmitted = submitted);
+      final loader = widget.loadAppealState;
+      final state =
+          await (loader?.call(postId) ?? _repo.fetchPostAppealState(postId));
+      if (mounted) setState(() => _appealState = state);
     } catch (_) {
       // The action remains available; server validation still prevents
       // duplicate or stale submissions.
@@ -84,7 +114,8 @@ class _SystemNotificationDetailPageState
         return;
       }
       final post = await _repo.fetchPostForNotification(postId);
-      if (post.moderationStatus != 'rejected') {
+      if (!{'rejected', 'removed', 'approved'}
+          .contains(post.moderationStatus)) {
         throw const ChatNotificationPostUnavailableException();
       }
       if (!mounted) return;
@@ -104,24 +135,20 @@ class _SystemNotificationDetailPageState
     }
   }
 
-  Future<void> _showAppealForm() async {
+  Future<void> _submitAppeal(String reason) async {
     final postId = widget.notification.postId;
-    if (postId == null || _appealSubmitted || _postUnavailable) return;
-    final submitted = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => PostAppealForm(
-        onSubmit: (reason) {
-          final submitter = widget.submitAppeal;
-          return submitter?.call(postId, reason) ??
-              _repo.submitPostAppeal(postId: postId, reason: reason);
-        },
-      ),
-    );
-    if (submitted == true && mounted) {
-      setState(() => _appealSubmitted = true);
+    if (postId == null ||
+        _appealState != PostAppealState.none ||
+        _postUnavailable) {
+      return;
     }
+    final submitter = widget.submitAppeal;
+    await (submitter?.call(postId, reason) ??
+        _repo.submitPostAppeal(postId: postId, reason: reason));
+  }
+
+  void _markAppealSubmitted() {
+    if (mounted) setState(() => _appealState = PostAppealState.pending);
   }
 
   Future<void> _delete() async {
@@ -156,15 +183,11 @@ class _SystemNotificationDetailPageState
   @override
   Widget build(BuildContext context) {
     final notification = widget.notification;
-    const bodyStyle = TextStyle(
-      color: Color(0xFF334155),
-      fontSize: 16,
-      height: 1.55,
-      fontWeight: FontWeight.w500,
-    );
+    final isAppealable = notification.isAppealableModerationNotification &&
+        notification.postId != null;
     return ChatNoSplash(
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4F6F8),
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
@@ -183,10 +206,10 @@ class _SystemNotificationDetailPageState
           ],
         ),
         body: ListView(
-          padding: const EdgeInsets.fromLTRB(22, 10, 22, 32),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
           children: [
             Text(
-              notification.title,
+              notification.systemDisplayTitle,
               style: const TextStyle(
                 color: Color(0xFF0F172A),
                 fontSize: 27,
@@ -203,15 +226,40 @@ class _SystemNotificationDetailPageState
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 24),
-            _SystemNotificationBody(
-              notification: notification,
-              style: bodyStyle,
-              postUnavailable: _postUnavailable,
-              onOpenPost: _openPost,
+            const SizedBox(height: 18),
+            Text(
+              notification.systemBrief,
+              style: const TextStyle(
+                color: Color(0xFF475569),
+                fontSize: 15,
+                height: 1.5,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-            if (notification.isPostRejection &&
-                notification.postId != null) ...[
+            if (notification.postId != null &&
+                notification.systemPostTitle != null &&
+                notification.systemPostTitle!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _InlinePostLink(
+                enabled: !_postUnavailable,
+                onTap: _openPost,
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Text(
+              'Admin:',
+              style: TextStyle(
+                color: Color(0xFF334155),
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _SystemDecisionCard(
+              reason:
+                  _resolvedDecisionReason ?? notification.systemDecisionMessage,
+            ),
+            if (isAppealable) ...[
               if (_postUnavailable) ...[
                 const SizedBox(height: 14),
                 const Text(
@@ -224,24 +272,14 @@ class _SystemNotificationDetailPageState
                   ),
                 ),
               ],
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed:
-                      _appealSubmitted || _loadingAppeal || _postUnavailable
-                          ? null
-                          : _showAppealForm,
-                  icon: Icon(
-                    _appealSubmitted
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.gavel_rounded,
-                  ),
-                  label: Text(
-                    _appealSubmitted ? 'Appeal submitted' : 'Send appeal',
-                  ),
+              if (!_loadingAppeal && !_postUnavailable) ...[
+                const SizedBox(height: 16),
+                PostAppealForm(
+                  onSubmit: _submitAppeal,
+                  onSubmitted: _markAppealSubmitted,
+                  appealState: _appealState,
                 ),
-              ),
+              ],
             ],
           ],
         ),
@@ -250,62 +288,31 @@ class _SystemNotificationDetailPageState
   }
 }
 
-class _SystemNotificationBody extends StatelessWidget {
-  const _SystemNotificationBody({
-    required this.notification,
-    required this.style,
-    required this.postUnavailable,
-    required this.onOpenPost,
+class _SystemDecisionCard extends StatelessWidget {
+  const _SystemDecisionCard({
+    required this.reason,
   });
 
-  final ChatNotification notification;
-  final TextStyle style;
-  final bool postUnavailable;
-  final VoidCallback onOpenPost;
+  final String reason;
 
   @override
   Widget build(BuildContext context) {
-    final postTitle = notification.systemPostTitle;
-    if (!notification.isPostRejection ||
-        notification.postId == null ||
-        postTitle == null ||
-        postTitle.isEmpty) {
-      return Text(notification.body, style: style);
-    }
-
-    final titleStart = notification.body.indexOf(postTitle);
-    if (titleStart < 0) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(notification.body, style: style),
-          const SizedBox(height: 12),
-          _InlinePostLink(
-            postTitle: postTitle,
-            enabled: !postUnavailable,
-            onTap: onOpenPost,
-          ),
-        ],
-      );
-    }
-
-    final titleEnd = titleStart + postTitle.length;
-    return Text.rich(
-      TextSpan(
-        style: style,
-        children: [
-          TextSpan(text: notification.body.substring(0, titleStart)),
-          WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: _InlinePostLink(
-              postTitle: postTitle,
-              enabled: !postUnavailable,
-              onTap: onOpenPost,
-            ),
-          ),
-          TextSpan(text: notification.body.substring(titleEnd)),
-        ],
+    return Container(
+      key: const ValueKey('system-notification-decision-card'),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Text(
+        reason,
+        style: const TextStyle(
+          color: Color(0xFF334155),
+          fontSize: 15,
+          height: 1.5,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
@@ -313,12 +320,10 @@ class _SystemNotificationBody extends StatelessWidget {
 
 class _InlinePostLink extends StatelessWidget {
   const _InlinePostLink({
-    required this.postTitle,
     required this.enabled,
     required this.onTap,
   });
 
-  final String postTitle;
   final bool enabled;
   final VoidCallback onTap;
 
@@ -332,7 +337,7 @@ class _InlinePostLink extends StatelessWidget {
         key: const ValueKey('rejected-post-inline-link'),
         onTap: enabled ? onTap : null,
         child: Text(
-          postTitle,
+          'View post',
           style: TextStyle(
             color: enabled ? chatMentionAccent : const Color(0xFF94A3B8),
             fontSize: 16,

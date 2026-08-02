@@ -178,9 +178,9 @@ describe('UsersPage', () => {
     render(<UsersPage api={api} />);
 
     const identity = await screen.findByTestId('user-identity');
-    expect(
-      within(identity).getByLabelText('Verified content creator'),
-    ).toBeVisible();
+    const verifiedBadge = within(identity).getByLabelText('Verified content creator');
+    expect(verifiedBadge).toBeVisible();
+    expect(verifiedBadge).toHaveAttribute('data-badge-shape', 'rosette');
     expect(within(identity).queryByText('Approved')).not.toBeInTheDocument();
     const publishedFact = screen.getByText('Published posts').parentElement!;
     expect(within(publishedFact).getByText('8')).toBeVisible();

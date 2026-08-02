@@ -151,6 +151,16 @@ describe('administrator post review UI', () => {
       name: 'All published posts',
     });
     expect(within(dialog).getAllByTestId('all-post-card')).toHaveLength(8);
+    expect(within(dialog).getAllByTestId('all-post-card')[0]).toHaveClass(
+      'flex',
+      'flex-col',
+    );
+    expect(
+      within(dialog).getByTestId('all-post-media-post-1'),
+    ).toHaveClass('block', 'w-full', 'overflow-hidden');
+    expect(
+      within(dialog).getByTestId('all-post-image-post-1'),
+    ).toHaveClass('block', 'h-full', 'w-full', 'object-cover');
     expect(within(dialog).getByTestId('all-posts-grid')).toHaveClass(
       'xl:grid-cols-4',
     );
@@ -207,5 +217,28 @@ describe('administrator post review UI', () => {
     expect(
       within(dialog).getByRole('button', { name: 'Show image 2' }),
     ).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('places Back to all posts in the modal header instead of the media section', () => {
+    render(
+      <PostDetailModal
+        isOpen
+        onBack={vi.fn()}
+        onClose={vi.fn()}
+        post={detail}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Repair guide' });
+    const backButton = within(dialog).getByRole('button', {
+      name: 'Back to all posts',
+    });
+    const header = backButton.closest('header');
+
+    expect(header).not.toBeNull();
+    expect(within(header!).queryByText('Repair guide')).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByTestId('post-media-stage'),
+    ).not.toContainElement(backButton);
   });
 });
