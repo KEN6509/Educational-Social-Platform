@@ -5,7 +5,7 @@ Status: Approved
 
 ## Scope
 
-Refine the existing Parent Supervision dashboard without changing its linking, Check-In, SOS, records, notification, or navigation behavior.
+Refine the existing Parent Supervision dashboard and account-link request sheet without changing parent/child role semantics, Check-In, SOS, records, notification destinations, or backend authorization rules.
 
 ## App bar
 
@@ -18,7 +18,22 @@ The Parent Supervision page will use the same app-bar pattern as `chat_page.dart
 - a plain 28-pixel person-add `IconButton` in `0xFF0B1F3E`;
 - 8 logical pixels of trailing spacing.
 
-The existing add-family-link bottom-sheet behavior remains unchanged.
+The add-family-link entry point remains a bottom sheet.
+
+## Request account linking sheet
+
+The add action continues to open a bottom sheet. Its account list adopts the existing New Followers page treatment shown in `notification_sections_page.dart` and the approved reference `C:\Users\KEN\AppData\Local\Temp\codex-clipboard-eed7b97c-bb83-4820-85fe-c651a74cb7db.jpg`.
+
+- The sheet title is left-aligned and reads `Request Account Linking`.
+- The existing search field remains above the account list.
+- Each row uses a 46-pixel circular avatar, a bold account name, the follow relationship as secondary text, and a divider indented past the avatar.
+- Available accounts show a rounded cyan button with white `Request` text.
+- Accounts with an outgoing or incoming pending family-link request show a disabled soft-gray `0xFFF1F5F9` button with cyan `Pending` text.
+- Existing active family links remain unavailable for another request and use the same quiet disabled treatment with an accurate state label.
+- A successful request keeps the sheet open and changes that account to `Pending` immediately. Closing the changed sheet refreshes the dashboard.
+- Loading, error, empty, search, eligibility, and large-text states remain visible and usable.
+
+The unlinked-user role prompt uses `AppConfirmationDialog`, matching the shared Log out confirmation surface, spacing, typography, radius, and actions. The filled cyan primary action is text-only `Child`; the secondary action is text-only `Parent`. Neither action contains an icon. The dialog's existing top illustrative icon may remain because it is part of the shared confirmation structure. Users with an established family role continue to skip this prompt.
 
 ## Responsive card grid
 
@@ -61,5 +76,16 @@ Widget regressions will verify at 360 logical pixels that:
 - child Safety Check-In and SOS cards are square, equal-sized, and share a row;
 - the screen-time height equals the square grid-card height;
 - no layout exception occurs.
+
+Linking-sheet regressions will verify that:
+
+- the left-aligned title reads `Request Account Linking`;
+- rows match the New Followers structure with an indented divider;
+- an available account has a cyan `Request` action;
+- a request changes the action to soft-gray `Pending` without closing the sheet;
+- existing pending links reopen as `Pending`;
+- the role prompt uses `AppConfirmationDialog` with text-only `Child` and `Parent` actions;
+- established roles still bypass the role prompt;
+- the sheet remains layout-safe at 360 logical pixels with 2× text scaling.
 
 Existing linking, safety-flow, notification-limit, navigation, full-suite, and analyzer checks must remain green.
