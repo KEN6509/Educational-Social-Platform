@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:cyanzone_mobile/src/features/parent_child/data/parent_child_repository.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/data/parent_supervision_models.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/check_in_page.dart';
+import 'package:cyanzone_mobile/src/features/parent_child/presentation/family_links_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/link_candidates_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/link_request_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/parent_child_page.dart';
+import 'package:cyanzone_mobile/src/features/parent_child/presentation/safety_records_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/sos_page.dart';
+import 'package:cyanzone_mobile/src/features/parent_child/presentation/supervision_notification_router.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/services/location_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -324,6 +327,186 @@ void main() {
     expect(find.text('parent-2'), findsOneWidget);
     expect(find.text('Resolve SOS'), findsOneWidget);
   });
+
+  testWidgets('safety records merge newest first and open Check-In detail',
+      (tester) async {
+    final repository = FlowFakeRepository(
+      checkIns: [
+        _checkIn(
+          id: 'check-in-old',
+          message: 'I am at school.',
+          createdAt: DateTime.utc(2026, 8, 2, 7),
+        ),
+      ],
+      sosAlerts: [
+        _sosAlert(
+          location: _availableLocation(),
+          createdAt: DateTime.utc(2026, 8, 2, 8),
+        ),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: SafetyRecordsPage(repository: repository),
+    ));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.pumpAndSettle();
+
+    final sosTop = tester.getTopLeft(find.text('SOS · Open')).dy;
+    final checkInTop = tester.getTopLeft(find.text('Check-In')).dy;
+    expect(sosTop, lessThan(checkInTop));
+
+    await tester.tap(find.text('Check-In'));
+    await tester.pumpAndSettle();
+    expect(find.text('Check-In detail'), findsOneWidget);
+    expect(find.text('I am at school.'), findsOneWidget);
+  });
+
+  testWidgets('safety records show an empty state', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: SafetyRecordsPage(repository: FlowFakeRepository()),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('No Check-In or SOS records yet.'), findsOneWidget);
+  });
+
+  test('every supervision event has an exhaustive typed destination', () {
+    final router = SupervisionNotificationRouter(
+      repository: FlowFakeRepository(),
+      currentUserId: 'user-1',
+    );
+    const expected = {
+      SupervisionEventType.linkRequest: SupervisionDestination.familyLink,
+      SupervisionEventType.linkAccepted: SupervisionDestination.familyLink,
+      SupervisionEventType.linkRejected: SupervisionDestination.familyLink,
+      SupervisionEventType.linkCancelled: SupervisionDestination.familyLink,
+      SupervisionEventType.checkInSent: SupervisionDestination.checkIn,
+      SupervisionEventType.checkInReceived: SupervisionDestination.checkIn,
+      SupervisionEventType.sosOpened: SupervisionDestination.sos,
+      SupervisionEventType.sosAcknowledged: SupervisionDestination.sos,
+      SupervisionEventType.sosResolved: SupervisionDestination.sos,
+      SupervisionEventType.screenTimeThreshold:
+          SupervisionDestination.screenTime,
+    };
+
+    for (final entry in expected.entries) {
+      expect(
+        router.destinationFor(_notification(entry.key)),
+        entry.value,
+        reason: entry.key.name,
+      );
+    }
+  });
+
+  testWidgets('read-mark failure does not block Check-In destination',
+      (tester) async {
+    final repository = FlowFakeRepository(
+      checkIns: [
+        _checkIn(
+          id: 'check-in-1',
+          message: 'Reached home safely.',
+          createdAt: DateTime.utc(2026, 8, 2, 8),
+        ),
+      ],
+      failMarkRead: true,
+    );
+    final router = SupervisionNotificationRouter(
+      repository: repository,
+      currentUserId: 'user-1',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => router.open(
+            context,
+            _notification(SupervisionEventType.checkInReceived),
+          ),
+          child: const Text('Open notification'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Open notification'));
+    await tester.pumpAndSettle();
+    expect(repository.markedNotificationId, 'notification-1');
+    expect(find.text('Check-In detail'), findsOneWidget);
+    expect(find.text('Reached home safely.'), findsOneWidget);
+  });
+
+  testWidgets('parent records card opens merged safety records',
+      (tester) async {
+    final repository = FlowFakeRepository(
+      dashboardRole: FamilyRole.parent,
+      checkIns: [
+        _checkIn(
+          id: 'check-in-1',
+          message: 'Safe at home.',
+          createdAt: DateTime.utc(2026, 8, 2, 8),
+        ),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: ParentChildPage(
+        repository: repository,
+        subscribeToRealtime: false,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('safety-records-card')));
+    await tester.pumpAndSettle();
+    expect(find.byType(SafetyRecordsPage), findsOneWidget);
+    expect(find.textContaining('Safe at home.'), findsOneWidget);
+  });
+
+  testWidgets('dashboard notification marks read and uses typed route',
+      (tester) async {
+    final notification = _notification(SupervisionEventType.checkInReceived);
+    final repository = FlowFakeRepository(
+      dashboardRole: FamilyRole.parent,
+      dashboardNotifications: [notification],
+      checkIns: [
+        _checkIn(
+          id: 'check-in-1',
+          message: 'Reached the library.',
+          createdAt: DateTime.utc(2026, 8, 2, 8),
+        ),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: ParentChildPage(
+        repository: repository,
+        subscribeToRealtime: false,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final tile = find.byKey(
+      const Key('supervision-notification-tile-notification-1'),
+    );
+    await tester.ensureVisible(tile);
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    expect(repository.markedNotificationId, 'notification-1');
+    expect(find.text('Check-In detail'), findsOneWidget);
+    expect(find.text('Reached the library.'), findsOneWidget);
+  });
+
+  testWidgets('parent active family link opens child screen time detail',
+      (tester) async {
+    final repository = FlowFakeRepository(screenTimeSeconds: 3900);
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_activeLink(role: FamilyRole.parent)],
+      ),
+    ));
+
+    await tester.tap(find.text('Jamie Tan'));
+    await tester.pumpAndSettle();
+    expect(find.byType(FamilyScreenTimePage), findsOneWidget);
+    expect(find.text('1 h 5 min'), findsOneWidget);
+  });
 }
 
 FamilyLink _pendingLink({required String requestedBy}) => FamilyLink.fromMap({
@@ -341,12 +524,23 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
     this.pendingSos,
     this.checkInFailures = 0,
     this.sosFailures = 0,
+    this.checkIns = const [],
+    this.sosAlerts = const [],
+    this.failMarkRead = false,
+    this.dashboardNotifications = const [],
+    this.screenTimeSeconds = 0,
   });
 
   final FamilyRole? dashboardRole;
   final Completer<SosAlert>? pendingSos;
   int checkInFailures;
   int sosFailures;
+  final List<SafetyCheckIn> checkIns;
+  final List<SosAlert> sosAlerts;
+  final bool failMarkRead;
+  final List<SupervisionNotification> dashboardNotifications;
+  final int screenTimeSeconds;
+  String? markedNotificationId;
   FamilyRole? createdRole;
   String? createdCandidateId;
   CheckInDraft? submittedCheckIn;
@@ -362,7 +556,7 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
             ? const []
             : [_activeLink(role: dashboardRole!)],
         ownScreenTime: ScreenTimeSummary.zero('user-1', localDay),
-        notifications: const [],
+        notifications: dashboardNotifications,
       );
 
   @override
@@ -428,6 +622,30 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
       );
 
   @override
+  Future<List<SafetyCheckIn>> fetchCheckIns() async => checkIns;
+
+  @override
+  Future<List<SosAlert>> fetchSosAlerts() async => sosAlerts;
+
+  @override
+  Future<void> markNotificationRead(String notificationId) async {
+    markedNotificationId = notificationId;
+    if (failMarkRead) throw Exception('read state unavailable');
+  }
+
+  @override
+  Future<ScreenTimeSummary> fetchScreenTime(
+    String userId,
+    DateTime localDay,
+  ) async =>
+      ScreenTimeSummary(
+        userId: userId,
+        localDay: localDay,
+        secondsUsed: screenTimeSeconds,
+        nextThresholdHours: 3,
+      );
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -458,15 +676,43 @@ SosAlert _sosAlert({
   SosStatus status = SosStatus.open,
   String? acknowledgedBy,
   DateTime? acknowledgedAt,
+  DateTime? createdAt,
 }) =>
     SosAlert(
       id: 'sos-1',
       childId: 'user-1',
       status: status,
       location: location,
-      createdAt: DateTime.utc(2026, 8, 2, 8),
+      createdAt: createdAt ?? DateTime.utc(2026, 8, 2, 8),
       acknowledgedBy: acknowledgedBy,
       acknowledgedAt: acknowledgedAt,
+    );
+
+SafetyCheckIn _checkIn({
+  required String id,
+  required String message,
+  required DateTime createdAt,
+}) =>
+    SafetyCheckIn(
+      id: id,
+      childId: 'child-1',
+      message: message,
+      location: const LocationCapture.notRequested(),
+      createdAt: createdAt,
+      child: const ProfileSummary(id: 'child-1', name: 'Jamie Tan'),
+    );
+
+SupervisionNotification _notification(SupervisionEventType type) =>
+    SupervisionNotification(
+      id: 'notification-1',
+      eventType: type,
+      title: type.name,
+      body: 'Supervision update',
+      createdAt: DateTime.utc(2026, 8, 2, 9),
+      linkId: 'link-1',
+      checkInId: 'check-in-1',
+      sosId: 'sos-1',
+      childId: 'child-1',
     );
 
 FamilyLink _activeLink({required FamilyRole role}) => FamilyLink.fromMap({
@@ -477,4 +723,6 @@ FamilyLink _activeLink({required FamilyRole role}) => FamilyLink.fromMap({
       'status': 'active',
       'created_at': '2026-08-01T08:00:00Z',
       'linked_at': '2026-08-01T09:00:00Z',
+      'parent': const {'id': 'user-1', 'name': 'Parent Tan'},
+      'child': const {'id': 'other-user', 'name': 'Jamie Tan'},
     });

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import 'link_request_page.dart';
+import 'supervision_notification_router.dart';
 
 class FamilyLinksPage extends StatefulWidget {
   const FamilyLinksPage({
@@ -35,6 +36,18 @@ class _FamilyLinksPageState extends State<FamilyLinksPage> {
   }
 
   Future<void> _open(FamilyLink link) async {
+    if (link.status == FamilyLinkStatus.active &&
+        link.parentId == widget.currentUserId) {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => FamilyScreenTimePage(
+            repository: widget.repository,
+            childId: link.childId,
+          ),
+        ),
+      );
+      return;
+    }
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => LinkRequestPage(

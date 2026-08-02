@@ -8,8 +8,10 @@ import '../data/parent_supervision_models.dart';
 import 'check_in_page.dart';
 import 'family_links_page.dart';
 import 'link_candidates_page.dart';
+import 'safety_records_page.dart';
 import 'sos_page.dart';
 import 'supervision_dashboards.dart';
+import 'supervision_notification_router.dart';
 
 class ParentChildPage extends StatefulWidget {
   const ParentChildPage({
@@ -117,6 +119,15 @@ class _ParentChildPageState extends State<ParentChildPage>
     if (sent == true) _refresh();
   }
 
+  Future<void> _openRecords() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => SafetyRecordsPage(repository: _repository),
+      ),
+    );
+    _refresh();
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -161,21 +172,26 @@ class _ParentChildPageState extends State<ParentChildPage>
               );
             }
             final state = snapshot.requireData;
+            final notificationRouter = SupervisionNotificationRouter(
+              repository: _repository,
+              currentUserId: state.currentUserId,
+              canManageSos: state.role == FamilyRole.parent,
+            );
             return RefreshIndicator(
               onRefresh: () async => _refresh(),
               child: SupervisionDashboard(
                 state: state,
                 callbacks: SupervisionDashboardCallbacks(
                   onFamily: () => _openFamilyLinks(state),
-                  onRecords: () {},
+                  onRecords: _openRecords,
                   onCheckIn: _openCheckIn,
                   onSos: _openSos,
-                  onNotification: (notification) async {
-                    try {
-                      await _repository.markNotificationRead(notification.id);
-                    } finally {
-                      _refresh();
-                    }
+                  onNotification: (notification) {
+                    unawaited(
+                      notificationRouter
+                          .open(context, notification)
+                          .whenComplete(_refresh),
+                    );
                   },
                 ),
               ),
