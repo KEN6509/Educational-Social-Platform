@@ -86,4 +86,39 @@ void main() {
 
     expect(result, isTrue);
   });
+
+  testWidgets('supports a custom secondary confirmation action',
+      (tester) async {
+    bool? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              result = await showAppConfirmationDialog(
+                context: context,
+                icon: Icons.family_restroom_rounded,
+                iconColor: const Color(0xFF4490AD),
+                iconBackgroundColor: const Color(0xFFE7F4F8),
+                title: 'Choose your role',
+                message: 'Select your role for family linking.',
+                primaryLabel: 'Child',
+                secondaryLabel: 'Parent',
+                primaryColor: const Color(0xFF4490AD),
+              );
+            },
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Child'), findsOneWidget);
+    expect(find.text('Parent'), findsOneWidget);
+    await tester.tap(find.text('Parent'));
+    await tester.pumpAndSettle();
+    expect(result, isFalse);
+  });
 }

@@ -9,6 +9,7 @@ Future<bool?> showAppConfirmationDialog({
   required String message,
   required String primaryLabel,
   required Color primaryColor,
+  String secondaryLabel = 'Cancel',
   Key? primaryKey,
   Key? cancelKey,
 }) {
@@ -23,6 +24,7 @@ Future<bool?> showAppConfirmationDialog({
       message: message,
       primaryLabel: primaryLabel,
       primaryColor: primaryColor,
+      secondaryLabel: secondaryLabel,
       primaryKey: primaryKey,
       cancelKey: cancelKey,
     ),
@@ -38,6 +40,7 @@ class AppConfirmationDialog extends StatelessWidget {
     required this.message,
     required this.primaryLabel,
     required this.primaryColor,
+    this.secondaryLabel = 'Cancel',
     this.primaryKey,
     this.cancelKey,
     super.key,
@@ -50,6 +53,7 @@ class AppConfirmationDialog extends StatelessWidget {
   final String message;
   final String primaryLabel;
   final Color primaryColor;
+  final String secondaryLabel;
   final Key? primaryKey;
   final Key? cancelKey;
 
@@ -135,10 +139,10 @@ class AppConfirmationDialog extends StatelessWidget {
                 key: cancelKey,
                 onTap: () => Navigator.of(context).pop(false),
                 behavior: HitTestBehavior.opaque,
-                child: const Center(
+                child: Center(
                   child: Text(
-                    'Cancel',
-                    style: TextStyle(
+                    secondaryLabel,
+                    style: const TextStyle(
                       color: Color(0xFF475569),
                       fontWeight: FontWeight.w800,
                     ),
