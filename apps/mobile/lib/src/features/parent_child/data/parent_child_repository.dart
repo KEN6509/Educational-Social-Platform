@@ -126,6 +126,21 @@ class ParentChildRepository implements ParentChildRepositoryContract {
               isFollowing: previous.isFollowing || !isFollower,
             );
     }
+    final links = await fetchLinks();
+    for (final link in links) {
+      if (link.status != FamilyLinkStatus.pending &&
+          link.status != FamilyLinkStatus.active) {
+        continue;
+      }
+      final otherId = link.parentId == id ? link.childId : link.parentId;
+      final candidate = candidates[otherId];
+      if (candidate == null) continue;
+      candidates[otherId] = candidate.copyWith(
+        linkState: link.status == FamilyLinkStatus.pending
+            ? LinkCandidateState.pending
+            : LinkCandidateState.linked,
+      );
+    }
     final result = candidates.values.toList()
       ..sort((a, b) => a.profile.name.compareTo(b.profile.name));
     return result;

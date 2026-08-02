@@ -272,7 +272,6 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
   }
 
   static String _relationship(LinkCandidate candidate) {
-    if (candidate.ineligibleReason case final reason?) return reason;
     if (candidate.isFollower && candidate.isFollowing) return 'Mutual follow';
     if (candidate.isFollower) return 'Follows you';
     return 'Following';

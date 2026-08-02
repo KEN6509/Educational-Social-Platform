@@ -15,6 +15,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('link candidate exposes typed request state', () {
+    const profile = ProfileSummary(id: 'candidate-1', name: 'Alex Tan');
+    const available = LinkCandidate(
+      profile: profile,
+      isFollower: true,
+      isFollowing: false,
+    );
+
+    expect(available.isEligible, isTrue);
+    expect(
+      available.copyWith(linkState: LinkCandidateState.pending).isEligible,
+      isFalse,
+    );
+    expect(
+      available.copyWith(linkState: LinkCandidateState.linked).isEligible,
+      isFalse,
+    );
+  });
+
   testWidgets('unlinked candidate request asks for requester role',
       (tester) async {
     final repository = FlowFakeRepository();

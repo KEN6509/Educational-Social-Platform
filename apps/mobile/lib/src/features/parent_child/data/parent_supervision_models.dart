@@ -44,26 +44,32 @@ final class ProfileSummary {
   final String? avatarUrl;
 }
 
+enum LinkCandidateState { requestable, pending, linked }
+
 final class LinkCandidate {
   const LinkCandidate({
     required this.profile,
     required this.isFollower,
     required this.isFollowing,
-    this.ineligibleReason,
+    this.linkState = LinkCandidateState.requestable,
   });
 
   final ProfileSummary profile;
   final bool isFollower;
   final bool isFollowing;
-  final String? ineligibleReason;
-  bool get isEligible => ineligibleReason == null;
+  final LinkCandidateState linkState;
+  bool get isEligible => linkState == LinkCandidateState.requestable;
 
-  LinkCandidate copyWith({bool? isFollower, bool? isFollowing}) =>
+  LinkCandidate copyWith({
+    bool? isFollower,
+    bool? isFollowing,
+    LinkCandidateState? linkState,
+  }) =>
       LinkCandidate(
         profile: profile,
         isFollower: isFollower ?? this.isFollower,
         isFollowing: isFollowing ?? this.isFollowing,
-        ineligibleReason: ineligibleReason,
+        linkState: linkState ?? this.linkState,
       );
 }
 

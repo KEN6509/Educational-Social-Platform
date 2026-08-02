@@ -42,4 +42,14 @@ void main() {
     expect(source, contains(".from('supervision_notifications')"));
     expect(source, contains(".from('follows')"));
   });
+
+  test('candidate reads merge pending and active family link states', () {
+    final source = File(
+      'lib/src/features/parent_child/data/parent_child_repository.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('final links = await fetchLinks();'));
+    expect(source, contains('LinkCandidateState.pending'));
+    expect(source, contains('LinkCandidateState.linked'));
+  });
 }
