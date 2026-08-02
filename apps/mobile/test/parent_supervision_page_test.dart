@@ -31,7 +31,8 @@ void main() {
 
     await _pump(tester, _state(role: FamilyRole.parent, activeLinks: 2));
     final family = tester.getRect(find.byKey(const Key('family-links-card')));
-    final records = tester.getRect(find.byKey(const Key('safety-records-card')));
+    final records =
+        tester.getRect(find.byKey(const Key('safety-records-card')));
     expect(family.top, records.top);
     expect(family.width, closeTo(records.width, 0.1));
     expect(find.text('Parent role · 2 linked children'), findsOneWidget);
@@ -75,7 +76,8 @@ SupervisionDashboardState _state({
 }) {
   const currentUserId = 'user-1';
   final links = List.generate(activeLinks, (index) {
-    final parentId = role == FamilyRole.parent ? currentUserId : 'parent-$index';
+    final parentId =
+        role == FamilyRole.parent ? currentUserId : 'parent-$index';
     final childId = role == FamilyRole.child ? currentUserId : 'child-$index';
     return FamilyLink.fromMap({
       'id': 'link-$index',

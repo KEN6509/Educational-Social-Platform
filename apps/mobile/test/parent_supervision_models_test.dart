@@ -54,8 +54,7 @@ void main() {
           link('one', 'parent-1', 'child-1'),
           link('conflict', 'other-parent', 'parent-1'),
         ],
-        ownScreenTime:
-            ScreenTimeSummary.zero('parent-1', DateTime(2026, 8, 2)),
+        ownScreenTime: ScreenTimeSummary.zero('parent-1', DateTime(2026, 8, 2)),
         notifications: const [],
       ),
       throwsStateError,

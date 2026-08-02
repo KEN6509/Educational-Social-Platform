@@ -6,9 +6,11 @@ abstract interface class ParentChildRepositoryContract {
   Future<List<FamilyLink>> fetchLinks();
   Future<ScreenTimeSummary> fetchScreenTime(String userId, DateTime localDay);
   Future<List<SupervisionNotification>> fetchNotifications();
-  Future<SupervisionDashboardState> fetchDashboard({required DateTime localDay});
+  Future<SupervisionDashboardState> fetchDashboard(
+      {required DateTime localDay});
   Future<List<LinkCandidate>> fetchLinkCandidates();
-  Future<FamilyLink> createLinkRequest(String candidateId, FamilyRole requesterRole);
+  Future<FamilyLink> createLinkRequest(
+      String candidateId, FamilyRole requesterRole);
   Future<FamilyLink> acceptLinkRequest(String linkId);
   Future<FamilyLink> rejectLinkRequest(String linkId);
   Future<FamilyLink> cancelLinkRequest(String linkId);
@@ -20,7 +22,8 @@ abstract interface class ParentChildRepositoryContract {
   Future<SosAlert> resolveSos(String sosId);
   Future<ScreenTimeSyncResult> syncScreenTime(ScreenTimeSession session);
   Future<void> markNotificationRead(String notificationId);
-  RealtimeChannel subscribeToSupervisionChanges({required void Function() onChange});
+  RealtimeChannel subscribeToSupervisionChanges(
+      {required void Function() onChange});
   Future<void> unsubscribe(RealtimeChannel channel);
 }
 
@@ -160,7 +163,8 @@ class ParentChildRepository implements ParentChildRepositoryContract {
   Future<List<SafetyCheckIn>> fetchCheckIns() async {
     final rows = await _client
         .from('check_ins')
-        .select('*, child:profiles!check_ins_user_id_fkey(id, name, avatar_url)')
+        .select(
+            '*, child:profiles!check_ins_user_id_fkey(id, name, avatar_url)')
         .order('created_at', ascending: false);
     return rows.map(SafetyCheckIn.fromMap).toList(growable: false);
   }
@@ -169,7 +173,8 @@ class ParentChildRepository implements ParentChildRepositoryContract {
   Future<List<SosAlert>> fetchSosAlerts() async {
     final rows = await _client
         .from('sos_alerts')
-        .select('*, child:profiles!sos_alerts_child_id_fkey(id, name, avatar_url)')
+        .select(
+            '*, child:profiles!sos_alerts_child_id_fkey(id, name, avatar_url)')
         .order('created_at', ascending: false);
     return rows.map(SosAlert.fromMap).toList(growable: false);
   }

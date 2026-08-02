@@ -50,7 +50,8 @@ class SummaryActionCard extends StatelessWidget {
           Text(title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
           const SizedBox(height: 5),
           Text(subtitle,
               maxLines: 2,
@@ -87,12 +88,20 @@ class SafetyActionCard extends StatelessWidget {
             child: Icon(icon),
           ),
           const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 3),
-            Text(enabled ? description : 'Available after the link is accepted.',
-                style: const TextStyle(color: Color(0xFF64748B), fontSize: 12)),
-          ])),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(
+                    enabled
+                        ? description
+                        : 'Available after the link is accepted.',
+                    style: const TextStyle(
+                        color: Color(0xFF64748B), fontSize: 12)),
+              ])),
           const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
         ]),
       );
@@ -129,8 +138,8 @@ class SupervisionNotificationsCard extends StatelessWidget {
                 dense: true,
                 title: Text(notification.title,
                     style: const TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: Text(notification.body, maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                subtitle: Text(notification.body,
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => onTap(notification),
               ),

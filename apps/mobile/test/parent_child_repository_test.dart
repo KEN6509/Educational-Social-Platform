@@ -28,7 +28,8 @@ void main() {
     expect(source, contains('.limit(10)'));
   });
 
-  test('repository exposes candidate, dashboard, records, and realtime reads', () {
+  test('repository exposes candidate, dashboard, records, and realtime reads',
+      () {
     final source = File(
       'lib/src/features/parent_child/data/parent_child_repository.dart',
     ).readAsStringSync();
