@@ -2,7 +2,29 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'parent_supervision_models.dart';
 
-class ParentChildRepository {
+abstract interface class ParentChildRepositoryContract {
+  Future<List<FamilyLink>> fetchLinks();
+  Future<ScreenTimeSummary> fetchScreenTime(String userId, DateTime localDay);
+  Future<List<SupervisionNotification>> fetchNotifications();
+  Future<SupervisionDashboardState> fetchDashboard({required DateTime localDay});
+  Future<List<LinkCandidate>> fetchLinkCandidates();
+  Future<FamilyLink> createLinkRequest(String candidateId, FamilyRole requesterRole);
+  Future<FamilyLink> acceptLinkRequest(String linkId);
+  Future<FamilyLink> rejectLinkRequest(String linkId);
+  Future<FamilyLink> cancelLinkRequest(String linkId);
+  Future<List<SafetyCheckIn>> fetchCheckIns();
+  Future<List<SosAlert>> fetchSosAlerts();
+  Future<SafetyCheckIn> submitCheckIn(CheckInDraft draft);
+  Future<SosAlert> submitSos(SosDraft draft);
+  Future<SosAlert> acknowledgeSos(String sosId);
+  Future<SosAlert> resolveSos(String sosId);
+  Future<ScreenTimeSyncResult> syncScreenTime(ScreenTimeSession session);
+  Future<void> markNotificationRead(String notificationId);
+  RealtimeChannel subscribeToSupervisionChanges({required void Function() onChange});
+  Future<void> unsubscribe(RealtimeChannel channel);
+}
+
+class ParentChildRepository implements ParentChildRepositoryContract {
   ParentChildRepository(this._client);
 
   final SupabaseClient _client;
@@ -13,6 +35,7 @@ class ParentChildRepository {
     return id;
   }
 
+  @override
   Future<List<FamilyLink>> fetchLinks() async {
     final id = _userId;
     final rows = await _client
@@ -25,6 +48,7 @@ class ParentChildRepository {
     return rows.map(FamilyLink.fromMap).toList(growable: false);
   }
 
+  @override
   Future<ScreenTimeSummary> fetchScreenTime(
     String userId,
     DateTime localDay,
@@ -42,6 +66,7 @@ class ParentChildRepository {
         : ScreenTimeSummary.fromMap(row);
   }
 
+  @override
   Future<List<SupervisionNotification>> fetchNotifications() async {
     final rows = await _client
         .from('supervision_notifications')
@@ -52,6 +77,7 @@ class ParentChildRepository {
     return rows.map(SupervisionNotification.fromMap).toList(growable: false);
   }
 
+  @override
   Future<SupervisionDashboardState> fetchDashboard({
     required DateTime localDay,
   }) async {
@@ -69,6 +95,7 @@ class ParentChildRepository {
     );
   }
 
+  @override
   Future<List<LinkCandidate>> fetchLinkCandidates() async {
     final id = _userId;
     final rows = await _client
@@ -101,6 +128,7 @@ class ParentChildRepository {
     return result;
   }
 
+  @override
   Future<FamilyLink> createLinkRequest(
     String candidateId,
     FamilyRole requesterRole,
@@ -110,21 +138,25 @@ class ParentChildRepository {
         'p_requester_role': requesterRole.name,
       }));
 
+  @override
   Future<FamilyLink> acceptLinkRequest(String linkId) async =>
       FamilyLink.fromMap(await _rpcRow('accept_parent_child_link', {
         'p_link_id': linkId,
       }));
 
+  @override
   Future<FamilyLink> rejectLinkRequest(String linkId) async =>
       FamilyLink.fromMap(await _rpcRow('reject_parent_child_link', {
         'p_link_id': linkId,
       }));
 
+  @override
   Future<FamilyLink> cancelLinkRequest(String linkId) async =>
       FamilyLink.fromMap(await _rpcRow('cancel_parent_child_link', {
         'p_link_id': linkId,
       }));
 
+  @override
   Future<List<SafetyCheckIn>> fetchCheckIns() async {
     final rows = await _client
         .from('check_ins')
@@ -133,6 +165,7 @@ class ParentChildRepository {
     return rows.map(SafetyCheckIn.fromMap).toList(growable: false);
   }
 
+  @override
   Future<List<SosAlert>> fetchSosAlerts() async {
     final rows = await _client
         .from('sos_alerts')
@@ -141,28 +174,33 @@ class ParentChildRepository {
     return rows.map(SosAlert.fromMap).toList(growable: false);
   }
 
+  @override
   Future<SafetyCheckIn> submitCheckIn(CheckInDraft draft) async =>
       SafetyCheckIn.fromMap(await _rpcRow('submit_safety_check_in', {
         'p_message': draft.message.trim(),
         ..._locationParams(draft.location),
       }));
 
+  @override
   Future<SosAlert> submitSos(SosDraft draft) async =>
       SosAlert.fromMap(await _rpcRow('submit_sos_alert', {
         ..._locationParams(draft.location),
         'p_location_failure': draft.location.failureCode,
       }));
 
+  @override
   Future<SosAlert> acknowledgeSos(String sosId) async =>
       SosAlert.fromMap(await _rpcRow('acknowledge_sos_alert', {
         'p_sos_id': sosId,
       }));
 
+  @override
   Future<SosAlert> resolveSos(String sosId) async =>
       SosAlert.fromMap(await _rpcRow('resolve_sos_alert', {
         'p_sos_id': sosId,
       }));
 
+  @override
   Future<ScreenTimeSyncResult> syncScreenTime(
     ScreenTimeSession session,
   ) async =>
@@ -173,12 +211,14 @@ class ParentChildRepository {
         'p_timezone_offset_minutes': session.timezoneOffsetMinutes,
       }));
 
+  @override
   Future<void> markNotificationRead(String notificationId) async {
     await _client.rpc('mark_supervision_notification_read', params: {
       'p_notification_id': notificationId,
     });
   }
 
+  @override
   RealtimeChannel subscribeToSupervisionChanges({
     required void Function() onChange,
   }) {
@@ -210,6 +250,7 @@ class ParentChildRepository {
         .subscribe();
   }
 
+  @override
   Future<void> unsubscribe(RealtimeChannel channel) =>
       _client.removeChannel(channel);
 
