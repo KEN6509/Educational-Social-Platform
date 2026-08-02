@@ -642,3 +642,317 @@ begin
     alter publication supabase_realtime add table public.supervision_notifications;
   end if;
 end $$;
+
+create or replace function public.submit_safety_check_in(
+  p_message text,
+  p_latitude double precision default null,
+  p_longitude double precision default null,
+  p_accuracy_meters double precision default null,
+  p_location_captured_at timestamptz default null
+)
+returns public.check_ins
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_child_name text;
+  v_check_in public.check_ins;
+  v_location_status text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if char_length(btrim(coalesce(p_message, ''))) not between 1 and 280 then
+    raise exception 'Check-In message must be between 1 and 280 characters';
+  end if;
+  if not exists (
+    select 1 from public.parent_child_links link
+    where link.child_id = v_user_id and link.status = 'active'
+  ) then
+    raise exception 'No active parent link';
+  end if;
+  if (p_latitude is null) <> (p_longitude is null) then
+    raise exception 'Both latitude and longitude are required together';
+  end if;
+
+  v_location_status := case
+    when p_latitude is not null then 'available'
+    else 'not_requested'
+  end;
+
+  insert into public.check_ins (
+    user_id, message, note, latitude, longitude, accuracy_meters,
+    location_captured_at, location_status
+  ) values (
+    v_user_id, btrim(p_message), btrim(p_message), p_latitude, p_longitude,
+    p_accuracy_meters, p_location_captured_at, v_location_status
+  ) returning * into v_check_in;
+
+  select profile.name into v_child_name
+  from public.profiles profile where profile.id = v_user_id;
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, check_in_id, child_id
+  )
+  select link.parent_id, 'check_in_received', 'Safety Check-In',
+    coalesce(v_child_name, 'Your child') || ' sent a Safety Check-In.',
+    'check-in:' || v_check_in.id::text || ':' || link.parent_id::text,
+    v_check_in.id, v_user_id
+  from public.parent_child_links link
+  where link.child_id = v_user_id and link.status = 'active';
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, check_in_id, child_id
+  ) values (
+    v_user_id, 'check_in_sent', 'Check-In sent',
+    'Your Safety Check-In was shared with your linked parents.',
+    'check-in:' || v_check_in.id::text || ':' || v_user_id::text,
+    v_check_in.id, v_user_id
+  );
+
+  return v_check_in;
+end;
+$$;
+
+create or replace function public.submit_sos_alert(
+  p_latitude double precision default null,
+  p_longitude double precision default null,
+  p_accuracy_meters double precision default null,
+  p_location_captured_at timestamptz default null,
+  p_location_failure text default null
+)
+returns public.sos_alerts
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_child_name text;
+  v_sos public.sos_alerts;
+  v_location_status text;
+  v_location_failure text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from public.parent_child_links link
+    where link.child_id = v_user_id and link.status = 'active'
+  ) then
+    raise exception 'No active parent link';
+  end if;
+  if (p_latitude is null) <> (p_longitude is null) then
+    raise exception 'Both latitude and longitude are required together';
+  end if;
+
+  v_location_status := case when p_latitude is null then 'unavailable' else 'available' end;
+  v_location_failure := case
+    when p_latitude is null then coalesce(nullif(btrim(p_location_failure), ''), 'Location unavailable')
+    else null
+  end;
+
+  insert into public.sos_alerts (
+    child_id, message, status, latitude, longitude, accuracy_meters,
+    location_captured_at, location_status, location_failure
+  ) values (
+    v_user_id, 'Emergency SOS triggered', 'open', p_latitude, p_longitude,
+    p_accuracy_meters, p_location_captured_at, v_location_status,
+    v_location_failure
+  ) returning * into v_sos;
+
+  select profile.name into v_child_name
+  from public.profiles profile where profile.id = v_user_id;
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, sos_id, child_id
+  )
+  select link.parent_id, 'sos_opened', 'SOS alert',
+    coalesce(v_child_name, 'Your child') || ' sent an SOS alert.',
+    'sos:' || v_sos.id::text || ':opened:' || link.parent_id::text,
+    v_sos.id, v_user_id
+  from public.parent_child_links link
+  where link.child_id = v_user_id and link.status = 'active';
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, sos_id, child_id
+  ) values (
+    v_user_id, 'sos_opened', 'SOS sent',
+    case when v_location_status = 'available'
+      then 'Your SOS and location were shared with your linked parents.'
+      else 'Your SOS was shared with your linked parents. Location unavailable.'
+    end,
+    'sos:' || v_sos.id::text || ':opened:' || v_user_id::text,
+    v_sos.id, v_user_id
+  );
+
+  return v_sos;
+end;
+$$;
+
+create or replace function public.acknowledge_sos_alert(p_sos_id uuid)
+returns public.sos_alerts
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_sos public.sos_alerts;
+  v_parent_name text;
+  v_first_acknowledgement boolean := false;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  update public.sos_alerts alert
+  set status = 'acknowledged',
+      acknowledged_by = v_user_id,
+      acknowledged_at = now()
+  where alert.id = p_sos_id
+    and alert.status = 'open'
+    and alert.acknowledged_by is null
+    and exists (
+      select 1 from public.parent_child_links link
+      where link.parent_id = v_user_id
+        and link.child_id = alert.child_id
+        and link.status = 'active'
+    )
+  returning alert.* into v_sos;
+
+  if found then
+    v_first_acknowledgement := true;
+  else
+    select alert.* into v_sos
+    from public.sos_alerts alert
+    where alert.id = p_sos_id
+      and exists (
+        select 1 from public.parent_child_links link
+        where link.parent_id = v_user_id
+          and link.child_id = alert.child_id
+          and link.status = 'active'
+      );
+    if not found then
+      raise exception 'Only an active linked parent can acknowledge this SOS' using errcode = '42501';
+    end if;
+  end if;
+
+  if v_first_acknowledgement then
+    select profile.name into v_parent_name
+    from public.profiles profile where profile.id = v_user_id;
+
+    insert into public.supervision_notifications (
+      user_id, event_type, title, body, event_key, sos_id, child_id
+    )
+    select recipient.user_id, 'sos_acknowledged', 'SOS acknowledged',
+      coalesce(v_parent_name, 'A linked parent') || ' acknowledged the SOS.',
+      'sos:' || v_sos.id::text || ':acknowledged:' || recipient.user_id::text,
+      v_sos.id, v_sos.child_id
+    from (
+      select v_sos.child_id as user_id
+      union
+      select link.parent_id from public.parent_child_links link
+      where link.child_id = v_sos.child_id and link.status = 'active'
+    ) recipient;
+  end if;
+
+  return v_sos;
+end;
+$$;
+
+create or replace function public.resolve_sos_alert(p_sos_id uuid)
+returns public.sos_alerts
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_sos public.sos_alerts;
+  v_parent_name text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  update public.sos_alerts alert
+  set status = 'resolved',
+      resolved_by = v_user_id,
+      resolved_at = now()
+  where alert.id = p_sos_id
+    and alert.status = 'acknowledged'
+    and exists (
+      select 1 from public.parent_child_links link
+      where link.parent_id = v_user_id
+        and link.child_id = alert.child_id
+        and link.status = 'active'
+    )
+  returning alert.* into v_sos;
+
+  if not found then
+    raise exception 'Only an active linked parent can resolve an acknowledged SOS';
+  end if;
+
+  select profile.name into v_parent_name
+  from public.profiles profile where profile.id = v_user_id;
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, sos_id, child_id
+  )
+  select recipient.user_id, 'sos_resolved', 'SOS resolved',
+    coalesce(v_parent_name, 'A linked parent') || ' resolved the SOS.',
+    'sos:' || v_sos.id::text || ':resolved:' || recipient.user_id::text,
+    v_sos.id, v_sos.child_id
+  from (
+    select v_sos.child_id as user_id
+    union
+    select link.parent_id from public.parent_child_links link
+    where link.child_id = v_sos.child_id and link.status = 'active'
+  ) recipient;
+
+  return v_sos;
+end;
+$$;
+
+create or replace function public.mark_supervision_notification_read(
+  p_notification_id uuid
+)
+returns public.supervision_notifications
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_notification public.supervision_notifications;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  update public.supervision_notifications notification
+  set read_at = coalesce(notification.read_at, now())
+  where notification.id = p_notification_id
+    and notification.user_id = auth.uid()
+  returning notification.* into v_notification;
+
+  if not found then
+    raise exception 'Supervision notification not found' using errcode = '42501';
+  end if;
+  return v_notification;
+end;
+$$;
+
+revoke all on function public.submit_safety_check_in(text, double precision, double precision, double precision, timestamptz) from public;
+revoke all on function public.submit_sos_alert(double precision, double precision, double precision, timestamptz, text) from public;
+revoke all on function public.acknowledge_sos_alert(uuid) from public;
+revoke all on function public.resolve_sos_alert(uuid) from public;
+revoke all on function public.mark_supervision_notification_read(uuid) from public;
+
+grant execute on function public.submit_safety_check_in(text, double precision, double precision, double precision, timestamptz) to authenticated;
+grant execute on function public.submit_sos_alert(double precision, double precision, double precision, timestamptz, text) to authenticated;
+grant execute on function public.acknowledge_sos_alert(uuid) to authenticated;
+grant execute on function public.resolve_sos_alert(uuid) to authenticated;
+grant execute on function public.mark_supervision_notification_read(uuid) to authenticated;

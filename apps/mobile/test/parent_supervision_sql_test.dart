@@ -101,4 +101,22 @@ void main() {
     expect(migration, contains("'link_rejected'"));
     expect(migration, contains("'link_cancelled'"));
   });
+
+  test('defines child-only safety and parent-only SOS transitions', () {
+    for (final name in [
+      'submit_safety_check_in',
+      'submit_sos_alert',
+      'acknowledge_sos_alert',
+      'resolve_sos_alert',
+      'mark_supervision_notification_read',
+    ]) {
+      expect(migration, contains('function public.$name'));
+    }
+    expect(migration, contains('No active parent link'));
+    expect(migration, contains("status = 'open'"));
+    expect(migration, contains("status = 'acknowledged'"));
+    expect(migration, contains("status = 'resolved'"));
+    expect(migration, contains('acknowledged_by is null'));
+    expect(migration, contains("'Location unavailable'"));
+  });
 }
