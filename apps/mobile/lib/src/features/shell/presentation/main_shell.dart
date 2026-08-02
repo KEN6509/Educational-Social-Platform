@@ -26,6 +26,8 @@ import '../../profile/data/user_profile.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/content_creator_badge.dart';
 import '../../profile/presentation/profile_page.dart';
+import '../../parent_child/data/parent_child_repository.dart';
+import '../../parent_child/services/screen_time_tracker.dart';
 import '../../parent_child/presentation/parent_child_page.dart';
 import '../../search/data/search_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -50,6 +52,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   bool _isInitialized = false;
   int _chatBadgeCount = 0;
   RealtimeChannel? _notificationBadgeChannel;
+  ForegroundScreenTimeTracker? _screenTimeTracker;
 
   // Fixed tags for the horizontal bar
   static const _fixedTags = [
@@ -81,13 +84,21 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _screenTimeTracker?.onResumed();
+      unawaited(_screenTimeTracker?.flush());
       _refreshChatBadge();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      unawaited(_screenTimeTracker?.onPaused());
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(_screenTimeTracker?.onPaused());
+    _screenTimeTracker?.dispose();
     final channel = _notificationBadgeChannel;
     if (channel != null) {
       _chatRepository.unsubscribe(channel);
@@ -98,6 +109,22 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   Future<void> _initAsync() async {
     final prefs = await SharedPreferences.getInstance();
     _searchRepository = SearchRepository(Supabase.instance.client, prefs);
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final repository = ParentChildRepository(Supabase.instance.client);
+      final tracker = await ForegroundScreenTimeTracker.create(
+        userId: userId,
+        sync: repository.syncScreenTime,
+        preferences: prefs,
+      );
+      if (!mounted) {
+        tracker.dispose();
+        return;
+      }
+      _screenTimeTracker = tracker;
+      _screenTimeTracker?.onResumed();
+      unawaited(_screenTimeTracker?.flush());
+    }
     if (mounted) {
       setState(() {
         _isInitialized = true;
