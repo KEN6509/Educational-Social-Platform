@@ -119,4 +119,20 @@ void main() {
     expect(migration, contains('acknowledged_by is null'));
     expect(migration, contains("'Location unavailable'"));
   });
+
+  test(
+      'synchronizes screen time idempotently and emits every crossed threshold',
+      () {
+    expect(migration, contains('function public.sync_screen_time_session'));
+    expect(
+      migration,
+      contains('on conflict (user_id, client_session_id) do nothing'),
+    );
+    expect(
+      migration,
+      contains('generate_series(3, v_total_seconds / 3600)'),
+    );
+    expect(migration, contains("'screen_time_threshold'"));
+    expect(migration, contains('screen-time:'));
+  });
 }

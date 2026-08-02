@@ -956,3 +956,126 @@ grant execute on function public.submit_sos_alert(double precision, double preci
 grant execute on function public.acknowledge_sos_alert(uuid) to authenticated;
 grant execute on function public.resolve_sos_alert(uuid) to authenticated;
 grant execute on function public.mark_supervision_notification_read(uuid) to authenticated;
+
+create or replace function public.sync_screen_time_session(
+  p_client_session_id text,
+  p_local_day date,
+  p_seconds_used integer,
+  p_timezone_offset_minutes integer
+)
+returns table (
+  daily_seconds integer,
+  next_threshold_hours integer,
+  applied boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_applied_count integer := 0;
+  v_threshold_inserted integer := 0;
+  v_total_seconds integer := 0;
+  v_threshold integer;
+  v_user_name text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if nullif(btrim(p_client_session_id), '') is null then
+    raise exception 'Client session ID is required';
+  end if;
+  if p_local_day is null or p_local_day > current_date + 1 then
+    raise exception 'Invalid local screen-time day';
+  end if;
+  if p_seconds_used not between 1 and 86400 then
+    raise exception 'Screen-time seconds must be between 1 and 86400';
+  end if;
+  if p_timezone_offset_minutes not between -840 and 840 then
+    raise exception 'Invalid timezone offset';
+  end if;
+
+  insert into public.screen_time_sync_events (
+    user_id, client_session_id, local_day, seconds_used,
+    timezone_offset_minutes
+  ) values (
+    v_user_id, btrim(p_client_session_id), p_local_day, p_seconds_used,
+    p_timezone_offset_minutes
+  )
+  on conflict (user_id, client_session_id) do nothing;
+  get diagnostics v_applied_count = row_count;
+
+  if v_applied_count = 1 then
+    insert into public.screen_time_logs (
+      user_id, log_date, minutes_used, seconds_used, source
+    ) values (
+      v_user_id, p_local_day, p_seconds_used / 60, p_seconds_used, 'device'
+    )
+    on conflict (user_id, log_date, source) do update
+    set seconds_used = least(
+          86400,
+          public.screen_time_logs.seconds_used + excluded.seconds_used
+        ),
+        minutes_used = least(
+          1440,
+          (public.screen_time_logs.seconds_used + excluded.seconds_used) / 60
+        );
+  end if;
+
+  select coalesce(log.seconds_used, 0)
+  into v_total_seconds
+  from public.screen_time_logs log
+  where log.user_id = v_user_id
+    and log.log_date = p_local_day
+    and log.source = 'device';
+  v_total_seconds := coalesce(v_total_seconds, 0);
+
+  if v_applied_count = 1 and v_total_seconds >= 10800 then
+    select profile.name into v_user_name
+    from public.profiles profile where profile.id = v_user_id;
+
+    for v_threshold in
+      select generate_series(3, v_total_seconds / 3600)
+    loop
+      insert into public.screen_time_threshold_events (
+        user_id, local_day, threshold_hours
+      ) values (
+        v_user_id, p_local_day, v_threshold
+      ) on conflict (user_id, local_day, threshold_hours) do nothing;
+      get diagnostics v_threshold_inserted = row_count;
+
+      if v_threshold_inserted = 1 then
+        insert into public.supervision_notifications (
+          user_id, event_type, title, body, event_key, child_id,
+          threshold_hours
+        )
+        select recipient.user_id, 'screen_time_threshold',
+          'Screen-time update',
+          coalesce(v_user_name, 'A family member') || ' reached ' ||
+            v_threshold::text || ' hours in CyanZone today.',
+          'screen-time:' || v_user_id::text || ':' || p_local_day::text || ':' ||
+            v_threshold::text || ':' || recipient.user_id::text,
+          v_user_id, v_threshold
+        from (
+          select v_user_id as user_id
+          union
+          select link.parent_id
+          from public.parent_child_links link
+          where link.child_id = v_user_id and link.status = 'active'
+        ) recipient;
+      end if;
+    end loop;
+  end if;
+
+  return query select
+    v_total_seconds,
+    greatest(3, (v_total_seconds / 3600) + 1),
+    v_applied_count = 1;
+end;
+$$;
+
+revoke all on function public.sync_screen_time_session(text, date, integer, integer)
+from public;
+grant execute on function public.sync_screen_time_session(text, date, integer, integer)
+to authenticated;
