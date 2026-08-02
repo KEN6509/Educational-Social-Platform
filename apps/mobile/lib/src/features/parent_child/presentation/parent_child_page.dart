@@ -5,8 +5,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
+import 'check_in_page.dart';
 import 'family_links_page.dart';
 import 'link_candidates_page.dart';
+import 'sos_page.dart';
 import 'supervision_dashboards.dart';
 
 class ParentChildPage extends StatefulWidget {
@@ -97,6 +99,24 @@ class _ParentChildPageState extends State<ParentChildPage>
     _refresh();
   }
 
+  Future<void> _openCheckIn() async {
+    final sent = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CheckInPage(repository: _repository),
+      ),
+    );
+    if (sent == true) _refresh();
+  }
+
+  Future<void> _openSos() async {
+    final sent = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SosPage(repository: _repository),
+      ),
+    );
+    if (sent == true) _refresh();
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -148,8 +168,8 @@ class _ParentChildPageState extends State<ParentChildPage>
                 callbacks: SupervisionDashboardCallbacks(
                   onFamily: () => _openFamilyLinks(state),
                   onRecords: () {},
-                  onCheckIn: () {},
-                  onSos: () {},
+                  onCheckIn: _openCheckIn,
+                  onSos: _openSos,
                   onNotification: (notification) async {
                     try {
                       await _repository.markNotificationRead(notification.id);
