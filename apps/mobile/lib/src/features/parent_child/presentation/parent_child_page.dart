@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
+import 'family_links_page.dart';
+import 'link_candidates_page.dart';
 import 'supervision_dashboards.dart';
 
 class ParentChildPage extends StatefulWidget {
@@ -32,8 +34,8 @@ class _ParentChildPageState extends State<ParentChildPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _repository = widget.repository ??
-        ParentChildRepository(Supabase.instance.client);
+    _repository =
+        widget.repository ?? ParentChildRepository(Supabase.instance.client);
     _dashboardFuture = _repository.fetchDashboard(localDay: DateTime.now());
     if (widget.subscribeToRealtime) {
       _channel = _repository.subscribeToSupervisionChanges(
@@ -59,6 +61,42 @@ class _ParentChildPageState extends State<ParentChildPage>
     });
   }
 
+  Future<void> _openCandidates() async {
+    try {
+      final state = await _dashboardFuture;
+      if (!mounted) return;
+      final changed = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => LinkCandidatesPage(
+            repository: _repository,
+            establishedRole: state.role,
+          ),
+        ),
+      );
+      if (changed == true) _refresh();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to open family link requests right now.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openFamilyLinks(SupervisionDashboardState state) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => FamilyLinksPage(
+          repository: _repository,
+          currentUserId: state.currentUserId,
+          initialLinks: state.links,
+        ),
+      ),
+    );
+    _refresh();
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -78,7 +116,7 @@ class _ParentChildPageState extends State<ParentChildPage>
           actions: [
             IconButton(
               tooltip: 'Add family link',
-              onPressed: () {},
+              onPressed: _openCandidates,
               icon: const Icon(Icons.add_rounded),
             ),
           ],
@@ -96,7 +134,8 @@ class _ParentChildPageState extends State<ParentChildPage>
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     const Text('Unable to load Parent Supervision.'),
                     const SizedBox(height: 12),
-                    FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                    FilledButton(
+                        onPressed: _refresh, child: const Text('Retry')),
                   ]),
                 ),
               );
@@ -107,7 +146,7 @@ class _ParentChildPageState extends State<ParentChildPage>
               child: SupervisionDashboard(
                 state: state,
                 callbacks: SupervisionDashboardCallbacks(
-                  onFamily: () {},
+                  onFamily: () => _openFamilyLinks(state),
                   onRecords: () {},
                   onCheckIn: () {},
                   onSos: () {},

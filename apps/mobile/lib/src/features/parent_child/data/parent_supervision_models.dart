@@ -58,7 +58,8 @@ final class LinkCandidate {
   final String? ineligibleReason;
   bool get isEligible => ineligibleReason == null;
 
-  LinkCandidate copyWith({bool? isFollower, bool? isFollowing}) => LinkCandidate(
+  LinkCandidate copyWith({bool? isFollower, bool? isFollowing}) =>
+      LinkCandidate(
         profile: profile,
         isFollower: isFollower ?? this.isFollower,
         isFollowing: isFollowing ?? this.isFollowing,
@@ -370,6 +371,7 @@ final class SupervisionNotification {
 
 final class SupervisionDashboardState {
   const SupervisionDashboardState({
+    required this.currentUserId,
     required this.role,
     required this.links,
     required this.ownScreenTime,
@@ -399,6 +401,7 @@ final class SupervisionDashboardState {
     final latest = List<SupervisionNotification>.of(notifications)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return SupervisionDashboardState(
+      currentUserId: currentUserId,
       role: role,
       links: List.unmodifiable(links),
       ownScreenTime: ownScreenTime,
@@ -406,6 +409,7 @@ final class SupervisionDashboardState {
     );
   }
 
+  final String currentUserId;
   final FamilyRole? role;
   final List<FamilyLink> links;
   final ScreenTimeSummary ownScreenTime;
