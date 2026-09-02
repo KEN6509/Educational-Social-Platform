@@ -42,6 +42,8 @@ A focused RPC will report whether the authenticated member may currently send in
 
 `ChatRepository` will expose the conversation send-permission RPC. `ChatRoomPage` will load that permission when the room opens and refresh it when the application resumes.
 
+The `Start chatting` wording currently appears as the fallback preview on the Messages page when a conversation has no messages. Conversation hydration will mark whether each direct-chat participant is still connected through `public.follows`; a disconnected conversation will use `Follow this user to continue chatting.` as that preview instead. The chat room's separate empty-message prompt will follow the same rule.
+
 For a blocked direct conversation:
 
 - the normal text, image, and Send controls are replaced by a non-interactive follow-required notice;
@@ -66,6 +68,7 @@ Implementation uses focused test-driven development:
 - SQL migration tests verify that direct sends call the follow-only relationship helper and raise the stable relationship error.
 - Repository tests verify the new permission RPC name and mapping.
 - Chat-room widget tests verify the blocked composer, replacement of `Start chatting`, readable history, unchanged group composer, and transition to blocked state after a rejected stale send while preserving the draft.
+- Conversation model/tile tests verify that a disconnected, empty direct chat no longer advertises `Start chatting` on the Messages page.
 - Only the related chat SQL, repository, model, and widget test files will run for final verification, as requested. The full Flutter suite is not required for this fix.
 
 ## Deployment
