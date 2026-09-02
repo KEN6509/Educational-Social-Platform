@@ -41,23 +41,22 @@ abstract class _DashboardBase extends StatelessWidget {
   final SupervisionDashboardCallbacks callbacks;
 
   List<Widget> commonTail() => [
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
         SupervisionNotificationsCard(
           notifications: state.notifications,
           onTap: callbacks.onNotification,
         ),
       ];
 
-  Widget list(List<Widget> Function(double tileExtent) childrenBuilder) =>
+  Widget list(List<Widget> Function(double cardHeight) childrenBuilder) =>
       LayoutBuilder(
         builder: (context, constraints) {
-          const horizontalPadding = 16.0;
-          const columnGap = 12.0;
+          const horizontalPadding = 8.0;
           final availableWidth = constraints.maxWidth - horizontalPadding * 2;
-          final tileExtent = (availableWidth - columnGap) / 2;
+          final cardHeight = availableWidth / 2;
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 22, 16, 32),
-            children: childrenBuilder(tileExtent),
+            padding: const EdgeInsets.fromLTRB(8, 10, 8, 32),
+            children: childrenBuilder(cardHeight),
           );
         },
       );
@@ -66,9 +65,9 @@ abstract class _DashboardBase extends StatelessWidget {
 class _Unlinked extends _DashboardBase {
   const _Unlinked({required super.state, required super.callbacks});
   @override
-  Widget build(BuildContext context) => list((tileExtent) => [
-        ScreenTimeCard(summary: state.ownScreenTime, height: tileExtent),
-        const SizedBox(height: 18),
+  Widget build(BuildContext context) => list((cardHeight) => [
+        ScreenTimeCard(summary: state.ownScreenTime, height: cardHeight),
+        const SizedBox(height: 12),
         SummaryActionCard(
           key: const Key('family-links-card'),
           icon: Icons.people_outline_rounded,
@@ -76,7 +75,8 @@ class _Unlinked extends _DashboardBase {
           subtitle: 'No active family links yet.',
           actionLabel: 'View links',
           onTap: callbacks.onFamily,
-          height: tileExtent,
+          height: cardHeight,
+          wide: true,
         ),
         ...commonTail(),
       ]);
@@ -85,9 +85,9 @@ class _Unlinked extends _DashboardBase {
 class _Child extends _DashboardBase {
   const _Child({required super.state, required super.callbacks});
   @override
-  Widget build(BuildContext context) => list((tileExtent) => [
-        ScreenTimeCard(summary: state.ownScreenTime, height: tileExtent),
-        const SizedBox(height: 18),
+  Widget build(BuildContext context) => list((cardHeight) => [
+        ScreenTimeCard(summary: state.ownScreenTime, height: cardHeight),
+        const SizedBox(height: 12),
         SummaryActionCard(
           key: const Key('family-links-card'),
           icon: Icons.people_outline_rounded,
@@ -95,14 +95,15 @@ class _Child extends _DashboardBase {
           subtitle: 'Child role · ${state.activeLinkCount} linked parents',
           actionLabel: 'View links',
           onTap: callbacks.onFamily,
-          height: tileExtent,
+          height: cardHeight,
+          wide: true,
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
         Row(children: [
           Expanded(
             child: SafetyActionCard(
               key: const Key('safety-check-in-card'),
-              height: tileExtent,
+              height: cardHeight,
               title: 'Safety Check-In',
               actionLabel: 'Check in',
               description: 'Tell your linked parents that you are safe.',
@@ -116,7 +117,7 @@ class _Child extends _DashboardBase {
           Expanded(
             child: SafetyActionCard(
               key: const Key('sos-card'),
-              height: tileExtent,
+              height: cardHeight,
               title: 'SOS',
               actionLabel: 'Send SOS',
               description: 'Send an urgent alert with a location attempt.',
@@ -134,9 +135,9 @@ class _Child extends _DashboardBase {
 class _Parent extends _DashboardBase {
   const _Parent({required super.state, required super.callbacks});
   @override
-  Widget build(BuildContext context) => list((tileExtent) => [
-        ScreenTimeCard(summary: state.ownScreenTime, height: tileExtent),
-        const SizedBox(height: 18),
+  Widget build(BuildContext context) => list((cardHeight) => [
+        ScreenTimeCard(summary: state.ownScreenTime, height: cardHeight),
+        const SizedBox(height: 12),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             child: SummaryActionCard(
@@ -147,19 +148,21 @@ class _Parent extends _DashboardBase {
                   'Parent role · ${state.activeLinkCount} linked children',
               actionLabel: 'View links',
               onTap: callbacks.onFamily,
-              height: tileExtent,
+              height: cardHeight,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: SummaryActionCard(
               key: const Key('safety-records-card'),
-              icon: Icons.assignment_late_outlined,
+              icon: Icons.assignment_outlined,
+              iconBackgroundColor: const Color(0xFFFFEEEE),
+              iconColor: const Color(0xFF0D2344),
               title: 'Check-In & SOS records',
               subtitle: 'Review linked child safety updates',
               actionLabel: 'View records',
               onTap: callbacks.onRecords,
-              height: tileExtent,
+              height: cardHeight,
             ),
           ),
         ]),

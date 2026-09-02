@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
-import 'link_request_page.dart';
+import 'family_links_page.dart';
 import 'safety_records_page.dart';
 import 'sos_page.dart';
 
@@ -70,10 +70,10 @@ final class SupervisionNotificationRouter {
     if (link == null || !context.mounted) throw StateError('Missing link');
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => LinkRequestPage(
+        builder: (_) => FamilyLinksPage(
           repository: repository,
-          link: link,
           currentUserId: currentUserId,
+          initialLinks: links,
         ),
       ),
     );

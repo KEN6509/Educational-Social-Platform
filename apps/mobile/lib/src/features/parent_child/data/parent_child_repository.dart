@@ -2,6 +2,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'parent_supervision_models.dart';
 
+const _familyLinkSelect =
+    '*, parent:profiles!parent_child_links_parent_id_fkey(id, name, email, avatar_url), child:profiles!parent_child_links_child_id_fkey(id, name, email, avatar_url)';
+
 abstract interface class ParentChildRepositoryContract {
   Future<List<FamilyLink>> fetchLinks();
   Future<ScreenTimeSummary> fetchScreenTime(String userId, DateTime localDay);
@@ -14,6 +17,9 @@ abstract interface class ParentChildRepositoryContract {
   Future<FamilyLink> acceptLinkRequest(String linkId);
   Future<FamilyLink> rejectLinkRequest(String linkId);
   Future<FamilyLink> cancelLinkRequest(String linkId);
+  Future<FamilyLink> requestUnlink(String linkId);
+  Future<FamilyLink> acceptUnlink(String linkId);
+  Future<FamilyLink> rejectUnlink(String linkId);
   Future<List<SafetyCheckIn>> fetchCheckIns();
   Future<List<SosAlert>> fetchSosAlerts();
   Future<SafetyCheckIn> submitCheckIn(CheckInDraft draft);
@@ -43,9 +49,7 @@ class ParentChildRepository implements ParentChildRepositoryContract {
     final id = _userId;
     final rows = await _client
         .from('parent_child_links')
-        .select(
-          '*, parent:profiles!parent_child_links_parent_id_fkey(id, name, email, avatar_url), child:profiles!parent_child_links_child_id_fkey(id, name, email, avatar_url)',
-        )
+        .select(_familyLinkSelect)
         .or('parent_id.eq.$id,child_id.eq.$id')
         .order('created_at', ascending: false);
     return rows.map(FamilyLink.fromMap).toList(growable: false);
@@ -151,28 +155,46 @@ class ParentChildRepository implements ParentChildRepositoryContract {
     String candidateId,
     FamilyRole requesterRole,
   ) async =>
-      FamilyLink.fromMap(await _rpcRow('create_parent_child_link', {
+      _linkFromRpc('create_parent_child_link', {
         'p_candidate_id': candidateId,
         'p_requester_role': requesterRole.name,
-      }));
+      });
 
   @override
   Future<FamilyLink> acceptLinkRequest(String linkId) async =>
-      FamilyLink.fromMap(await _rpcRow('accept_parent_child_link', {
+      _linkFromRpc('accept_parent_child_link', {
         'p_link_id': linkId,
-      }));
+      });
 
   @override
   Future<FamilyLink> rejectLinkRequest(String linkId) async =>
-      FamilyLink.fromMap(await _rpcRow('reject_parent_child_link', {
+      _linkFromRpc('reject_parent_child_link', {
         'p_link_id': linkId,
-      }));
+      });
 
   @override
   Future<FamilyLink> cancelLinkRequest(String linkId) async =>
-      FamilyLink.fromMap(await _rpcRow('cancel_parent_child_link', {
+      _linkFromRpc('cancel_parent_child_link', {
         'p_link_id': linkId,
-      }));
+      });
+
+  @override
+  Future<FamilyLink> requestUnlink(String linkId) async =>
+      _linkFromRpc('request_parent_child_unlink', {
+        'p_link_id': linkId,
+      });
+
+  @override
+  Future<FamilyLink> acceptUnlink(String linkId) async =>
+      _linkFromRpc('accept_parent_child_unlink', {
+        'p_link_id': linkId,
+      });
+
+  @override
+  Future<FamilyLink> rejectUnlink(String linkId) async =>
+      _linkFromRpc('reject_parent_child_unlink', {
+        'p_link_id': linkId,
+      });
 
   @override
   Future<List<SafetyCheckIn>> fetchCheckIns() async {
@@ -180,7 +202,8 @@ class ParentChildRepository implements ParentChildRepositoryContract {
         .from('check_ins')
         .select(
             '*, child:profiles!check_ins_user_id_fkey(id, name, avatar_url)')
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .limit(100);
     return rows.map(SafetyCheckIn.fromMap).toList(growable: false);
   }
 
@@ -190,7 +213,8 @@ class ParentChildRepository implements ParentChildRepositoryContract {
         .from('sos_alerts')
         .select(
             '*, child:profiles!sos_alerts_child_id_fkey(id, name, avatar_url)')
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .limit(100);
     return rows.map(SosAlert.fromMap).toList(growable: false);
   }
 
@@ -284,6 +308,25 @@ class ParentChildRepository implements ParentChildRepositoryContract {
       return Map<String, dynamic>.from(response.first as Map);
     }
     return Map<String, dynamic>.from(response as Map);
+  }
+
+  Future<FamilyLink> _linkFromRpc(
+    String function,
+    Map<String, dynamic> params,
+  ) async {
+    final row = await _rpcRow(function, params);
+    final id = row['id'] as String?;
+    if (id == null) return FamilyLink.fromMap(row);
+    try {
+      final hydrated = await _client
+          .from('parent_child_links')
+          .select(_familyLinkSelect)
+          .eq('id', id)
+          .single();
+      return FamilyLink.fromMap(Map<String, dynamic>.from(hydrated));
+    } catch (_) {
+      return FamilyLink.fromMap(row);
+    }
   }
 
   static Map<String, dynamic> _locationParams(LocationCapture location) => {

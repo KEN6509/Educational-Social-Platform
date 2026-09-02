@@ -8,6 +8,10 @@ exception
   when duplicate_object then null;
 end $$;
 
+alter table public.parent_child_links
+  add column if not exists unlink_requested_by uuid references public.profiles(id) on delete set null,
+  add column if not exists unlink_requested_at timestamptz;
+
 create or replace function public.parent_supervision_assert_role(
   p_user_id uuid,
   p_role text,
@@ -346,12 +350,206 @@ begin
 end;
 $$;
 
+create or replace function public.request_parent_child_unlink(p_link_id uuid)
+returns public.parent_child_links
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_link public.parent_child_links;
+  v_recipient_id uuid;
+  v_requester_name text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  select * into v_link
+  from public.parent_child_links link
+  where link.id = p_link_id
+  for update;
+
+  if not found then
+    raise exception 'Family link not found';
+  end if;
+  if v_link.status <> 'active' then
+    raise exception 'Only active family links can request unlink';
+  end if;
+  if v_link.parent_id <> v_user_id and v_link.child_id <> v_user_id then
+    raise exception 'Only linked family members can request unlink' using errcode = '42501';
+  end if;
+  if v_link.unlink_requested_by is not null then
+    raise exception 'Unlink request already pending';
+  end if;
+
+  v_recipient_id := case
+    when v_link.parent_id = v_user_id then v_link.child_id
+    else v_link.parent_id
+  end;
+
+  update public.parent_child_links
+  set unlink_requested_by = v_user_id,
+      unlink_requested_at = now()
+  where id = v_link.id
+  returning * into v_link;
+
+  select profile.name into v_requester_name
+  from public.profiles profile
+  where profile.id = v_user_id;
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, link_id, child_id
+  ) values (
+    v_recipient_id,
+    'link_cancelled',
+    'Family unlink request',
+    coalesce(v_requester_name, 'A family member') || ' requested to unlink this family relationship.',
+    'link:' || v_link.id::text || ':unlink_requested:' || v_recipient_id::text,
+    v_link.id,
+    v_link.child_id
+  );
+
+  return v_link;
+end;
+$$;
+
+create or replace function public.accept_parent_child_unlink(p_link_id uuid)
+returns public.parent_child_links
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_link public.parent_child_links;
+  v_requester_id uuid;
+  v_responder_name text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  select * into v_link
+  from public.parent_child_links link
+  where link.id = p_link_id
+  for update;
+
+  if not found then
+    raise exception 'Unlink request not found';
+  end if;
+  if v_link.status <> 'active' or v_link.unlink_requested_by is null then
+    raise exception 'No unlink request is pending';
+  end if;
+  if v_link.unlink_requested_by = v_user_id then
+    raise exception 'The requester cannot approve their own unlink request';
+  end if;
+  if v_link.parent_id <> v_user_id and v_link.child_id <> v_user_id then
+    raise exception 'Only linked family members can approve unlink' using errcode = '42501';
+  end if;
+
+  v_requester_id := v_link.unlink_requested_by;
+
+  update public.parent_child_links
+  set status = 'revoked',
+      revoked_at = now(),
+      responded_at = now()
+  where id = v_link.id
+  returning * into v_link;
+
+  select profile.name into v_responder_name
+  from public.profiles profile
+  where profile.id = v_user_id;
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, link_id, child_id
+  ) values (
+    v_requester_id,
+    'link_cancelled',
+    'Family link ended',
+    coalesce(v_responder_name, 'Your family member') || ' approved the unlink request.',
+    'link:' || v_link.id::text || ':unlink_approved:' || v_requester_id::text,
+    v_link.id,
+    v_link.child_id
+  );
+
+  return v_link;
+end;
+$$;
+
+create or replace function public.reject_parent_child_unlink(p_link_id uuid)
+returns public.parent_child_links
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_link public.parent_child_links;
+  v_requester_id uuid;
+  v_responder_name text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  select * into v_link
+  from public.parent_child_links link
+  where link.id = p_link_id
+  for update;
+
+  if not found then
+    raise exception 'Unlink request not found';
+  end if;
+  if v_link.status <> 'active' or v_link.unlink_requested_by is null then
+    raise exception 'No unlink request is pending';
+  end if;
+  if v_link.unlink_requested_by = v_user_id then
+    raise exception 'The requester cannot reject their own unlink request';
+  end if;
+  if v_link.parent_id <> v_user_id and v_link.child_id <> v_user_id then
+    raise exception 'Only linked family members can reject unlink' using errcode = '42501';
+  end if;
+
+  v_requester_id := v_link.unlink_requested_by;
+
+  update public.parent_child_links
+  set unlink_requested_by = null,
+      unlink_requested_at = null,
+      responded_at = now()
+  where id = v_link.id
+  returning * into v_link;
+
+  select profile.name into v_responder_name
+  from public.profiles profile
+  where profile.id = v_user_id;
+
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, link_id, child_id
+  ) values (
+    v_requester_id,
+    'link_rejected',
+    'Unlink request declined',
+    coalesce(v_responder_name, 'Your family member') || ' declined the unlink request.',
+    'link:' || v_link.id::text || ':unlink_rejected:' || v_requester_id::text,
+    v_link.id,
+    v_link.child_id
+  );
+
+  return v_link;
+end;
+$$;
+
 revoke all on function public.parent_supervision_assert_role(uuid, text, uuid)
 from public, anon, authenticated;
 revoke all on function public.create_parent_child_link(uuid, text) from public;
 revoke all on function public.accept_parent_child_link(uuid) from public;
 revoke all on function public.reject_parent_child_link(uuid) from public;
 revoke all on function public.cancel_parent_child_link(uuid) from public;
+revoke all on function public.request_parent_child_unlink(uuid) from public;
+revoke all on function public.accept_parent_child_unlink(uuid) from public;
+revoke all on function public.reject_parent_child_unlink(uuid) from public;
 
 grant execute on function public.create_parent_child_link(uuid, text)
 to authenticated;
@@ -361,10 +559,18 @@ grant execute on function public.reject_parent_child_link(uuid)
 to authenticated;
 grant execute on function public.cancel_parent_child_link(uuid)
 to authenticated;
+grant execute on function public.request_parent_child_unlink(uuid)
+to authenticated;
+grant execute on function public.accept_parent_child_unlink(uuid)
+to authenticated;
+grant execute on function public.reject_parent_child_unlink(uuid)
+to authenticated;
 
 alter table public.parent_child_links
   add column if not exists responded_at timestamptz,
-  add column if not exists cancelled_at timestamptz;
+  add column if not exists cancelled_at timestamptz,
+  add column if not exists unlink_requested_by uuid references public.profiles(id) on delete set null,
+  add column if not exists unlink_requested_at timestamptz;
 
 alter table public.parent_child_links
   drop constraint if exists parent_child_links_parent_id_child_id_key;

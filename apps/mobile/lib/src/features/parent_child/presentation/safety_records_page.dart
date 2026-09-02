@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import 'sos_page.dart';
+
+const _pageBg = Color(0xFFF8FAFC);
+const _text = Color(0xFF0D2344);
+const _secondary = Color(0xFF64748B);
+const _muted = Color(0xFF98A3B6);
+const _checkIn = Color(0xFF16A34A);
+const _sos = Color(0xFFEF4444);
 
 sealed class SafetyRecordItem {
   const SafetyRecordItem(this.createdAt);
@@ -19,6 +27,8 @@ final class SosRecordItem extends SafetyRecordItem {
   final SosAlert alert;
 }
 
+enum _RecordFilter { all, checkIns, sosAlerts }
+
 class SafetyRecordsPage extends StatefulWidget {
   const SafetyRecordsPage({super.key, required this.repository});
 
@@ -30,6 +40,7 @@ class SafetyRecordsPage extends StatefulWidget {
 
 class _SafetyRecordsPageState extends State<SafetyRecordsPage> {
   late Future<List<SafetyRecordItem>> _recordsFuture;
+  _RecordFilter _filter = _RecordFilter.all;
 
   @override
   void initState() {
@@ -81,12 +92,25 @@ class _SafetyRecordsPageState extends State<SafetyRecordsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: _pageBg,
         appBar: AppBar(
           backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          titleSpacing: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.chevron_left_rounded, size: 34),
+            color: _text,
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
           title: const Text(
-            'Check-In & SOS records',
-            style: TextStyle(fontWeight: FontWeight.w900),
+            'Check-In & SOS Records',
+            style: TextStyle(
+              color: _text,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
         body: FutureBuilder<List<SafetyRecordItem>>(
@@ -105,31 +129,341 @@ class _SafetyRecordsPageState extends State<SafetyRecordsPage> {
                 ),
               );
             }
-            final records = snapshot.requireData;
-            if (records.isEmpty) {
-              return const _RecordsMessage(
-                icon: Icons.health_and_safety_outlined,
-                message: 'No Check-In or SOS records yet.',
-              );
-            }
+            final records = _visibleRecords(snapshot.requireData);
             return RefreshIndicator(
               onRefresh: _refresh,
-              child: ListView.separated(
+              child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                itemCount: records.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) =>
-                    _RecordTile(record: records[index], onTap: _open),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+                children: [
+                  _FilterBar(
+                    selected: _filter,
+                    onSelected: (value) => setState(() => _filter = value),
+                  ),
+                  const SizedBox(height: 18),
+                  if (records.isEmpty)
+                    const _RecordsMessage(
+                      icon: Icons.health_and_safety_outlined,
+                      message: 'No Check-In or SOS records yet.',
+                    )
+                  else
+                    ..._groupedRecordWidgets(records),
+                ],
               ),
             );
           },
+        ),
+      );
+
+  List<SafetyRecordItem> _visibleRecords(List<SafetyRecordItem> records) {
+    final filtered = switch (_filter) {
+      _RecordFilter.all => records,
+      _RecordFilter.checkIns =>
+        records.whereType<CheckInRecordItem>().toList(growable: false),
+      _RecordFilter.sosAlerts =>
+        records.whereType<SosRecordItem>().toList(growable: false),
+    };
+    return filtered.take(100).toList(growable: false);
+  }
+
+  List<Widget> _groupedRecordWidgets(List<SafetyRecordItem> records) {
+    final widgets = <Widget>[];
+    DateTime? lastDay;
+    for (final record in records) {
+      final local = record.createdAt.toLocal();
+      final day = DateTime(local.year, local.month, local.day);
+      if (lastDay != day) {
+        if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 22));
+        widgets.add(_DateHeader(day: day));
+        widgets.add(const SizedBox(height: 12));
+        lastDay = day;
+      } else {
+        widgets.add(const SizedBox(height: 12));
+      }
+      widgets.add(_RecordTile(record: record, onTap: _open));
+    }
+    return widgets;
+  }
+}
+
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({required this.selected, required this.onSelected});
+
+  final _RecordFilter selected;
+  final ValueChanged<_RecordFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) =>
+      Wrap(spacing: 10, runSpacing: 8, children: [
+        _FilterPill(
+          label: 'All',
+          selected: selected == _RecordFilter.all,
+          onTap: () => onSelected(_RecordFilter.all),
+        ),
+        _FilterPill(
+          label: 'Check-Ins',
+          selected: selected == _RecordFilter.checkIns,
+          onTap: () => onSelected(_RecordFilter.checkIns),
+        ),
+        _FilterPill(
+          label: 'SOS Alerts',
+          selected: selected == _RecordFilter.sosAlerts,
+          onTap: () => onSelected(_RecordFilter.sosAlerts),
+        ),
+      ]);
+}
+
+class _FilterPill extends StatelessWidget {
+  const _FilterPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: selected ? _text : const Color(0xFFF1F3F7),
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : _secondary,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+                height: 1,
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _DateHeader extends StatelessWidget {
+  const _DateHeader({required this.day});
+
+  final DateTime day;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        _formatRecordDay(day),
+        style: const TextStyle(
+          color: _muted,
+          fontSize: 15,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.2,
         ),
       );
 }
 
 class _RecordTile extends StatelessWidget {
   const _RecordTile({required this.record, required this.onTap});
+
+  final SafetyRecordItem record;
+  final ValueChanged<SafetyRecordItem> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final visual = switch (record) {
+      CheckInRecordItem(:final checkIn) => _RecordVisual(
+          key: ValueKey('safety-record-check-in-${checkIn.id}'),
+          label: 'CHECK-IN',
+          name: checkIn.child?.name ?? 'Linked child',
+          avatarUrl: checkIn.child?.avatarUrl,
+          accent: _checkIn,
+          background: const Color(0xFFEFFDF5),
+          badgeIcon: Icons.check_rounded,
+          time: formatSupervisionTime(record.createdAt),
+        ),
+      SosRecordItem(:final alert) => _RecordVisual(
+          key: ValueKey('safety-record-sos-${alert.id}'),
+          label: 'SOS',
+          name: alert.child?.name ?? 'Linked child',
+          avatarUrl: alert.child?.avatarUrl,
+          accent: _sos,
+          background: const Color(0xFFFFF1F1),
+          badgeIcon: Icons.priority_high_rounded,
+          time: formatSupervisionTime(record.createdAt),
+        ),
+    };
+    return Material(
+      key: visual.key,
+      color: visual.background,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => onTap(record),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 94),
+          padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: visual.accent.withValues(alpha: .32)),
+          ),
+          child: Row(children: [
+            _RecordAvatar(
+              name: visual.name,
+              avatarUrl: visual.avatarUrl,
+              color: visual.accent,
+              badgeIcon: visual.badgeIcon,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _TypeChip(label: visual.label, color: visual.accent),
+                  const SizedBox(height: 6),
+                  Text(
+                    visual.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _text,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      height: 1.05,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    visual.time,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _secondary,
+                      fontSize: 14,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFF9AA5B5),
+              size: 28,
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecordVisual {
+  const _RecordVisual({
+    required this.key,
+    required this.label,
+    required this.name,
+    required this.avatarUrl,
+    required this.accent,
+    required this.background,
+    required this.badgeIcon,
+    required this.time,
+  });
+
+  final Key key;
+  final String label;
+  final String name;
+  final String? avatarUrl;
+  final Color accent;
+  final Color background;
+  final IconData badgeIcon;
+  final String time;
+}
+
+class _TypeChip extends StatelessWidget {
+  const _TypeChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            height: 1,
+          ),
+        ),
+      );
+}
+
+class _RecordAvatar extends StatelessWidget {
+  const _RecordAvatar({
+    required this.name,
+    required this.avatarUrl,
+    required this.color,
+    required this.badgeIcon,
+  });
+
+  final String name;
+  final String? avatarUrl;
+  final Color color;
+  final IconData badgeIcon;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 60,
+        height: 60,
+        child: Stack(clipBehavior: Clip.none, children: [
+          Positioned.fill(
+            child: CircleAvatar(
+              backgroundColor: color.withValues(alpha: .16),
+              backgroundImage: avatarUrl == null || avatarUrl!.isEmpty
+                  ? null
+                  : NetworkImage(avatarUrl!),
+              child: avatarUrl == null || avatarUrl!.isEmpty
+                  ? Text(
+                      _initials(name),
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+          Positioned(
+            right: -3,
+            bottom: -3,
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+              ),
+              child: Icon(badgeIcon, color: Colors.white, size: 16),
+            ),
+          ),
+        ]),
+      );
+}
+
+// ignore: unused_element
+class _LegacyRecordTile extends StatelessWidget {
+  const _LegacyRecordTile({required this.record, required this.onTap});
 
   final SafetyRecordItem record;
   final ValueChanged<SafetyRecordItem> onTap;
@@ -223,6 +557,8 @@ class CheckInDetailPage extends StatelessWidget {
                   : checkIn.location.status == LocationStatus.notRequested
                       ? 'Not shared'
                       : 'Location unavailable',
+              copyOnLongPress:
+                  checkIn.location.status == LocationStatus.available,
             ),
           ],
         ),
@@ -234,37 +570,51 @@ class _DetailRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.copyOnLongPress = false,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final bool copyOnLongPress;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF6F8FA),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, color: const Color(0xFF087F8C)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(color: Colors.blueGrey, fontSize: 12),
-                ),
-                const SizedBox(height: 3),
-                Text(value,
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-              ],
-            ),
+  Widget build(BuildContext context) => GestureDetector(
+        onLongPress: copyOnLongPress
+            ? () async {
+                await Clipboard.setData(ClipboardData(text: value));
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Location copied')),
+                );
+              }
+            : null,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF6F8FA),
+            borderRadius: BorderRadius.circular(16),
           ),
-        ]),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(icon, color: const Color(0xFF087F8C)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style:
+                        const TextStyle(color: Colors.blueGrey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(value,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          ]),
+        ),
       );
 }
 
@@ -291,6 +641,32 @@ class _RecordsMessage extends StatelessWidget {
           ]),
         ),
       );
+}
+
+String _initials(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || parts.first.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.characters.first.toUpperCase();
+  return '${parts.first.characters.first}${parts.last.characters.first}'
+      .toUpperCase();
+}
+
+String _formatRecordDay(DateTime value) {
+  const months = [
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
+  ];
+  return '${months[value.month - 1]} ${value.day}, ${value.year}';
 }
 
 String formatSupervisionTime(DateTime value) {

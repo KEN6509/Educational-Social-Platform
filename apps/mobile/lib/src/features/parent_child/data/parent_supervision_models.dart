@@ -145,6 +145,8 @@ final class FamilyLink {
     this.linkedAt,
     this.respondedAt,
     this.cancelledAt,
+    this.unlinkRequestedBy,
+    this.unlinkRequestedAt,
   });
 
   factory FamilyLink.fromMap(Map<String, dynamic> map) => FamilyLink(
@@ -157,6 +159,8 @@ final class FamilyLink {
         linkedAt: _optionalDate(map['linked_at']),
         respondedAt: _optionalDate(map['responded_at']),
         cancelledAt: _optionalDate(map['cancelled_at']),
+        unlinkRequestedBy: map['unlink_requested_by'] as String?,
+        unlinkRequestedAt: _optionalDate(map['unlink_requested_at']),
         parent: map['parent'] is Map
             ? ProfileSummary.fromMap(
                 Map<String, dynamic>.from(map['parent'] as Map),
@@ -178,8 +182,12 @@ final class FamilyLink {
   final DateTime? linkedAt;
   final DateTime? respondedAt;
   final DateTime? cancelledAt;
+  final String? unlinkRequestedBy;
+  final DateTime? unlinkRequestedAt;
   final ProfileSummary? parent;
   final ProfileSummary? child;
+
+  bool get hasPendingUnlinkRequest => unlinkRequestedBy != null;
 }
 
 final class ScreenTimeSummary {
@@ -391,9 +399,8 @@ final class SupervisionDashboardState {
     required List<SupervisionNotification> notifications,
   }) {
     FamilyRole? role;
-    for (final link in links.where((link) =>
-        link.status == FamilyLinkStatus.pending ||
-        link.status == FamilyLinkStatus.active)) {
+    for (final link
+        in links.where((link) => link.status == FamilyLinkStatus.active)) {
       final currentRole = link.parentId == currentUserId
           ? FamilyRole.parent
           : link.childId == currentUserId

@@ -6,13 +6,13 @@ import 'package:cyanzone_mobile/src/features/parent_child/data/parent_supervisio
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/check_in_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/family_links_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/link_candidates_page.dart';
-import 'package:cyanzone_mobile/src/features/parent_child/presentation/link_request_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/parent_child_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/safety_records_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/sos_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/supervision_notification_router.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/services/location_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -162,33 +162,42 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('incoming request exposes accept and reject actions',
+  testWidgets('family links page exposes pending accept and reject actions',
       (tester) async {
     final repository = FlowFakeRepository();
     await tester.pumpWidget(MaterialApp(
-      home: LinkRequestPage(
+      home: FamilyLinksPage(
         repository: repository,
-        link: _pendingLink(requestedBy: 'other-user'),
         currentUserId: 'user-1',
+        initialLinks: [_pendingLink(requestedBy: 'other-user')],
       ),
     ));
-    expect(find.text('Accept'), findsOneWidget);
-    expect(find.text('Reject'), findsOneWidget);
+    expect(find.text('PENDING REQUESTS'), findsOneWidget);
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
     expect(find.text('Cancel request'), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.check_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-accept-family-link')));
+    await tester.pumpAndSettle();
+    expect(repository.acceptedLinkId, 'link-1');
   });
 
-  testWidgets('outgoing request exposes only cancellation', (tester) async {
+  testWidgets('family links page hides outgoing requests from pending section',
+      (tester) async {
     final repository = FlowFakeRepository();
     await tester.pumpWidget(MaterialApp(
-      home: LinkRequestPage(
+      home: FamilyLinksPage(
         repository: repository,
-        link: _pendingLink(requestedBy: 'user-1'),
         currentUserId: 'user-1',
+        initialLinks: [_pendingLink(requestedBy: 'user-1')],
       ),
     ));
-    expect(find.text('Cancel request'), findsOneWidget);
-    expect(find.text('Accept'), findsNothing);
-    expect(find.text('Reject'), findsNothing);
+    expect(find.text('PENDING REQUESTS'), findsNothing);
+    expect(find.text('Request sent'), findsNothing);
+    expect(find.byIcon(Icons.check_rounded), findsNothing);
+    expect(find.byIcon(Icons.close_rounded), findsNothing);
   });
 
   testWidgets('dashboard add icon opens candidates with established role',
@@ -403,7 +412,8 @@ void main() {
     expect(location.calls, 1);
   });
 
-  testWidgets('child dashboard safety cards open their flows', (tester) async {
+  testWidgets('child dashboard safety cards open their flows as pages',
+      (tester) async {
     _usePhoneViewport(tester);
     final repository = FlowFakeRepository(dashboardRole: FamilyRole.child);
     await tester.pumpWidget(MaterialApp(
@@ -416,6 +426,7 @@ void main() {
 
     await tester.tap(find.text('Safety Check-In'));
     await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
     expect(find.byType(CheckInPage), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
@@ -428,6 +439,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('SOS'));
     await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
     expect(find.byType(SosPage), findsOneWidget);
   });
 
@@ -475,20 +487,23 @@ void main() {
     expect(find.text('Resolve SOS'), findsOneWidget);
   });
 
-  testWidgets('safety records merge newest first and open Check-In detail',
+  testWidgets('safety records use grouped 100-record card layout and filters',
       (tester) async {
+    final manyCheckIns = List.generate(
+      101,
+      (index) => _checkIn(
+        id: 'check-in-$index',
+        message: 'Check in $index',
+        createdAt:
+            DateTime.utc(2026, 8, 3, 12).subtract(Duration(minutes: index)),
+      ),
+    );
     final repository = FlowFakeRepository(
-      checkIns: [
-        _checkIn(
-          id: 'check-in-old',
-          message: 'I am at school.',
-          createdAt: DateTime.utc(2026, 8, 2, 7),
-        ),
-      ],
+      checkIns: manyCheckIns,
       sosAlerts: [
         _sosAlert(
           location: _availableLocation(),
-          createdAt: DateTime.utc(2026, 8, 2, 8),
+          createdAt: DateTime.utc(2026, 8, 3, 13),
         ),
       ],
     );
@@ -498,14 +513,36 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     await tester.pumpAndSettle();
 
-    final sosTop = tester.getTopLeft(find.text('SOS · Open')).dy;
-    final checkInTop = tester.getTopLeft(find.text('Check-In')).dy;
+    expect(find.text('Check-In & SOS Records'), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('Check-Ins'), findsOneWidget);
+    expect(find.text('SOS Alerts'), findsOneWidget);
+    expect(find.text('AUG 3, 2026'), findsOneWidget);
+    expect(find.text('CHECK-IN'), findsWidgets);
+    expect(find.text('SOS'), findsOneWidget);
+    final sosTop = tester.getTopLeft(find.text('SOS')).dy;
+    final checkInTop = tester.getTopLeft(find.text('CHECK-IN').first).dy;
     expect(sosTop, lessThan(checkInTop));
 
-    await tester.tap(find.text('Check-In'));
+    await tester.tap(find.text('Check-Ins'));
+    await tester.pumpAndSettle();
+    expect(find.text('SOS'), findsNothing);
+    expect(find.text('CHECK-IN'), findsWidgets);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('safety-record-check-in-check-in-99')),
+      500,
+    );
+    expect(
+      find.byKey(const ValueKey('safety-record-check-in-check-in-100')),
+      findsNothing,
+    );
+
+    await tester
+        .tap(find.byKey(const ValueKey('safety-record-check-in-check-in-99')));
     await tester.pumpAndSettle();
     expect(find.text('Check-In detail'), findsOneWidget);
-    expect(find.text('I am at school.'), findsOneWidget);
+    expect(find.text('Check in 99'), findsOneWidget);
   });
 
   testWidgets('safety records show an empty state', (tester) async {
@@ -603,7 +640,7 @@ void main() {
     await tester.tap(find.byKey(const Key('safety-records-card')));
     await tester.pumpAndSettle();
     expect(find.byType(SafetyRecordsPage), findsOneWidget);
-    expect(find.textContaining('Safe at home.'), findsOneWidget);
+    expect(find.text('Jamie Tan'), findsOneWidget);
   });
 
   testWidgets('dashboard notification marks read and uses typed route',
@@ -641,7 +678,72 @@ void main() {
     expect(find.text('Reached the library.'), findsOneWidget);
   });
 
-  testWidgets('parent active family link opens child screen time detail',
+  testWidgets('link notification opens the family links page', (tester) async {
+    final repository = FlowFakeRepository(
+      links: [_pendingLink(requestedBy: 'other-user')],
+    );
+    final router = SupervisionNotificationRouter(
+      repository: repository,
+      currentUserId: 'user-1',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => router.open(
+            context,
+            _notification(SupervisionEventType.linkRequest),
+          ),
+          child: const Text('Open notification'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Open notification'));
+    await tester.pumpAndSettle();
+    expect(repository.markedNotificationId, 'notification-1');
+    expect(find.byType(FamilyLinksPage), findsOneWidget);
+    expect(find.text('PENDING REQUESTS'), findsOneWidget);
+  });
+
+  testWidgets('linked account row opens the selected user profile',
+      (tester) async {
+    final repository = FlowFakeRepository(screenTimeSeconds: 3900);
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_activeLink(role: FamilyRole.parent)],
+        profilePageBuilder: (profile) => Scaffold(
+          body: Text('Profile: ${profile.name}'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Jamie Tan'));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile: Jamie Tan'), findsOneWidget);
+  });
+
+  testWidgets('pending request row opens the selected user profile',
+      (tester) async {
+    final repository = FlowFakeRepository();
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_pendingLink(requestedBy: 'other-user')],
+        profilePageBuilder: (profile) => Scaffold(
+          body: Text('Profile: ${profile.name}'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Parent Tan'));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile: Parent Tan'), findsOneWidget);
+  });
+
+  testWidgets('parent linked account row uses child screen time and avatar',
       (tester) async {
     final repository = FlowFakeRepository(screenTimeSeconds: 3900);
     await tester.pumpWidget(MaterialApp(
@@ -651,11 +753,289 @@ void main() {
         initialLinks: [_activeLink(role: FamilyRole.parent)],
       ),
     ));
-
-    await tester.tap(find.text('Jamie Tan'));
     await tester.pumpAndSettle();
-    expect(find.byType(FamilyScreenTimePage), findsOneWidget);
-    expect(find.text('1 h 5 min'), findsOneWidget);
+
+    expect(repository.screenTimeUserIds, ['other-user']);
+    expect(
+      find.textContaining('Screen time today:', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Last active'), findsNothing);
+    final avatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar).first);
+    expect(avatar.foregroundImage, isA<NetworkImage>());
+  });
+
+  testWidgets('child linked account row hides parent screen time',
+      (tester) async {
+    final repository = FlowFakeRepository(screenTimeSeconds: 3900);
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_activeLink(role: FamilyRole.child)],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Parent Tan'), findsOneWidget);
+    expect(
+      find.textContaining('Screen time today:', findRichText: true),
+      findsNothing,
+    );
+    expect(repository.screenTimeUserIds, isEmpty);
+  });
+
+  testWidgets('child linked account row centers the name and unlink action',
+      (tester) async {
+    final repository = FlowFakeRepository();
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_activeLink(role: FamilyRole.child)],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final avatarCenter = tester.getCenter(find.byType(CircleAvatar).first);
+    final nameCenter = tester.getCenter(find.text('Parent Tan'));
+    final unlinkCenter = tester.getCenter(find.text('Unlink'));
+    expect((nameCenter.dy - avatarCenter.dy).abs(), lessThanOrEqualTo(2));
+    expect((unlinkCenter.dy - avatarCenter.dy).abs(), lessThanOrEqualTo(2));
+  });
+
+  testWidgets('unlink action sends a cancel request and switches to pending',
+      (tester) async {
+    final repository = FlowFakeRepository();
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_activeLink(role: FamilyRole.child)],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Unlink'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-unlink-family-link')));
+    await tester.pumpAndSettle();
+
+    expect(repository.requestedUnlinkId, 'active-link');
+    expect(find.text('Pending'), findsOneWidget);
+    expect(find.text('Unlink'), findsNothing);
+  });
+
+  testWidgets('unlink action requires confirmation before sending request',
+      (tester) async {
+    final repository = FlowFakeRepository();
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_activeLink(role: FamilyRole.child)],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Unlink'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm unlink'), findsOneWidget);
+    expect(repository.requestedUnlinkId, isNull);
+
+    await tester.tap(find.byKey(const ValueKey('confirm-unlink-family-link')));
+    await tester.pumpAndSettle();
+
+    expect(repository.requestedUnlinkId, 'active-link');
+    expect(find.text('Pending'), findsOneWidget);
+  });
+
+  testWidgets('unlink preserves account profile data immediately',
+      (tester) async {
+    final repository = FlowFakeRepository();
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_activeLink(role: FamilyRole.child)],
+        profilePageBuilder: (profile) => Scaffold(
+          body: Text('Profile: ${profile.name}'),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Unlink'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-unlink-family-link')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Parent Tan'), findsOneWidget);
+    expect(find.text('Family member'), findsNothing);
+    await tester.tap(find.text('Parent Tan'));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile: Parent Tan'), findsOneWidget);
+  });
+
+  testWidgets('accepting link request preserves account profile data',
+      (tester) async {
+    final repository = FlowFakeRepository();
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_pendingLink(requestedBy: 'other-user')],
+        profilePageBuilder: (profile) => Scaffold(
+          body: Text('Profile: ${profile.name}'),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.check_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-accept-family-link')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Parent Tan'), findsOneWidget);
+    expect(find.text('Family member'), findsNothing);
+    await tester.tap(find.text('Parent Tan'));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile: Parent Tan'), findsOneWidget);
+  });
+
+  testWidgets('accept link request requires confirmation before accepting',
+      (tester) async {
+    final repository = FlowFakeRepository();
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_pendingLink(requestedBy: 'other-user')],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.check_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Accept family link?'), findsOneWidget);
+    expect(repository.acceptedLinkId, isNull);
+
+    await tester.tap(find.byKey(const ValueKey('confirm-accept-family-link')));
+    await tester.pumpAndSettle();
+
+    expect(repository.acceptedLinkId, 'link-1');
+    expect(find.text('Parent Tan'), findsOneWidget);
+  });
+
+  testWidgets('unlink request failure appears as a supervision notification',
+      (tester) async {
+    final repository = FlowFakeRepository(failUnlinkRequest: true);
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [_activeLink(role: FamilyRole.child)],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Unlink'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-unlink-family-link')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unable to request unlink'), findsOneWidget);
+    expect(find.textContaining('Try again later'), findsOneWidget);
+    expect(find.text('Unlink'), findsOneWidget);
+  });
+
+  testWidgets('incoming unlink request appears in pending requests and accepts',
+      (tester) async {
+    final repository = FlowFakeRepository();
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [
+          _activeLink(
+            role: FamilyRole.child,
+            unlinkRequestedBy: 'other-user',
+          ),
+        ],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unlink Request:'), findsOneWidget);
+    expect(find.text('End family link'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.check_rounded));
+    await tester.pumpAndSettle();
+    await tester
+        .tap(find.byKey(const ValueKey('confirm-accept-unlink-family-link')));
+    await tester.pumpAndSettle();
+
+    expect(repository.acceptedUnlinkId, 'active-link');
+    expect(find.text('0 parents'), findsOneWidget);
+  });
+
+  testWidgets('incoming unlink request can be rejected and returns to unlink',
+      (tester) async {
+    final repository = FlowFakeRepository();
+    await tester.pumpWidget(MaterialApp(
+      home: FamilyLinksPage(
+        repository: repository,
+        currentUserId: 'user-1',
+        initialLinks: [
+          _activeLink(
+            role: FamilyRole.child,
+            unlinkRequestedBy: 'other-user',
+          ),
+        ],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pumpAndSettle();
+
+    expect(repository.rejectedUnlinkId, 'active-link');
+    expect(find.text('Unlink Request:'), findsNothing);
+    expect(find.text('Unlink'), findsOneWidget);
+  });
+
+  testWidgets('check in detail copies available location on long press',
+      (tester) async {
+    String? copiedText;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copiedText = (call.arguments as Map)['text'] as String?;
+      }
+      return null;
+    });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: CheckInDetailPage(
+        checkIn: _checkIn(
+          id: 'check-in-copy',
+          message: 'Arrived safely',
+          createdAt: DateTime.utc(2026, 8, 2, 8),
+          location: _availableLocation(),
+        ),
+      ),
+    ));
+
+    await tester.longPress(find.text('3.13900, 101.68690'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(copiedText, '3.13900, 101.68690');
+    expect(find.text('Location copied'), findsOneWidget);
   });
 }
 
@@ -666,6 +1046,16 @@ FamilyLink _pendingLink({required String requestedBy}) => FamilyLink.fromMap({
       'requested_by': requestedBy,
       'status': 'pending',
       'created_at': '2026-08-02T08:00:00Z',
+      'parent': const {
+        'id': 'other-user',
+        'name': 'Parent Tan',
+        'avatar_url': 'https://example.com/parent.png',
+      },
+      'child': const {
+        'id': 'user-1',
+        'name': 'Jamie Tan',
+        'avatar_url': 'https://example.com/jamie.png',
+      },
     });
 
 void _usePhoneViewport(WidgetTester tester) {
@@ -687,6 +1077,8 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
     this.failMarkRead = false,
     this.dashboardNotifications = const [],
     this.screenTimeSeconds = 0,
+    this.links = const [],
+    this.failUnlinkRequest = false,
     this.candidates = const [
       LinkCandidate(
         profile: ProfileSummary(id: 'candidate-1', name: 'Alex Tan'),
@@ -707,8 +1099,17 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
   final bool failMarkRead;
   final List<SupervisionNotification> dashboardNotifications;
   final int screenTimeSeconds;
+  final List<FamilyLink> links;
+  final bool failUnlinkRequest;
   final List<LinkCandidate> candidates;
   String? markedNotificationId;
+  String? acceptedLinkId;
+  String? rejectedLinkId;
+  String? cancelledLinkId;
+  String? requestedUnlinkId;
+  String? acceptedUnlinkId;
+  String? rejectedUnlinkId;
+  final List<String> screenTimeUserIds = [];
   FamilyRole? createdRole;
   String? createdCandidateId;
   CheckInDraft? submittedCheckIn;
@@ -734,6 +1135,9 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
       pendingCandidates?.future ?? Future.value(candidates);
 
   @override
+  Future<List<FamilyLink>> fetchLinks() async => links;
+
+  @override
   Future<FamilyLink> createLinkRequest(
     String candidateId,
     FamilyRole requesterRole,
@@ -741,6 +1145,49 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
     createdCandidateId = candidateId;
     createdRole = requesterRole;
     return _pendingLink(requestedBy: 'user-1');
+  }
+
+  @override
+  Future<FamilyLink> acceptLinkRequest(String linkId) async {
+    acceptedLinkId = linkId;
+    return _activeLink(role: FamilyRole.child, includeProfiles: false);
+  }
+
+  @override
+  Future<FamilyLink> rejectLinkRequest(String linkId) async {
+    rejectedLinkId = linkId;
+    return _pendingLink(requestedBy: 'other-user');
+  }
+
+  @override
+  Future<FamilyLink> cancelLinkRequest(String linkId) async {
+    cancelledLinkId = linkId;
+    return _pendingLink(requestedBy: 'user-1');
+  }
+
+  @override
+  Future<FamilyLink> requestUnlink(String linkId) async {
+    requestedUnlinkId = linkId;
+    if (failUnlinkRequest) {
+      throw Exception('network unavailable');
+    }
+    return _activeLink(
+      role: FamilyRole.child,
+      unlinkRequestedBy: 'user-1',
+      includeProfiles: false,
+    );
+  }
+
+  @override
+  Future<FamilyLink> acceptUnlink(String linkId) async {
+    acceptedUnlinkId = linkId;
+    return _activeLink(role: FamilyRole.child, status: 'revoked');
+  }
+
+  @override
+  Future<FamilyLink> rejectUnlink(String linkId) async {
+    rejectedUnlinkId = linkId;
+    return _activeLink(role: FamilyRole.child, includeProfiles: false);
   }
 
   @override
@@ -802,13 +1249,15 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
   Future<ScreenTimeSummary> fetchScreenTime(
     String userId,
     DateTime localDay,
-  ) async =>
-      ScreenTimeSummary(
-        userId: userId,
-        localDay: localDay,
-        secondsUsed: screenTimeSeconds,
-        nextThresholdHours: 3,
-      );
+  ) async {
+    screenTimeUserIds.add(userId);
+    return ScreenTimeSummary(
+      userId: userId,
+      localDay: localDay,
+      secondsUsed: screenTimeSeconds,
+      nextThresholdHours: 3,
+    );
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -857,12 +1306,13 @@ SafetyCheckIn _checkIn({
   required String id,
   required String message,
   required DateTime createdAt,
+  LocationCapture location = const LocationCapture.notRequested(),
 }) =>
     SafetyCheckIn(
       id: id,
       childId: 'child-1',
       message: message,
-      location: const LocationCapture.notRequested(),
+      location: location,
       createdAt: createdAt,
       child: const ProfileSummary(id: 'child-1', name: 'Jamie Tan'),
     );
@@ -880,14 +1330,37 @@ SupervisionNotification _notification(SupervisionEventType type) =>
       childId: 'child-1',
     );
 
-FamilyLink _activeLink({required FamilyRole role}) => FamilyLink.fromMap({
-      'id': 'active-link',
-      'parent_id': role == FamilyRole.parent ? 'user-1' : 'other-user',
-      'child_id': role == FamilyRole.child ? 'user-1' : 'other-user',
-      'requested_by': 'user-1',
-      'status': 'active',
-      'created_at': '2026-08-01T08:00:00Z',
-      'linked_at': '2026-08-01T09:00:00Z',
-      'parent': const {'id': 'user-1', 'name': 'Parent Tan'},
-      'child': const {'id': 'other-user', 'name': 'Jamie Tan'},
+FamilyLink _activeLink({
+  required FamilyRole role,
+  String? unlinkRequestedBy,
+  String status = 'active',
+  bool includeProfiles = true,
+}) {
+  final map = <String, dynamic>{
+    'id': 'active-link',
+    'parent_id': role == FamilyRole.parent ? 'user-1' : 'other-user',
+    'child_id': role == FamilyRole.child ? 'user-1' : 'other-user',
+    'requested_by': 'user-1',
+    'status': status,
+    'unlink_requested_by': unlinkRequestedBy,
+    'unlink_requested_at':
+        unlinkRequestedBy == null ? null : '2026-08-02T10:00:00Z',
+    'created_at': '2026-08-01T08:00:00Z',
+    'linked_at': '2026-08-01T09:00:00Z',
+  };
+  if (includeProfiles) {
+    map.addAll({
+      'parent': {
+        'id': role == FamilyRole.parent ? 'user-1' : 'other-user',
+        'name': 'Parent Tan',
+        'avatar_url': 'https://example.com/parent.png',
+      },
+      'child': {
+        'id': role == FamilyRole.child ? 'user-1' : 'other-user',
+        'name': 'Jamie Tan',
+        'avatar_url': 'https://example.com/jamie.png',
+      },
     });
+  }
+  return FamilyLink.fromMap(map);
+}

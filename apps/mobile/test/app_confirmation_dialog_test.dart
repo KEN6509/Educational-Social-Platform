@@ -15,7 +15,6 @@ void main() {
       'lib/src/features/chat/presentation/chat_group_pages.dart',
       'lib/src/features/chat/presentation/notification_sections_page.dart',
       'lib/src/features/chat/presentation/system_notification_detail_page.dart',
-      'lib/src/features/parent_child/presentation/link_request_page.dart',
       'lib/src/features/parent_child/presentation/link_candidates_page.dart',
       'lib/src/features/parent_child/presentation/sos_page.dart',
     ];

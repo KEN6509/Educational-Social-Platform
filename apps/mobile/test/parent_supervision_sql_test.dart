@@ -20,6 +20,9 @@ void main() {
       'screen_time_sync_events',
       'screen_time_threshold_events',
       'create_parent_child_link',
+      'request_parent_child_unlink',
+      'accept_parent_child_unlink',
+      'reject_parent_child_unlink',
       'submit_safety_check_in',
       'submit_sos_alert',
       'sync_screen_time_session',
@@ -113,9 +116,19 @@ void main() {
       'accept_parent_child_link',
       'reject_parent_child_link',
       'cancel_parent_child_link',
+      'request_parent_child_unlink',
+      'accept_parent_child_unlink',
+      'reject_parent_child_unlink',
     ]) {
       expect(migration, contains('function public.$name'));
     }
+    expect(migration, contains('unlink_requested_by'));
+    expect(migration, contains('unlink_requested_at'));
+    expect(migration, contains("status <> 'active'"));
+    expect(migration, contains('Unlink request already pending'));
+    expect(migration, contains('No unlink request is pending'));
+    expect(migration, contains('approved the unlink request'));
+    expect(migration, contains('declined the unlink request'));
     expect(
       migration,
       contains("p_requester_role not in ('parent', 'child')"),

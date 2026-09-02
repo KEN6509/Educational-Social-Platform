@@ -2,7 +2,7 @@ import 'package:cyanzone_mobile/src/features/parent_child/data/parent_supervisio
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('pending link establishes child role without enabling safety', () {
+  test('pending link does not establish role before acceptance', () {
     final state = SupervisionDashboardState.fromParts(
       currentUserId: 'child-1',
       links: [
@@ -19,7 +19,7 @@ void main() {
       notifications: const [],
     );
 
-    expect(state.role, FamilyRole.child);
+    expect(state.role, isNull);
     expect(state.activeLinkCount, 0);
     expect(state.canUseSafetyActions, isFalse);
   });
@@ -109,6 +109,32 @@ void main() {
     expect(link.cancelledAt, isNotNull);
     expect(sos.hasLocation, isFalse);
     expect(sos.location.failureCode, 'permission_denied');
+  });
+
+  test('active link tracks a pending unlink request without ending the role',
+      () {
+    final link = FamilyLink.fromMap({
+      'id': 'link-1',
+      'parent_id': 'parent-1',
+      'child_id': 'child-1',
+      'requested_by': 'parent-1',
+      'status': 'active',
+      'created_at': '2026-08-02T08:00:00Z',
+      'unlink_requested_by': 'child-1',
+      'unlink_requested_at': '2026-08-02T08:10:00Z',
+    });
+    final state = SupervisionDashboardState.fromParts(
+      currentUserId: 'child-1',
+      links: [link],
+      ownScreenTime: ScreenTimeSummary.zero('child-1', DateTime(2026, 8, 2)),
+      notifications: const [],
+    );
+
+    expect(link.hasPendingUnlinkRequest, isTrue);
+    expect(link.unlinkRequestedBy, 'child-1');
+    expect(link.unlinkRequestedAt, isNotNull);
+    expect(state.role, FamilyRole.child);
+    expect(state.activeLinkCount, 1);
   });
 
   test('unknown server enum values fail fast', () {
