@@ -180,6 +180,73 @@ void main() {
     expect(sql, contains('on delete cascade'));
   });
 
+  test('active direct chat requires a follow relationship', () {
+    final sql = File('../../supabase/chat.sql').readAsStringSync();
+    final start = sql.indexOf(
+      'create or replace function public.open_direct_conversation',
+    );
+    expect(start, greaterThanOrEqualTo(0));
+
+    final end = sql.indexOf(
+      'create or replace function public.create_group_conversation',
+      start,
+    );
+
+    expect(end, greaterThan(start));
+    final functionSql = sql.substring(start, end);
+    expect(
+      functionSql,
+      contains('public.chat_users_have_follow_relationship'),
+    );
+    expect(
+      functionSql,
+      contains("raise exception 'Follow relationship required'"),
+    );
+    expect(functionSql, contains('public.create_direct_conversation'));
+    expect(functionSql, contains("set request_status = 'accepted'"));
+    expect(functionSql, contains("set status = 'active'"));
+  });
+
+  test('group member eligibility uses follows only', () {
+    final sql = File('../../supabase/chat.sql').readAsStringSync();
+    final start = sql.indexOf(
+      'create or replace function public.chat_can_add_group_member',
+    );
+    final end = sql.indexOf(
+      'create or replace function public.chat_is_conversation_member',
+      start,
+    );
+
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final functionSql = sql.substring(start, end);
+    expect(
+      functionSql,
+      contains('public.chat_users_have_follow_relationship'),
+    );
+    expect(functionSql, isNot(contains('chat_conversations')));
+    expect(functionSql, isNot(contains('parent_child_links')));
+  });
+
+  test('message request SQL remains available as dormant infrastructure', () {
+    final sql = File('../../supabase/chat.sql').readAsStringSync();
+
+    expect(
+      sql,
+      contains(
+        'create or replace function public.create_direct_conversation',
+      ),
+    );
+    expect(
+      sql,
+      contains('create or replace function public.accept_message_request'),
+    );
+    expect(
+      sql,
+      contains('Pending message requests are limited to 3 messages'),
+    );
+  });
+
   test('chat SQL defines MVP system notifications and post appeals', () {
     final sql = File('../../supabase/chat.sql').readAsStringSync();
 

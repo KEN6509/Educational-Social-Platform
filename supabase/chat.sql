@@ -273,6 +273,24 @@ as $$
     );
 $$;
 
+create or replace function public.chat_users_have_follow_relationship(left_user uuid, right_user uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select left_user is not null
+    and right_user is not null
+    and left_user <> right_user
+    and exists (
+      select 1
+      from public.follows f
+      where (f.follower_id = left_user and f.following_id = right_user)
+         or (f.follower_id = right_user and f.following_id = left_user)
+    );
+$$;
+
 create or replace function public.chat_can_add_group_member(owner_id uuid, candidate_id uuid)
 returns boolean
 language sql
@@ -280,21 +298,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select public.chat_users_have_relationship(owner_id, candidate_id)
-    or exists (
-      select 1
-      from public.chat_conversations c
-      join public.chat_conversation_members owner_member
-        on owner_member.conversation_id = c.id
-       and owner_member.user_id = owner_id
-       and owner_member.status = 'active'
-      join public.chat_conversation_members candidate_member
-        on candidate_member.conversation_id = c.id
-       and candidate_member.user_id = candidate_id
-       and candidate_member.status = 'active'
-      where c.type = 'direct'
-        and c.request_status = 'accepted'
-    );
+  select public.chat_users_have_follow_relationship(owner_id, candidate_id);
 $$;
 
 create or replace function public.chat_is_conversation_member(p_conversation_id uuid, p_user_id uuid)
@@ -406,6 +410,50 @@ begin
 end;
 $$;
 
+create or replace function public.open_direct_conversation(target_user_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_current_user uuid := auth.uid();
+  v_conversation_id uuid;
+begin
+  if v_current_user is null then
+    raise exception 'Authentication required';
+  end if;
+
+  if target_user_id is null or target_user_id = v_current_user then
+    raise exception 'Target user is invalid';
+  end if;
+
+  if not public.chat_users_have_follow_relationship(
+    v_current_user,
+    target_user_id
+  ) then
+    raise exception 'Follow relationship required';
+  end if;
+
+  v_conversation_id := public.create_direct_conversation(target_user_id);
+
+  update public.chat_conversations c
+  set request_status = 'accepted',
+      updated_at = now()
+  where c.id = v_conversation_id
+    and c.type = 'direct'
+    and c.request_status = 'pending';
+
+  update public.chat_conversation_members cm
+  set status = 'active',
+      joined_at = coalesce(cm.joined_at, now())
+  where cm.conversation_id = v_conversation_id
+    and cm.status = 'pending';
+
+  return v_conversation_id;
+end;
+$$;
+
 create or replace function public.create_group_conversation(title text, member_ids uuid[])
 returns uuid
 language plpgsql
@@ -438,7 +486,7 @@ begin
   loop
     if v_member_id is not null and v_member_id <> v_current_user then
       if not public.chat_can_add_group_member(v_current_user, v_member_id) then
-        raise exception 'Cannot add group member % without relationship or accepted direct chat', v_member_id;
+        raise exception 'Cannot add group member % without a follow relationship', v_member_id;
       end if;
 
       insert into public.chat_conversation_members (conversation_id, user_id, role, status)
@@ -520,7 +568,7 @@ begin
   loop
     if v_member_id is not null and v_member_id <> v_current_user then
       if not public.chat_can_add_group_member(v_current_user, v_member_id) then
-        raise exception 'Cannot add group member % without relationship or accepted direct chat', v_member_id;
+        raise exception 'Cannot add group member % without a follow relationship', v_member_id;
       end if;
 
       insert into public.chat_conversation_members (conversation_id, user_id, role, status)
@@ -1913,10 +1961,12 @@ to authenticated
 using (user_id = auth.uid());
 
 revoke execute on function public.chat_users_have_relationship(uuid, uuid) from public, anon, authenticated;
+revoke execute on function public.chat_users_have_follow_relationship(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.chat_can_add_group_member(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.chat_is_conversation_member(uuid, uuid) from public, anon;
 
 revoke execute on function public.create_direct_conversation(uuid) from public, anon;
+revoke execute on function public.open_direct_conversation(uuid) from public, anon;
 revoke execute on function public.create_group_conversation(text, uuid[]) from public, anon;
 revoke execute on function public.send_chat_message(uuid, text, jsonb) from public, anon;
 revoke execute on function public.fetch_unvisited_chat_mentions(uuid) from public, anon;
@@ -1937,6 +1987,7 @@ revoke execute on function public.submit_post_appeal(uuid, text) from public, an
 
 grant execute on function public.chat_is_conversation_member(uuid, uuid) to authenticated;
 grant execute on function public.create_direct_conversation(uuid) to authenticated;
+grant execute on function public.open_direct_conversation(uuid) to authenticated;
 grant execute on function public.create_group_conversation(text, uuid[]) to authenticated;
 grant execute on function public.send_chat_message(uuid, text, jsonb) to authenticated;
 grant execute on function public.fetch_unvisited_chat_mentions(uuid) to authenticated;
