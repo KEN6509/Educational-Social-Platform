@@ -16,6 +16,7 @@
 - Modify `apps/mobile/lib/src/features/chat/data/chat_repository.dart`: expose the gated RPC and remove accepted-chat member expansion from group suggestions.
 - Modify `apps/mobile/lib/src/features/chat/presentation/chat_page.dart`: stop loading/rendering message requests and use the gated direct-chat action.
 - Modify `apps/mobile/lib/src/features/chat/presentation/notification_sections_page.dart`: use the gated action from New Followers.
+- Modify `apps/mobile/lib/src/features/chat/presentation/create_group_chat_page.dart`: show follow-only group eligibility feedback.
 - Create `apps/mobile/lib/src/features/profile/presentation/profile_message_action.dart`: coordinate profile Message navigation and friendly relationship errors through injectable actions.
 - Modify `apps/mobile/lib/src/features/profile/presentation/profile_page.dart`: delegate its Message button to the focused action helper.
 - Modify `apps/mobile/test/chat_sql_migration_test.dart`: verify dormant request SQL and active follow-only authorization.
@@ -191,6 +192,8 @@ git commit -m "feat: enforce relationship-gated chat access"
 - Modify: `apps/mobile/lib/src/features/chat/data/chat_repository.dart`
 - Modify: `apps/mobile/lib/src/features/chat/presentation/chat_page.dart`
 - Modify: `apps/mobile/lib/src/features/chat/presentation/notification_sections_page.dart`
+- Modify: `apps/mobile/lib/src/features/chat/presentation/create_group_chat_page.dart`
+- Modify: `apps/mobile/test/chat_widgets_test.dart`
 
 - [ ] **Step 1: Write failing repository contract tests**
 
@@ -216,6 +219,17 @@ test('group suggestions come only from follow rows', () {
   expect(methodSource, contains(".from('follows')"));
   expect(methodSource, isNot(contains('acceptedDirectRows')));
   expect(methodSource, isNot(contains(".from('chat_conversations')")));
+});
+
+test('group member errors use follow-only copy', () {
+  final source = File(
+    'lib/src/features/chat/presentation/create_group_chat_page.dart',
+  ).readAsStringSync();
+  expect(
+    source,
+    contains('Only followers or people you follow can be added.'),
+  );
+  expect(source, isNot(contains('accepted recent chats')));
 });
 ```
 
@@ -250,6 +264,8 @@ Retain `createDirectConversation` as dormant request infrastructure. Remove the 
 
 Switch the active calls in `chat_page.dart` and `notification_sections_page.dart` from `createDirectConversation` to `openDirectConversation`. Map `Follow relationship required` to `Follow this user before sending a message.` where a stale New Followers notification could encounter it.
 
+Change the group creation relationship error to `Only followers or people you follow can be added.` and keep matching the server's `Cannot add group member` error.
+
 - [ ] **Step 4: Run repository and chat widget tests and verify GREEN**
 
 Run:
@@ -264,7 +280,7 @@ Expected: PASS before the separate chat-home removal tests are introduced.
 - [ ] **Step 5: Commit active routing and group suggestions**
 
 ```powershell
-git add -- apps/mobile/lib/src/features/chat/data/chat_repository.dart apps/mobile/lib/src/features/chat/presentation/chat_page.dart apps/mobile/lib/src/features/chat/presentation/notification_sections_page.dart apps/mobile/test/chat_repository_test.dart
+git add -- apps/mobile/lib/src/features/chat/data/chat_repository.dart apps/mobile/lib/src/features/chat/presentation/chat_page.dart apps/mobile/lib/src/features/chat/presentation/notification_sections_page.dart apps/mobile/lib/src/features/chat/presentation/create_group_chat_page.dart apps/mobile/test/chat_repository_test.dart apps/mobile/test/chat_widgets_test.dart
 git commit -m "feat: gate active direct chat entry"
 ```
 

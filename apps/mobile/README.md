@@ -7,12 +7,13 @@ Flutter application for CyanZone's educational social, chat, and family-safety e
 - Authentication and profile management
 - Educational waterfall feed, search, post creation/editing, and post details
 - Comments, replies, mentions, reactions, saves, reports, and sharing
-- Direct/group chat, message requests, text/images, shared-post messages, unread state, group management, and local recent-history caches
+- Relationship-gated direct/group chat, text/images, shared-post messages, unread state, group management, and local recent-history caches
+- Dormant message-request data and backend foundations retained without active mobile loading or UI
 - Group-chat member mentions, admin-only `@all`, tappable profile links, and oldest-first unread mention navigation
 - Activity, System, and New Followers pages with in-app badges/read state
 - Parent-child repository and safety-center foundations
 
-External device push notifications, Gemini moderation, and the complete parent-child supervision workflow are not implemented yet.
+External device push notifications, Gemini moderation, and the remaining parent-supervision acceptance work are not implemented yet.
 
 ## Run
 

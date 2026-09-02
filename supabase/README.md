@@ -200,7 +200,7 @@ Run `follow.sql` after `schema.sql`, then run `comment_mentions.sql`, then run `
 `chat.sql` adds:
 
 - Direct and group chat tables
-- Chat RPC helpers for conversations, messages, read state, and clearing chats
+- Chat RPC helpers for relationship-gated active conversations, dormant message requests, messages, read state, and clearing chats
 - Notification preferences and notifications
 - Activity notification triggers for follows, likes, saves, comments, and mentions
 - System notification triggers for creator badges, rejected posts, and posts
@@ -215,6 +215,36 @@ after `schema.sql`, `follow.sql`, and `comment_mentions.sql`. The script is
 idempotent for schema objects, but inspect any SQL Editor error before rerunning
 it. Do not run only a copied fragment because the functions, policies, grants,
 and triggers are designed to be applied together.
+
+Message requests are currently hidden in the mobile product but their existing
+rows, columns, request-capable RPC, acceptance RPC, and three-message limit are
+retained for possible future use. Do not comment out those SQL sections:
+comments do not disable functions already installed in Supabase and would make
+fresh databases differ from existing databases.
+
+If an earlier `chat.sql` was already applied, run the complete updated file
+again. `create table if not exists` keeps existing tables and rows, while
+`create or replace function` installs the latest `open_direct_conversation`
+and follow-only group-member rules. Inspect and resolve any SQL Editor error
+before retrying.
+
+Verify the active and dormant chat functions:
+
+```sql
+select routine_name
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name in (
+    'open_direct_conversation',
+    'create_direct_conversation',
+    'accept_message_request',
+    'chat_can_add_group_member'
+  )
+order by routine_name;
+```
+
+Expected result: all four routines are present. Active Flutter entry points use
+`open_direct_conversation`; the request-capable functions remain dormant.
 
 Verify the mention objects:
 

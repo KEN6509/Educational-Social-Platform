@@ -88,8 +88,8 @@ Status meanings:
 | F005 / REQ_F005 | Intermediate | Post Engagement | **Partial** | Comments/replies, likes, saves, chat sharing, and private 14-day dislike hiding are implemented. Public comments are still missing Gemini moderation before publication. |
 | F006 / REQ_F006 | Intermediate | Content Reporting | **Implemented** | Users submit reason-only reports for public posts and comments. The repository report lifecycle is `pending_review` to `resolved` (Remove) or `dismissed` (Retain), with no separate Open/Reviewing state or reporter description. The Administration Portal groups cases by target, shows total/unique counts in a reason pie chart and legend, keeps two-line queue previews, and opens complete post evidence through the shared Post Detail viewer. `REPORT_REVIEW_THRESHOLD=1` is a testing convenience only and must be changed to `1000` before deployment. The destructive `report_flow_simplification.sql` migration is committed but has not been applied to the live Supabase project. |
 | F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Not implemented** | Moderation fields, pending/rejected UI states, post-appeal storage, rejected-post notifications, and a Pending-to-Approved publication-success notification foundation exist, but there is no Gemini route or worker. The below-40% approve, 40%-60% administrator review, above-60% reject, 20-second timeout, retry/failure behavior, and post/comment integration remain required. |
-| F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Server-authoritative parent/child linking, role enforcement, role dashboards, foreground CyanZone screen-time tracking and threshold events, location-aware Check-In/SOS, SOS acknowledgement/resolution, safety records, dedicated realtime supervision notifications, and two-party unlink request/accept/reject flows are implemented. The user has one small SOS adjustment planned. Password reauthentication for unlink, former-link historical-record authorization, live Supabase application, and multi-account/device acceptance remain incomplete or unverified. |
-| F009 / REQ_F009 | Intermediate | Real-Time Communication | **Partial** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. The remaining message-request item is limited to the recipient-side Accept action: the server RPC and sender-side three-message pending cap exist, but the mobile UI does not yet let the recipient accept the whole conversation. This is not a realtime-chat or chat-history consistency problem. Group-member eligibility currently includes accepted recent direct-chat participants in addition to Followers and Following, while the SRS currently permits only Followers and Following; this is a selection-rule mismatch, not a realtime-chat defect. |
+| F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Server-authoritative parent/child linking, role enforcement, role dashboards, foreground CyanZone screen-time tracking and threshold events, location-aware Check-In/SOS, SOS acknowledgement/resolution, safety records, dedicated realtime supervision notifications, and two-party unlink request/accept/reject flows are implemented. The user reports that `parent_supervision.sql` was applied to Supabase. The user has one small SOS adjustment planned; password reauthentication for unlink, former-link historical-record authorization, remote inspection, and multi-account/device acceptance remain incomplete or unverified. |
+| F009 / REQ_F009 | Intermediate | Real-Time Communication | **Partial** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. Message requests are intentionally hidden from active mobile loading and UI while their existing data and backend foundation remain dormant. Active direct-chat entry requires a current follow relationship in either direction, and group-member candidates/validation are limited to Followers and Following. Existing accepted conversations, history, and realtime behavior remain unchanged. The user applied the previous `chat.sql`; the updated follow-only functions still require live reapplication and verification. |
 | F010 / REQ_F010 | Intermediate | Notifications | **Partial** | Activity, New Followers, and System notification rows/counts refresh through foreground Supabase Realtime even before their section is opened. Per-section/conversation unread counts, the total Messaging-tab badge, preferences, compact structured System details, and notification-side one-final-appeal handling for administrator-rejected AI-flagged or report-removed posts are implemented. Verified creator assignment/removal, creator-request decisions with administrator feedback, Pending-to-Approved publication, reported-content removal, and appeal-outcome notification foundations exist. The current AI-Flagged portal queue is still isolated mock data and cannot create a real rejection notification until the Gemini/admin moderation integration replaces it. Retaining reported content intentionally sends no author notification. FCM background/closed-app delivery and Pending Administrator Review feedback remain missing. |
 | F011 / REQ_F011 | Advanced | Administration Portal | **Partial** | The functional portal includes Overview, Users, Creator Requests, grouped Reports, Appeals, and a production-facing AI-Flagged Content workflow with confirmations. Assign Creator, Retain Content, and AI Approve do not require manual reasons; Creator Request rejection, Remove Creator, Remove Content, AI Reject, and both Appeal actions require 10-500 characters. Reason-free persisted actions receive stable internal audit text. Users excludes administrator profiles at the API query boundary and currently exposes creator decisions only. AI-Flagged data is still isolated locally; Gemini and the real AI queue remain deferred. |
 
@@ -124,14 +124,14 @@ Implemented chat home:
 
 - Activity, System, and New Followers shortcuts with unread counts.
 - Search by user, group, or chat name, including cached offline chat-history search.
-- All, Unread, Groups, and Requests filters.
-- Conversation previews, timestamps, unread badges, and 30-day request display behavior.
+- All, Unread, and Groups filters. Message requests are not loaded or displayed.
+- Conversation previews, timestamps, and unread badges.
 - Bottom navigation badge combining unread messages and notification-section sources; the persistent shell owns foreground notification-table realtime refresh and resume refresh, while preserving the last confirmed count during loading or temporary failure.
 
 Implemented conversations:
 
-- Direct and group creation, realtime refresh, and recent local cache.
-- Message-request foundations and a sender-side cap of three messages while the request remains pending.
+- Relationship-gated direct and group creation, realtime refresh, and recent local cache.
+- Dormant message-request tables, models, RPCs, stored rows, and sender-side pending cap are retained for possible future restoration; active Flutter flows cannot create or open requests.
 - Text, multi-image, and shared-post messages.
 - Multiple-image grids and full-screen preview/download.
 - Message selection, multi-select, copy, delete-for-me with Undo, and ten-minute unsend.
@@ -146,8 +146,10 @@ Chat constraints:
 - Cloud-centric Supabase chat; no end-to-end encryption in this prototype.
 - No AI moderation or administrator review of private chat.
 - No calls, audio messages, stickers, or reactions.
-- The recipient-side Accept action and a live end-to-end message-request acceptance test are still missing; accepting means approving the pending conversation once. The three-message rule only limits what a stranger may send before that acceptance.
-- Group member selection currently allows Followers, Following, and accepted recent direct-chat participants. The SRS says Followers and Following only. Either narrow the picker and server validation or formally revise the SRS; this does not concern message history or realtime delivery.
+- Tapping Message on another profile checks the server-authoritative follow relationship in either direction. Without one, the profile remains open and shows `Follow this user before sending a message.`
+- Existing accepted direct conversations remain available from Messages even after an unfollow, preserving established history.
+- Group member selection and server validation use Followers and Following only; accepted direct-chat history and parent-child linkage alone do not qualify a candidate.
+- Message-request acceptance is outside the active MVP scope. Request SQL is retained rather than commented out because comments would not disable objects already installed in Supabase.
 
 ### Activity, New Followers, and System Notifications
 
@@ -338,7 +340,7 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] Record creator assignment/removal, creator-request rejection with the administrator's reason, rejected-post, Pending-to-Approved publication, reported-content removal, and both appeal-outcome notifications; Retain intentionally sends none.
 - [x] Replace placeholder dashboard links/metrics with functional SRS pages; advanced analytics remain out of scope.
 - [x] Add administrator authorization, RLS, API, audit, component, and responsive browser workflow tests.
-- [ ] Apply and verify `supabase/admin_portal.sql` against the live Supabase project before acceptance or deployment.
+- [ ] Inspect and verify `supabase/admin_portal.sql` against the live Supabase project before acceptance or deployment. The user reports that the current script was applied, but repository tests do not prove the hosted object state.
 
 ### 4. Parent Supervision
 
@@ -355,7 +357,7 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] Implement server-authoritative two-party unlink request, approval, and rejection outcomes.
 - [ ] Add current-password reauthentication before an unlink request if the reviewed SRS password-verification requirement remains authoritative.
 - [ ] Verify that approved unlink stops new supervision sharing and implement the required former-linked-pair access to preserved historical records.
-- [ ] Apply the complete Parent Supervision SQL to the live project and run RLS/integration/device acceptance for every role, relationship state, permission outcome, and former-link history rule.
+- [ ] Inspect the applied Parent Supervision SQL and run RLS/integration/device acceptance for every role, relationship state, permission outcome, and former-link history rule. The user reports that `parent_supervision.sql` was applied, but live evidence has not been captured.
 
 ### 5. Notifications and FCM
 
@@ -369,10 +371,11 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 
 ### 6. Chat conformance
 
-- [ ] Add the recipient-side Accept action for pending message requests and verify the whole request flow against a live test database.
-- [ ] Keep the sender-side three-message cap while a request remains pending; acceptance applies to the conversation, not to three individual messages.
-- [ ] Restrict group member choices and server validation to Followers and Following as required by the SRS.
-- [ ] Keep existing direct/group member authorization, sender/timestamp display, group-admin removal, member rename, and current-user-only clear-chat behavior covered by regression tests.
+- [x] Hide message requests from active mobile loading, filters, counts, and empty states while preserving dormant request data and backend foundations.
+- [x] Route active profile, chat search, and New Followers message actions through the relationship-gated direct-chat RPC.
+- [x] Restrict group member choices and repository SQL validation to Followers and Following as required by the SRS.
+- [x] Keep existing direct/group member authorization, sender/timestamp display, group-admin removal, member rename, and current-user-only clear-chat behavior covered by regression tests.
+- [ ] Rerun the updated complete `supabase/chat.sql`, then verify the relationship gate and group-member rejection with live test accounts. The previously applied script does not contain these latest function definitions.
 
 ### 7. Non-functional requirements and release evidence
 
@@ -473,12 +476,12 @@ npm run build
 
 Not covered by this verification:
 
-- Live Supabase migration/application state.
-- Remote application of the latest `parent_supervision.sql`, `chat.sql`, and
-  `admin_portal.sql` changes remains required. Local SQL contract regressions
-  validate repository text and behavior contracts but do not prove that the
-  remote Supabase project's tables, functions, triggers, grants, RLS policies,
-  and Realtime publication match the repository.
+- Live Supabase migration/application state. The user reports that
+  `parent_supervision.sql`, the previous `chat.sql`, and `admin_portal.sql` were
+  applied, but remote objects were not inspected in this workspace. The newly
+  updated `chat.sql` must be rerun. Local SQL contract regressions validate
+  repository text and behavior contracts but do not prove that hosted tables,
+  functions, triggers, grants, RLS policies, and Realtime publication match it.
 - Gemini moderation or FCM, because they are not implemented.
 - Android physical-device, location, background/terminated notification, or screen-size acceptance.
 - Latest Chrome and Edge acceptance outside the in-app browser.
@@ -490,7 +493,8 @@ Not covered by this verification:
 - Start by reading this file; it is the canonical project and SRS-delivery handover. Use `docs/superpowers/plans/2026-08-02-realtime-system-notifications-and-appeals.md` for the detailed history of the completed notification/admin revisions.
 - Parent Supervision is committed through responsive dashboards, family-link management, screen-time tracking, Check-In/SOS, records, realtime supervision notifications, and two-party unlink request/approval/rejection. Commit `2223b10` contains the latest implementation and passed 75 focused tests, all 279 mobile tests, and Flutter analysis on September 2, 2026.
 - The latest local notification work is complete through the post-publication brief revision. `Your post has completed moderation review.` is the brief; the publication result is shown alone in the white System detail card. Rejected-post details use `View post` above `Admin:`, and future AI risk-score/evidence UI remains documentation-only.
-- Before live acceptance, inspect the remote schema and apply the required current scripts in documented order, including `supabase/parent_supervision.sql`, `supabase/chat.sql`, and then `supabase/admin_portal.sql`. Repository files and local tests alone do not update or verify the hosted Supabase database.
+- The user reports that `supabase/parent_supervision.sql`, the previous `supabase/chat.sql`, and `supabase/admin_portal.sql` were applied. Before live acceptance, inspect those hosted objects and rerun the newly updated complete `supabase/chat.sql`; repository files and local tests alone do not update or verify Supabase.
+- Message requests are now hidden/dormant. The Messages screen does not load or show them, and active profile/search/follower actions use `open_direct_conversation`, which requires a follow row in either direction. Existing accepted chat history and realtime behavior are preserved.
 - The creator-application UI still says 10,000 followers and does not enforce the threshold. The approved MVP/UAT target is 2 followers; update the mobile copy and authoritative submission enforcement in a later implementation slice, align the source SRS when it is available, then revisit the production threshold after UAT.
 - The immediate planned work is a small SOS adjustment, registration consent/OTP, real Gemini moderation, and FCM push delivery. Do not report any of these as complete before implementation and fresh verification.
 - The user will perform the final non-functional acceptance evidence after all implementation work is complete.
@@ -508,7 +512,7 @@ Immediate implementation sequence approved on September 2, 2026:
 Before MVP/UAT completion:
 
 5. Replace the displayed 10,000-follower creator requirement with 2 followers and enforce the same MVP/UAT threshold at the authoritative backend boundary; revisit the production value after UAT.
-6. Complete the recipient-side message-request Accept action and decide whether group membership must be narrowed to Followers/Following or the SRS should formally allow accepted recent direct-chat participants.
+6. Rerun the updated complete `supabase/chat.sql` and verify that active direct-chat entry and group-member changes require a follow relationship in either direction. Dormant message-request rows and functions remain stored.
 7. Apply and verify the repository SQL against the intended Supabase project, then verify the Administration Portal/API deployment and cross-surface flows.
 8. Hand the completed build to the user for the final non-functional acceptance evidence pass.
 
