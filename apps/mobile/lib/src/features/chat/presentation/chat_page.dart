@@ -14,19 +14,17 @@ import 'notification_sections_page.dart';
 typedef ConversationLoader = Future<List<ChatConversation>> Function();
 typedef CountLoader = Future<Map<NotificationSection, int>> Function();
 
-enum _MessageFilter { all, unread, groups, requests }
+enum _MessageFilter { all, unread, groups }
 
 class ChatPage extends StatefulWidget {
   const ChatPage({
     super.key,
     this.loadConversations,
-    this.loadRequests,
     this.loadCounts,
     this.onBadgeCountChanged,
   });
 
   final ConversationLoader? loadConversations;
-  final ConversationLoader? loadRequests;
   final CountLoader? loadCounts;
   final ValueChanged<int>? onBadgeCountChanged;
 
@@ -36,13 +34,11 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   static const _conversationsCacheKey = 'chat.cached_conversations.v1';
-  static const _requestsCacheKey = 'chat.cached_requests.v1';
   static const _countsCacheKey = 'chat.cached_counts.v1';
   static const _eligiblePeopleCacheKey = 'chat.cached_eligible_people.v1';
 
   static List<ChatConversation> _cachedConversations =
       const <ChatConversation>[];
-  static List<ChatConversation> _cachedRequests = const <ChatConversation>[];
   static Map<NotificationSection, int> _cachedCounts =
       const <NotificationSection, int>{};
   static List<ChatParticipant> _cachedEligiblePeople =
@@ -77,9 +73,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   bool get _shouldUseInjectedData =>
-      widget.loadConversations != null ||
-      widget.loadRequests != null ||
-      widget.loadCounts != null;
+      widget.loadConversations != null || widget.loadCounts != null;
 
   @override
   void dispose() {
@@ -96,7 +90,6 @@ class _ChatPageState extends State<ChatPage> {
   Future<_ChatHomeState> _load() async {
     await _restoreCachedHome();
     var conversations = _cachedConversations;
-    var requests = _cachedRequests;
     var counts = _cachedCounts;
 
     try {
@@ -109,12 +102,6 @@ class _ChatPageState extends State<ChatPage> {
       );
     } catch (_) {}
     try {
-      requests =
-          await (widget.loadRequests?.call() ?? _repo.fetchMessageRequests());
-      _cachedRequests = requests.take(10).toList();
-      await _saveConversationCache(_requestsCacheKey, _cachedRequests);
-    } catch (_) {}
-    try {
       counts = await (widget.loadCounts?.call() ??
           _repo.fetchUnreadNotificationCounts());
       _cachedCounts = counts;
@@ -123,7 +110,6 @@ class _ChatPageState extends State<ChatPage> {
 
     final homeState = _ChatHomeState(
       conversations: conversations,
-      requests: requests,
       counts: counts,
     );
     widget.onBadgeCountChanged?.call(
@@ -136,13 +122,11 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _restoreCachedHome() async {
-    if (_cachedConversations.isNotEmpty || _cachedRequests.isNotEmpty) return;
+    if (_cachedConversations.isNotEmpty) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       _cachedConversations =
           _decodeConversationCache(prefs.getString(_conversationsCacheKey));
-      _cachedRequests =
-          _decodeConversationCache(prefs.getString(_requestsCacheKey));
       _cachedCounts = _decodeCountsCache(prefs.getString(_countsCacheKey));
       _cachedEligiblePeople =
           _decodePeopleCache(prefs.getString(_eligiblePeopleCacheKey));
@@ -372,14 +356,6 @@ class _ChatPageState extends State<ChatPage> {
           builder: (context, snapshot) {
             final state = snapshot.data ?? const _ChatHomeState();
             final conversations = state.conversations;
-            final now = DateTime.now();
-            final recentRequests = state.requests.where((request) {
-              final at = request.lastMessageAt ?? request.createdAt;
-              if (at == null) return true;
-              return at.isAfter(
-                now.subtract(const Duration(days: 30)),
-              );
-            }).toList();
             final unreadFilterCount = conversations
                 .where((conversation) => conversation.unreadCount > 0)
                 .length;
@@ -388,9 +364,6 @@ class _ChatPageState extends State<ChatPage> {
                   (conversation) =>
                       conversation.isGroup && conversation.unreadCount > 0,
                 )
-                .length;
-            final requestUnreadCount = recentRequests
-                .where((request) => request.unreadCount > 0)
                 .length;
             final searching =
                 ChatRepository.normalizeSearchTerm(_query).isNotEmpty;
@@ -494,7 +467,6 @@ class _ChatPageState extends State<ChatPage> {
                         selected: _messageFilter,
                         unreadCount: unreadFilterCount,
                         groupUnreadCount: groupUnreadCount,
-                        requestUnreadCount: requestUnreadCount,
                         onChanged: (value) =>
                             setState(() => _messageFilter = value),
                       ),
@@ -511,21 +483,7 @@ class _ChatPageState extends State<ChatPage> {
                           _MessageFilter.groups => conversations
                               .where((conversation) => conversation.isGroup)
                               .toList(),
-                          _MessageFilter.requests => recentRequests,
                         };
-
-                        if (visibleConversations.isEmpty &&
-                            _messageFilter == _MessageFilter.requests) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16),
-                            child: ChatNoResultsState(
-                              title: 'No recent message requests',
-                              subtitle:
-                                  "Requests older than 30 days aren't shown.",
-                              icon: Icons.mark_chat_unread_outlined,
-                            ),
-                          );
-                        }
 
                         if (visibleConversations.isEmpty &&
                             _messageFilter == _MessageFilter.unread) {
@@ -632,14 +590,12 @@ class _MessageFilterBar extends StatelessWidget {
     required this.selected,
     required this.unreadCount,
     required this.groupUnreadCount,
-    required this.requestUnreadCount,
     required this.onChanged,
   });
 
   final _MessageFilter selected;
   final int unreadCount;
   final int groupUnreadCount;
-  final int requestUnreadCount;
   final ValueChanged<_MessageFilter> onChanged;
 
   @override
@@ -668,14 +624,6 @@ class _MessageFilterBar extends StatelessWidget {
             countKey: const ValueKey('message-filter-count-groups'),
             selected: selected == _MessageFilter.groups,
             onTap: () => onChanged(_MessageFilter.groups),
-          ),
-          const SizedBox(width: 8),
-          _MessageFilterChip(
-            label: 'Requests',
-            count: requestUnreadCount,
-            countKey: const ValueKey('message-filter-count-requests'),
-            selected: selected == _MessageFilter.requests,
-            onTap: () => onChanged(_MessageFilter.requests),
           ),
         ],
       ),
@@ -748,12 +696,10 @@ class _MessageFilterChip extends StatelessWidget {
 class _ChatHomeState {
   const _ChatHomeState({
     this.conversations = const [],
-    this.requests = const [],
     this.counts = const {},
   });
 
   final List<ChatConversation> conversations;
-  final List<ChatConversation> requests;
   final Map<NotificationSection, int> counts;
 }
 

@@ -935,7 +935,6 @@ void main() {
       MaterialApp(
         home: ChatPage(
           loadConversations: () async => const [],
-          loadRequests: () async => const [],
           loadCounts: () async => const {
             NotificationSection.activity: 0,
             NotificationSection.system: 0,
@@ -955,13 +954,12 @@ void main() {
     expect(find.text('No chats yet'), findsOneWidget);
   });
 
-  testWidgets('ChatPage message filters include unread between all and groups',
+  testWidgets('ChatPage exposes only All, Unread, and Groups filters',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: ChatPage(
           loadConversations: () async => const [],
-          loadRequests: () async => const [],
           loadCounts: () async => const {},
         ),
       ),
@@ -971,11 +969,11 @@ void main() {
     final allX = tester.getTopLeft(find.text('All')).dx;
     final unreadX = tester.getTopLeft(find.text('Unread')).dx;
     final groupsX = tester.getTopLeft(find.text('Groups')).dx;
-    final requestsX = tester.getTopLeft(find.text('Requests')).dx;
 
     expect(allX, lessThan(unreadX));
     expect(unreadX, lessThan(groupsX));
-    expect(groupsX, lessThan(requestsX));
+    expect(find.text('Requests'), findsNothing);
+    expect(find.text('No recent message requests'), findsNothing);
   });
 
   testWidgets('ChatPage filter chips show unread chat counts', (tester) async {
@@ -998,15 +996,6 @@ void main() {
               'title': 'Study group',
             }),
           ],
-          loadRequests: () async => [
-            ChatConversation.fromMap({
-              'id': 'request-unread',
-              'type': 'direct',
-              'request_status': 'pending',
-              'unread_count': 1,
-              'other_user_name': 'Request user',
-            }),
-          ],
           loadCounts: () async => const {},
         ),
       ),
@@ -1015,7 +1004,7 @@ void main() {
 
     expect(find.text('Unread'), findsOneWidget);
     expect(find.text('Groups'), findsOneWidget);
-    expect(find.text('Requests'), findsOneWidget);
+    expect(find.text('Requests'), findsNothing);
     expect(
       tester
           .widget<Text>(
@@ -1032,14 +1021,6 @@ void main() {
           .data,
       '1',
     );
-    expect(
-      tester
-          .widget<Text>(
-            find.byKey(const ValueKey('message-filter-count-requests')),
-          )
-          .data,
-      '1',
-    );
   });
 
   testWidgets('ChatPage filter chips hide zero unread counts', (tester) async {
@@ -1047,7 +1028,6 @@ void main() {
       MaterialApp(
         home: ChatPage(
           loadConversations: () async => const [],
-          loadRequests: () async => const [],
           loadCounts: () async => const {},
         ),
       ),
@@ -1076,7 +1056,6 @@ void main() {
               'other_user_name': 'Alicia',
             }),
           ],
-          loadRequests: () async => const [],
           loadCounts: () async => const {},
         ),
       ),
@@ -1097,27 +1076,15 @@ void main() {
     expect(find.text('Alicia'), findsOneWidget);
   });
 
-  testWidgets('Requests empty state keeps recent request helper copy',
-      (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ChatPage(
-          loadConversations: () async => const [],
-          loadRequests: () async => const [],
-          loadCounts: () async => const {},
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
+  test('ChatPage does not load or cache message requests', () {
+    final source = File(
+      'lib/src/features/chat/presentation/chat_page.dart',
+    ).readAsStringSync();
 
-    await tester.tap(find.text('Requests'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('No recent message requests'), findsOneWidget);
-    expect(
-      find.text("Requests older than 30 days aren't shown."),
-      findsOneWidget,
-    );
+    expect(source, isNot(contains('loadRequests')));
+    expect(source, isNot(contains('fetchMessageRequests')));
+    expect(source, isNot(contains('_requestsCacheKey')));
+    expect(source, isNot(contains('_cachedRequests')));
   });
 
   testWidgets('Notification section waits to mark read before system back pop',
