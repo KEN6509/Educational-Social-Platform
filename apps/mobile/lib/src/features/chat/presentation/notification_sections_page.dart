@@ -974,7 +974,7 @@ class _FollowerActionButtonState extends State<_FollowerActionButton> {
       try {
         await widget.onNotificationRead();
       } catch (_) {}
-      final conversationId = await _repo.createDirectConversation(actorId);
+      final conversationId = await _repo.openDirectConversation(actorId);
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
@@ -992,10 +992,13 @@ class _FollowerActionButtonState extends State<_FollowerActionButton> {
           ),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
+        final text = error.toString().contains('Follow relationship required')
+            ? 'Follow this user before sending a message.'
+            : 'No internet connection';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
+          SnackBar(content: Text(text)),
         );
       }
     } finally {

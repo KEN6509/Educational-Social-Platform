@@ -44,6 +44,7 @@ class ChatRepository {
   ChatRepository(this._client);
 
   static const createDirectConversationRpc = 'create_direct_conversation';
+  static const openDirectConversationRpc = 'open_direct_conversation';
   static const createGroupConversationRpc = 'create_group_conversation';
   static const sendChatMessageRpc = 'send_chat_message';
   static const acceptMessageRequestRpc = 'accept_message_request';
@@ -230,6 +231,14 @@ class ChatRepository {
   Future<String> createDirectConversation(String targetUserId) async {
     final response = await _client.rpc<String>(
       createDirectConversationRpc,
+      params: {'target_user_id': targetUserId},
+    );
+    return _stringIdFromRpc(response);
+  }
+
+  Future<String> openDirectConversation(String targetUserId) async {
+    final response = await _client.rpc<String>(
+      openDirectConversationRpc,
       params: {'target_user_id': targetUserId},
     );
     return _stringIdFromRpc(response);
@@ -788,32 +797,6 @@ class ChatRepository {
       ..._mapListFromResponse(followingRows)
           .map((row) => _string(row['following_id'])),
     }..removeWhere((id) => id.isEmpty || id == currentUserId);
-
-    final acceptedDirectRows = await _client
-        .from('chat_conversations')
-        .select('id')
-        .eq('type', ChatConversationType.direct.name)
-        .eq('request_status', ChatRequestStatus.accepted.name)
-        .limit(50);
-
-    final acceptedDirectIds = _mapListFromResponse(acceptedDirectRows)
-        .map((row) => _string(row['id']))
-        .where((id) => id.isNotEmpty)
-        .toList();
-
-    if (acceptedDirectIds.isNotEmpty) {
-      final memberRows = await _client
-          .from('chat_conversation_members')
-          .select('user_id,status')
-          .inFilter('conversation_id', acceptedDirectIds)
-          .eq('status', ChatMemberStatus.active.name);
-
-      suggestionIds.addAll(
-        _mapListFromResponse(memberRows)
-            .map((row) => _string(row['user_id']))
-            .where((id) => id.isNotEmpty && id != currentUserId),
-      );
-    }
 
     return _fetchParticipantsByIds(suggestionIds.toList());
   }

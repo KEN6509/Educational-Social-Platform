@@ -12,6 +12,10 @@ void main() {
         'create_direct_conversation',
       );
       expect(
+        ChatRepository.openDirectConversationRpc,
+        'open_direct_conversation',
+      );
+      expect(
         ChatRepository.createGroupConversationRpc,
         'create_group_conversation',
       );
@@ -429,6 +433,25 @@ void main() {
       expect(followSource, isNot(contains('.upsert(')));
       expect(followSource,
           isNot(contains("onConflict: 'follower_id,following_id'")));
+    });
+
+    test('group suggestions come only from follow rows', () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+      final start = source.indexOf(
+        'Future<List<ChatParticipant>> fetchSuggestedGroupMembers',
+      );
+      final end = source.indexOf(
+        'RealtimeChannel subscribeToChatChanges',
+        start,
+      );
+
+      expect(start, greaterThanOrEqualTo(0));
+      expect(end, greaterThan(start));
+      final methodSource = source.substring(start, end);
+      expect(methodSource, contains(".from('follows')"));
+      expect(methodSource, isNot(contains('acceptedDirectRows')));
+      expect(methodSource, isNot(contains(".from('chat_conversations')")));
     });
 
     test('main shell uses total chat badge count instead of chat message only',

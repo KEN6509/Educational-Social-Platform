@@ -94,9 +94,9 @@ class _CreateGroupChatPageState extends State<CreateGroupChatPage> {
       if (mounted) {
         final message = error.toString();
         final text = message.contains('Only followers') ||
-                message.contains('without relationship') ||
+                message.contains('follow relationship') ||
                 message.contains('Cannot add group member')
-            ? 'Only followers, following, or accepted recent chats can be added.'
+            ? 'Only followers or people you follow can be added.'
             : message.contains('Group title')
                 ? 'Could not create group because the group name is invalid.'
                 : 'No internet connection';

@@ -584,8 +584,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _openParticipant(ChatParticipant participant) async {
     try {
-      final conversationId =
-          await _repo.createDirectConversation(participant.id);
+      final conversationId = await _repo.openDirectConversation(participant.id);
       if (!mounted) return;
       _cancelSearch();
       await _openRoom(

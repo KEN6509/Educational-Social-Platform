@@ -917,6 +917,18 @@ void main() {
     expect(source, contains('CircleBorder'));
   });
 
+  test('group member errors use follow-only copy', () {
+    final source = File(
+      'lib/src/features/chat/presentation/create_group_chat_page.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains('Only followers or people you follow can be added.'),
+    );
+    expect(source, isNot(contains('accepted recent chats')));
+  });
+
   testWidgets('ChatPage renders title, search, and empty state',
       (tester) async {
     await tester.pumpWidget(
