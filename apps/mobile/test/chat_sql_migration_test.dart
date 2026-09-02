@@ -207,6 +207,48 @@ void main() {
     expect(functionSql, contains("set status = 'active'"));
   });
 
+  test('chat SQL exposes current conversation send permission', () {
+    final sql = File('../../supabase/chat.sql').readAsStringSync();
+    final start = sql.indexOf(
+      'create or replace function public.can_send_chat_message',
+    );
+    final end = sql.indexOf(
+      'create or replace function public.send_chat_message',
+      start,
+    );
+
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final functionSql = sql.substring(start, end);
+    expect(functionSql, contains("cm.status = 'active'"));
+    expect(functionSql, contains("c.type = 'group'"));
+    expect(
+      functionSql,
+      contains('public.chat_users_have_follow_relationship'),
+    );
+  });
+
+  test('direct message send rechecks the current follow relationship', () {
+    final sql = File('../../supabase/chat.sql').readAsStringSync();
+    final start = sql.indexOf(
+      'create or replace function public.send_chat_message',
+    );
+    final end = sql.indexOf(
+      'create or replace function public.mark_conversation_read',
+      start,
+    );
+
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final functionSql = sql.substring(start, end);
+    expect(functionSql, contains("v_conversation.type = 'direct'"));
+    expect(functionSql, contains('public.can_send_chat_message'));
+    expect(
+      functionSql,
+      contains("raise exception 'Follow relationship required'"),
+    );
+  });
+
   test('group member eligibility uses follows only', () {
     final sql = File('../../supabase/chat.sql').readAsStringSync();
     final start = sql.indexOf(

@@ -924,6 +924,40 @@ $$;
 
 drop function if exists public.send_chat_message(uuid, text);
 
+create or replace function public.can_send_chat_message(
+  p_conversation_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.chat_conversations c
+    join public.chat_conversation_members cm
+      on cm.conversation_id = c.id
+     and cm.user_id = auth.uid()
+     and cm.status = 'active'
+    where c.id = p_conversation_id
+      and (
+        c.type = 'group'
+        or exists (
+          select 1
+          from public.chat_conversation_members other_cm
+          where other_cm.conversation_id = c.id
+            and other_cm.user_id <> auth.uid()
+            and other_cm.status = 'active'
+            and public.chat_users_have_follow_relationship(
+              auth.uid(),
+              other_cm.user_id
+            )
+        )
+      )
+  );
+$$;
+
 create or replace function public.send_chat_message(
   p_conversation_id uuid,
   p_body text,
@@ -984,6 +1018,12 @@ begin
       and cm.status = 'active'
   ) then
     raise exception 'Active conversation membership required';
+  end if;
+
+  if v_conversation.type = 'direct'
+    and not public.can_send_chat_message(p_conversation_id)
+  then
+    raise exception 'Follow relationship required';
   end if;
 
   if v_conversation.type = 'direct'
@@ -1968,6 +2008,7 @@ revoke execute on function public.chat_is_conversation_member(uuid, uuid) from p
 revoke execute on function public.create_direct_conversation(uuid) from public, anon;
 revoke execute on function public.open_direct_conversation(uuid) from public, anon;
 revoke execute on function public.create_group_conversation(text, uuid[]) from public, anon;
+revoke execute on function public.can_send_chat_message(uuid) from public, anon;
 revoke execute on function public.send_chat_message(uuid, text, jsonb) from public, anon;
 revoke execute on function public.fetch_unvisited_chat_mentions(uuid) from public, anon;
 revoke execute on function public.mark_chat_mention_visited(uuid) from public, anon;
@@ -1989,6 +2030,7 @@ grant execute on function public.chat_is_conversation_member(uuid, uuid) to auth
 grant execute on function public.create_direct_conversation(uuid) to authenticated;
 grant execute on function public.open_direct_conversation(uuid) to authenticated;
 grant execute on function public.create_group_conversation(text, uuid[]) to authenticated;
+grant execute on function public.can_send_chat_message(uuid) to authenticated;
 grant execute on function public.send_chat_message(uuid, text, jsonb) to authenticated;
 grant execute on function public.fetch_unvisited_chat_mentions(uuid) to authenticated;
 grant execute on function public.mark_chat_mention_visited(uuid) to authenticated;
