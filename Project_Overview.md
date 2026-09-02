@@ -426,16 +426,18 @@ on **September 2, 2026**:
 
 ```powershell
 cd apps/mobile
-flutter test --reporter compact
+flutter test
 flutter analyze
 ```
 
 Observed:
 
 - Focused Parent Supervision verification: **75 tests passed**.
-- Complete mobile test suite: **279 tests passed**.
+- Focused chat/profile/SQL verification: **134 tests passed**.
+- Complete mobile test suite: **286 tests passed**.
 - Flutter analyzer: **no issues found**.
 - The verified Parent Supervision change set is committed as `2223b10` (`feat: complete parent supervision unlink and records`).
+- The hidden-request and relationship-conformance implementation is committed through `8396096` (`docs: record active chat relationship rules`).
 
 The most recent Administration Portal and Express API verification remains the
 August 2, 2026 run:
