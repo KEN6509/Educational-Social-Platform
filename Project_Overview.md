@@ -1,6 +1,8 @@
 # CyanZone Project Overview and SRS Delivery Handover
 
-Last reviewed against the workspace and **Software Requirement Specification.docx**: **August 2, 2026**
+Last reviewed against the workspace: **September 2, 2026**. The SRS traceability
+baseline was last reviewed against **Software Requirement Specification.docx**
+on **August 2, 2026**.
 
 This is the canonical starting point for a developer or AI session. Source code, tests, and SQL remain authoritative for what is implemented. The Software Requirement Specification (SRS) is authoritative for what CyanZone must deliver.
 
@@ -31,7 +33,7 @@ Gemini moderation, FCM push delivery, and verified Vercel deployment are not imp
 
 - Public registration creates a normal user; it must never assign administrator or verified creator status.
 - Parent/child capabilities come only from an accepted `parent_child_links` relationship.
-- A user may hold only one parent-supervision role at a time while links are active.
+- A user may hold only one parent-supervision role at a time while links are pending or active.
 - Creator badges require administrator-controlled verified creator status.
 - Administrator accounts are separate web-portal operators.
 - Supabase anon keys are client-safe; service-role, Gemini, FCM server, and bootstrap secrets are backend-only.
@@ -86,8 +88,8 @@ Status meanings:
 | F005 / REQ_F005 | Intermediate | Post Engagement | **Partial** | Comments/replies, likes, saves, chat sharing, and private 14-day dislike hiding are implemented. Public comments are still missing Gemini moderation before publication. |
 | F006 / REQ_F006 | Intermediate | Content Reporting | **Implemented** | Users submit reason-only reports for public posts and comments. The repository report lifecycle is `pending_review` to `resolved` (Remove) or `dismissed` (Retain), with no separate Open/Reviewing state or reporter description. The Administration Portal groups cases by target, shows total/unique counts in a reason pie chart and legend, keeps two-line queue previews, and opens complete post evidence through the shared Post Detail viewer. `REPORT_REVIEW_THRESHOLD=1` is a testing convenience only and must be changed to `1000` before deployment. The destructive `report_flow_simplification.sql` migration is committed but has not been applied to the live Supabase project. |
 | F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Not implemented** | Moderation fields, pending/rejected UI states, post-appeal storage, rejected-post notifications, and a Pending-to-Approved publication-success notification foundation exist, but there is no Gemini route or worker. The below-40% approve, 40%-60% administrator review, above-60% reject, 20-second timeout, retry/failure behavior, and post/comment integration remain required. |
-| F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Link retrieval/status display, basic repository methods, screen-time table access, a family page, and basic SOS record creation exist. Linking acceptance/rejection, role rules, usage tracking/alerts, check-ins, location, linked-parent alerts, records, and two-party unlinking are incomplete. |
-| F009 / REQ_F009 | Intermediate | Real-Time Communication | **Partial** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. Message-request database/repository foundations exist and a sender is capped at three messages while a request is pending, but the recipient Accept action is not exposed in the mobile UI and the complete request flow has not been verified end to end. Do not claim message requests are complete yet. Group-member eligibility also accepts users from accepted recent chats, while the current SRS limits selection to Followers and Following; this rule still needs a product decision or SRS revision. |
+| F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Server-authoritative parent/child linking, role enforcement, role dashboards, foreground CyanZone screen-time tracking and threshold events, location-aware Check-In/SOS, SOS acknowledgement/resolution, safety records, dedicated realtime supervision notifications, and two-party unlink request/accept/reject flows are implemented. The user has one small SOS adjustment planned. Password reauthentication for unlink, former-link historical-record authorization, live Supabase application, and multi-account/device acceptance remain incomplete or unverified. |
+| F009 / REQ_F009 | Intermediate | Real-Time Communication | **Partial** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. The remaining message-request item is limited to the recipient-side Accept action: the server RPC and sender-side three-message pending cap exist, but the mobile UI does not yet let the recipient accept the whole conversation. This is not a realtime-chat or chat-history consistency problem. Group-member eligibility currently includes accepted recent direct-chat participants in addition to Followers and Following, while the SRS currently permits only Followers and Following; this is a selection-rule mismatch, not a realtime-chat defect. |
 | F010 / REQ_F010 | Intermediate | Notifications | **Partial** | Activity, New Followers, and System notification rows/counts refresh through foreground Supabase Realtime even before their section is opened. Per-section/conversation unread counts, the total Messaging-tab badge, preferences, compact structured System details, and notification-side one-final-appeal handling for administrator-rejected AI-flagged or report-removed posts are implemented. Verified creator assignment/removal, creator-request decisions with administrator feedback, Pending-to-Approved publication, reported-content removal, and appeal-outcome notification foundations exist. The current AI-Flagged portal queue is still isolated mock data and cannot create a real rejection notification until the Gemini/admin moderation integration replaces it. Retaining reported content intentionally sends no author notification. FCM background/closed-app delivery and Pending Administrator Review feedback remain missing. |
 | F011 / REQ_F011 | Advanced | Administration Portal | **Partial** | The functional portal includes Overview, Users, Creator Requests, grouped Reports, Appeals, and a production-facing AI-Flagged Content workflow with confirmations. Assign Creator, Retain Content, and AI Approve do not require manual reasons; Creator Request rejection, Remove Creator, Remove Content, AI Reject, and both Appeal actions require 10-500 characters. Reason-free persisted actions receive stable internal audit text. Users excludes administrator profiles at the API query boundary and currently exposes creator decisions only. AI-Flagged data is still isolated locally; Gemini and the real AI queue remain deferred. |
 
@@ -104,7 +106,7 @@ Implemented:
 - Waterfall feed with Feeds, Following, and Saves modes, refresh, filtering, and image/text posts; moderation-status badges use the same top-left card placement for both post types.
 - Search across posts and profiles with local/server history.
 - Own/other profiles, follow graph, avatar editing/caching, post grids, and settings.
-- Settings includes a Verified Badge page with eligibility requirements, an application statement, direct submission through the existing protected creator-request table, and pending, rejected/reapply, and verified states. The displayed 10,000-follower eligibility threshold is intentionally informational during functional testing; submission enforcement must be completed before deployment. Rejected applicants are directed to System notifications for the administrator's reason.
+- Settings includes a Verified Badge page with eligibility requirements, an application statement, direct submission through the existing protected creator-request table, and pending, rejected/reapply, and verified states. The current UI still displays an informational 10,000-follower threshold and does not enforce it. For the MVP/UAT population, the approved temporary target is **2 followers**; update both the display and authoritative submission enforcement before UAT. Rejected applicants are directed to System notifications for the administrator's reason.
 - Verified creator identity uses the same CyanZone-cyan rosette with a white tick across mobile profile, follow, and search surfaces.
 - Post creation/editing with up to nine images, custom picker/camera, tags, and storage cleanup.
 - Post detail, like/dislike/save/share, comments/replies/mentions, comment likes, pinning, reporting, editing, and soft removal.
@@ -144,8 +146,8 @@ Chat constraints:
 - Cloud-centric Supabase chat; no end-to-end encryption in this prototype.
 - No AI moderation or administrator review of private chat.
 - No calls, audio messages, stickers, or reactions.
-- The recipient-side Accept action and a live end-to-end message-request acceptance test are still missing; the three-message rule is a pending-request send cap, not three individually accepted messages.
-- Group member selection must be narrowed to the SRS Followers/Following rule unless the SRS is formally revised.
+- The recipient-side Accept action and a live end-to-end message-request acceptance test are still missing; accepting means approving the pending conversation once. The three-message rule only limits what a stranger may send before that acceptance.
+- Group member selection currently allows Followers, Following, and accepted recent direct-chat participants. The SRS says Followers and Following only. Either narrow the picker and server validation or formally revise the SRS; this does not concern message history or realtime delivery.
 
 ### Activity, New Followers, and System Notifications
 
@@ -183,16 +185,24 @@ Implemented:
 - Carousel synchronization after returning from preview.
 - Offline detail behavior limited to the cached first image.
 
-### Parent Supervision foundation
+### Parent Supervision
 
-Implemented foundation:
+Implemented:
 
-- `parent_child_links`, `screen_time_logs`, `check_ins`, and `sos_alerts` schema/RLS foundations.
-- Link retrieval and parent/child/status display.
-- Repository methods for invite creation, link status update, screen-time retrieval, and SOS creation.
-- Basic Safety Center and confirmation-based SOS submission.
+- Server-authoritative link requests, acceptance, rejection, cancellation, duplicate prevention, and one-role-at-a-time enforcement for parent and child accounts.
+- Followers/Following candidate selection, responsive unlinked/child/parent dashboards, profile navigation, and parent-only linked-child screen-time summaries.
+- Persisted foreground CyanZone screen-time sessions, idempotent synchronization, and three-hour plus subsequent hourly threshold events.
+- Child-only Safety Check-In with a required message and optional location, plus SOS with a mandatory location attempt and a safe Location unavailable fallback.
+- Parent SOS acknowledgement/resolution, merged Check-In/SOS history, typed detail navigation, and a separate latest-ten realtime Supervision Notifications feed.
+- Two-party unlink requests: either participant may request; only the other participant may approve or reject; approval revokes the active link.
+- Repository/base-schema parity for the current Parent Supervision tables, RPCs, RLS foundations, grants, and Realtime publication entries.
 
-This is not yet an SRS-complete supervision module. The detailed backlog below is required.
+Still required or unverified:
+
+- The user-requested small SOS adjustment.
+- Password reauthentication before sending an unlink request if the reviewed SRS requirement remains unchanged.
+- The exact former-link history rule: approved unlink stops new sharing, but retained historical-record access for the former linked pair still needs an explicit authorization implementation and acceptance test.
+- Applying `supabase/parent_supervision.sql` to the intended live Supabase project and completing multi-account, location-permission, Realtime, and physical-device acceptance.
 
 ## Backend, database, and Administration Portal
 
@@ -324,7 +334,7 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] On approved appeal, publish the content; on rejected appeal, retain rejection; record an owner notification in both cases.
 - [x] Build user listing/search/detail with public profile, true published-post counts, latest-five horizontal carousel, See All grid, complete post media/content/status, and approved comment/reply review.
 - [x] Build confirmed assign/remove verified creator controls mapped consistently to `is_content_creator`.
-- [ ] Enforce verified-badge request eligibility before deployment after the application workflow has been functionally tested: at least 10,000 followers unless CyanZone proactively verifies a well-known account.
+- [ ] Replace the current informational 10,000-follower creator requirement with the approved **2-follower MVP/UAT threshold** and enforce it at the authoritative submission boundary as well as in the mobile copy. Revisit the production threshold after UAT rather than hard-coding 2 as a permanent policy.
 - [x] Record creator assignment/removal, creator-request rejection with the administrator's reason, rejected-post, Pending-to-Approved publication, reported-content removal, and both appeal-outcome notifications; Retain intentionally sends none.
 - [x] Replace placeholder dashboard links/metrics with functional SRS pages; advanced analytics remain out of scope.
 - [x] Add administrator authorization, RLS, API, audit, component, and responsive browser workflow tests.
@@ -332,19 +342,20 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 
 ### 4. Parent Supervision
 
-- [ ] Implement Link Parent Account and Link Child Account selection from the user's Following list.
-- [ ] Implement pending link requests, recipient confirmation, accept/reject, duplicate prevention, and success/error messages.
-- [ ] Enforce one supervision role per user while relationships exist.
-- [ ] Track each user's CyanZone usage time and display their own current usage.
-- [ ] Let linked parents view only their linked children's usage.
-- [ ] Generate the first screen-time alert after three hours and another after every subsequent completed hour for the user and linked parent.
-- [ ] Implement child-only Safety Check-In with a required short message and optional location.
-- [ ] Request operating-system location permission only when needed; allow check-in/SOS without location and explain the fallback.
-- [ ] Restrict SOS to a successfully linked child, record time/location availability, and immediately alert the linked parent.
-- [ ] Build Safety Check-In and SOS history with type, date, time, message, and available location.
-- [ ] Implement password-verified, two-party unlink requests with Pending, Approved, and Rejected outcomes.
-- [ ] Stop new supervision sharing after approved unlink while preserving historical records for the former linked parent/child only.
-- [ ] Add RLS and integration tests for every role, relationship state, permission outcome, and former-link history rule.
+- [x] Implement Link Parent Account and Link Child Account selection from the deduplicated Followers/Following union.
+- [x] Implement pending link requests, recipient confirmation, accept/reject/cancel, duplicate prevention, and success/error messages.
+- [x] Enforce one supervision role per user while pending or active relationships exist.
+- [x] Track each user's CyanZone foreground usage and display their own current usage.
+- [x] Let linked parents view only their linked children's usage.
+- [x] Generate the first screen-time alert after three hours and another after every subsequent completed hour for the user and linked parents.
+- [x] Implement child-only Safety Check-In with a required short message and optional location.
+- [x] Request operating-system location permission only when needed for Check-In; always attempt it for SOS, allow either flow to continue safely without coordinates, and explain the fallback.
+- [x] Restrict SOS to a successfully linked child, record location availability, alert linked parents, and support parent acknowledgement/resolution.
+- [x] Build filtered Safety Check-In and SOS history with type, date, time, message, available location, and detail navigation.
+- [x] Implement server-authoritative two-party unlink request, approval, and rejection outcomes.
+- [ ] Add current-password reauthentication before an unlink request if the reviewed SRS password-verification requirement remains authoritative.
+- [ ] Verify that approved unlink stops new supervision sharing and implement the required former-linked-pair access to preserved historical records.
+- [ ] Apply the complete Parent Supervision SQL to the live project and run RLS/integration/device acceptance for every role, relationship state, permission outcome, and former-link history rule.
 
 ### 5. Notifications and FCM
 
@@ -364,6 +375,10 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [ ] Keep existing direct/group member authorization, sender/timestamp display, group-admin removal, member rename, and current-user-only clear-chat behavior covered by regression tests.
 
 ### 7. Non-functional requirements and release evidence
+
+The user will execute and record the final non-functional acceptance evidence
+after the remaining implementation work is complete. Engineering changes needed
+to satisfy these checks remain delivery work until that acceptance pass.
 
 - [ ] Create a traceable acceptance suite mapping every SRS requirement ID to an automated or manual test.
 - [ ] Measure login and feed load within 3 seconds under normal network conditions.
@@ -403,14 +418,27 @@ Passing unit/widget tests and builds do not prove the SRS timing, concurrency, u
 
 ## Verification state
 
-Verification run directly in the user's PowerShell environment on **August 2, 2026**:
+Latest mobile verification run directly in the user's PowerShell environment
+on **September 2, 2026**:
 
 ```powershell
 cd apps/mobile
 flutter test --reporter compact
 flutter analyze
+```
 
-cd ../admin
+Observed:
+
+- Focused Parent Supervision verification: **75 tests passed**.
+- Complete mobile test suite: **279 tests passed**.
+- Flutter analyzer: **no issues found**.
+- The verified Parent Supervision change set is committed as `2223b10` (`feat: complete parent supervision unlink and records`).
+
+The most recent Administration Portal and Express API verification remains the
+August 2, 2026 run:
+
+```powershell
+cd apps/admin
 npm test
 npm run build
 
@@ -419,10 +447,6 @@ npm test
 npm run build
 ```
 
-Observed:
-
-- Mobile test suite: **207 tests passed**.
-- Flutter analyzer: **no issues found**.
 - Administration Portal: **51 tests passed** across 14 test files; TypeScript compilation and Vite production build passed. The build reports only the existing large-chunk advisory.
 - Express API: **47 tests passed**; TypeScript production build passed.
 - Mobile notification regressions cover foreground realtime source ownership, structured System cards/details, current and legacy report-removal appeal eligibility, immediate pending state, and final approved/rejected appeal states.
@@ -450,9 +474,11 @@ Observed:
 Not covered by this verification:
 
 - Live Supabase migration/application state.
-- Remote application of the latest `chat.sql` and `admin_portal.sql` notification and
-  appeal changes remains required; local SQL contract regressions verify the structured
-  payloads, eligible post states, and final-decision rules.
+- Remote application of the latest `parent_supervision.sql`, `chat.sql`, and
+  `admin_portal.sql` changes remains required. Local SQL contract regressions
+  validate repository text and behavior contracts but do not prove that the
+  remote Supabase project's tables, functions, triggers, grants, RLS policies,
+  and Realtime publication match the repository.
 - Gemini moderation or FCM, because they are not implemented.
 - Android physical-device, location, background/terminated notification, or screen-size acceptance.
 - Latest Chrome and Edge acceptance outside the in-app browser.
@@ -462,22 +488,29 @@ Not covered by this verification:
 ## Next-chat handoff
 
 - Start by reading this file; it is the canonical project and SRS-delivery handover. Use `docs/superpowers/plans/2026-08-02-realtime-system-notifications-and-appeals.md` for the detailed history of the completed notification/admin revisions.
-- The current working tree is intentionally uncommitted and contains the user's completed mobile, Administration Portal, API-test, documentation, and Supabase SQL changes. Inspect `git status` and preserve every existing change unless the user explicitly asks to discard it.
+- Parent Supervision is committed through responsive dashboards, family-link management, screen-time tracking, Check-In/SOS, records, realtime supervision notifications, and two-party unlink request/approval/rejection. Commit `2223b10` contains the latest implementation and passed 75 focused tests, all 279 mobile tests, and Flutter analysis on September 2, 2026.
 - The latest local notification work is complete through the post-publication brief revision. `Your post has completed moderation review.` is the brief; the publication result is shown alone in the white System detail card. Rejected-post details use `View post` above `Admin:`, and future AI risk-score/evidence UI remains documentation-only.
-- Before live acceptance, apply `supabase/chat.sql` and then `supabase/admin_portal.sql` to the intended Supabase project. The repository contracts pass, but neither script was applied remotely in this chat.
-- The verified-badge 10,000-follower eligibility gate remains intentionally unenforced for functional testing and must be completed before deployment.
-- Matching-device/browser visual recapture, FCM delivery, and real Gemini moderation remain pending; do not report them as implemented.
+- Before live acceptance, inspect the remote schema and apply the required current scripts in documented order, including `supabase/parent_supervision.sql`, `supabase/chat.sql`, and then `supabase/admin_portal.sql`. Repository files and local tests alone do not update or verify the hosted Supabase database.
+- The creator-application UI still says 10,000 followers and does not enforce the threshold. The approved MVP/UAT target is 2 followers; update the mobile copy and authoritative submission enforcement in a later implementation slice, align the source SRS when it is available, then revisit the production threshold after UAT.
+- The immediate planned work is a small SOS adjustment, registration consent/OTP, real Gemini moderation, and FCM push delivery. Do not report any of these as complete before implementation and fresh verification.
+- The user will perform the final non-functional acceptance evidence after all implementation work is complete.
 - Run all terminal commands directly in the user's PowerShell environment outside the Codex sandbox and use `apply_patch` for manual edits.
 
 ## Recommended implementation order
 
-1. Apply and verify `supabase/chat.sql`, then `supabase/admin_portal.sql`, against the live Supabase project and exercise the mobile notification and protected portal flows with test accounts.
-2. Complete parent supervision and location-aware safety flows.
-3. Complete message-request acceptance, resolve the accepted-recent-chat group-member rule, and retain existing chat regressions.
-4. Add FCM push delivery and notification deep links.
-5. Complete F002 registration consent, OTP, and activation conformance.
-6. Implement F007 Gemini moderation last, replace the two AI mock files, and connect the real AI-flagged queue to the protected Admin API.
-7. Execute and record the complete non-functional acceptance suite and deployments.
+Immediate implementation sequence approved on September 2, 2026:
+
+1. Complete the small user-requested SOS adjustment.
+2. Complete F002 registration consent, email OTP, and activation conformance.
+3. Implement F007 real Gemini moderation, replace the two AI mock files, and connect the real AI-flagged queue to the protected Admin API.
+4. Add FCM push delivery, notification preferences, and safe deep links.
+
+Before MVP/UAT completion:
+
+5. Replace the displayed 10,000-follower creator requirement with 2 followers and enforce the same MVP/UAT threshold at the authoritative backend boundary; revisit the production value after UAT.
+6. Complete the recipient-side message-request Accept action and decide whether group membership must be narrowed to Followers/Following or the SRS should formally allow accepted recent direct-chat participants.
+7. Apply and verify the repository SQL against the intended Supabase project, then verify the Administration Portal/API deployment and cross-surface flows.
+8. Hand the completed build to the user for the final non-functional acceptance evidence pass.
 
 ## Risks and conventions
 
