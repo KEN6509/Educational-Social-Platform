@@ -207,6 +207,7 @@ class _ChatPageState extends State<ChatPage> {
       'created_by': conversation.createdBy,
       'created_by_name': conversation.createdByName,
       'created_at': conversation.createdAt?.toIso8601String(),
+      'can_send_messages': conversation.canSendMessages,
     };
   }
 

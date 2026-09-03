@@ -1111,6 +1111,17 @@ void main() {
     expect(source, isNot(contains('_cachedRequests')));
   });
 
+  test('ChatPage caches direct send permission with conversations', () {
+    final source = File(
+      'lib/src/features/chat/presentation/chat_page.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains("'can_send_messages': conversation.canSendMessages"),
+    );
+  });
+
   testWidgets('Notification section waits to mark read before system back pop',
       (tester) async {
     final readCompleter = Completer<void>();
