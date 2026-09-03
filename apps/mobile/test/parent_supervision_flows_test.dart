@@ -1208,6 +1208,40 @@ void main() {
 
     expect(copiedText, '3.13900, 101.68690');
     expect(find.text('Location copied'), findsOneWidget);
+    expect(find.byKey(const Key('app-location-map')), findsOneWidget);
+  });
+
+  testWidgets('check in detail omits map when location was not shared',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: CheckInDetailPage(
+        checkIn: _checkIn(
+          id: 'check-in-1',
+          message: 'No location needed.',
+          createdAt: DateTime.utc(2026, 8, 2, 8),
+        ),
+      ),
+    ));
+
+    expect(find.text('Not shared'), findsOneWidget);
+    expect(find.byKey(const Key('app-location-map')), findsNothing);
+  });
+
+  testWidgets('check in detail omits map when location is unavailable',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: CheckInDetailPage(
+        checkIn: _checkIn(
+          id: 'check-in-1',
+          message: 'Location failed.',
+          createdAt: DateTime.utc(2026, 8, 2, 8),
+          location: const LocationCapture.unavailable('services_disabled'),
+        ),
+      ),
+    ));
+
+    expect(find.text('Location unavailable'), findsOneWidget);
+    expect(find.byKey(const Key('app-location-map')), findsNothing);
   });
 }
 

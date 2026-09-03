@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/widgets/app_location_map.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import 'sos_page.dart';
@@ -30,9 +31,14 @@ final class SosRecordItem extends SafetyRecordItem {
 enum _RecordFilter { all, checkIns, sosAlerts }
 
 class SafetyRecordsPage extends StatefulWidget {
-  const SafetyRecordsPage({super.key, required this.repository});
+  const SafetyRecordsPage({
+    super.key,
+    required this.repository,
+    this.canManageSos = false,
+  });
 
   final ParentChildRepositoryContract repository;
+  final bool canManageSos;
 
   @override
   State<SafetyRecordsPage> createState() => _SafetyRecordsPageState();
@@ -77,12 +83,20 @@ class _SafetyRecordsPageState extends State<SafetyRecordsPage> {
           ),
         );
       case SosRecordItem(:final alert):
+        SosDetail? detail;
+        try {
+          detail = await widget.repository.fetchSosDetail(alert.id);
+        } catch (_) {
+          // The SOS page can still render the record and retry hydration.
+        }
+        if (!mounted) return;
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
             builder: (_) => SosPage(
               repository: widget.repository,
-              initialAlert: alert,
-              canManage: true,
+              initialAlert: detail == null ? alert : null,
+              initialDetail: detail,
+              canManage: widget.canManageSos,
             ),
           ),
         );
@@ -560,6 +574,13 @@ class CheckInDetailPage extends StatelessWidget {
               copyOnLongPress:
                   checkIn.location.status == LocationStatus.available,
             ),
+            if (checkIn.location.status == LocationStatus.available) ...[
+              const SizedBox(height: 12),
+              AppLocationMap(
+                location: checkIn.location,
+                mode: AppLocationMapMode.fixed,
+              ),
+            ],
           ],
         ),
       );

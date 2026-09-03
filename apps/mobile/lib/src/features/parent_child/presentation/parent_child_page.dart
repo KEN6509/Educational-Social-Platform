@@ -132,10 +132,13 @@ class _ParentChildPageState extends State<ParentChildPage>
     if (sent == true) _refresh();
   }
 
-  Future<void> _openRecords() async {
+  Future<void> _openRecords(SupervisionDashboardState state) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => SafetyRecordsPage(repository: _repository),
+        builder: (_) => SafetyRecordsPage(
+          repository: _repository,
+          canManageSos: state.role == FamilyRole.parent,
+        ),
       ),
     );
     _refresh();
@@ -212,7 +215,7 @@ class _ParentChildPageState extends State<ParentChildPage>
                 state: state,
                 callbacks: SupervisionDashboardCallbacks(
                   onFamily: () => _openFamilyLinks(state),
-                  onRecords: _openRecords,
+                  onRecords: () => _openRecords(state),
                   onCheckIn: _openCheckIn,
                   onSos: _openSos,
                   onNotification: (notification) {
