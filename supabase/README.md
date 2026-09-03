@@ -100,7 +100,12 @@ run the complete `parent_supervision.sql` in the Supabase SQL Editor after
 or policy fragment; the tables, RPCs, notification fan-out, RLS policies, grants,
 and Realtime publication entries are designed to be applied together.
 
-Verify the four core module tables:
+The current migration is idempotent for the existing Parent Supervision data:
+rerunning the complete file keeps existing alerts and records, creates the live
+SOS objects, and backfills available legacy SOS coordinates and timeline events
+where the stored data is sufficient.
+
+Verify the six core module tables:
 
 ```sql
 select table_name
@@ -110,16 +115,21 @@ where table_schema = 'public'
     'parent_child_links',
     'check_ins',
     'sos_alerts',
+    'sos_live_locations',
+    'sos_events',
     'supervision_notifications'
   )
 order by table_name;
 ```
 
-Expected result: four rows. The supporting `screen_time_logs`,
+Expected result: six rows. `sos_live_locations` holds one latest coordinate row
+per SOS (the final row remains after resolution), while `sos_events` holds the
+append-only triggered, per-parent acknowledged, and resolved timeline. The
+supporting `screen_time_logs`,
 `screen_time_sync_events`, and `screen_time_threshold_events` tables must also
 exist for CyanZone usage synchronization and threshold events.
 
-Verify all ten authenticated Parent Supervision RPCs:
+Verify all twelve authenticated Parent Supervision RPCs:
 
 ```sql
 select routine_name
@@ -134,13 +144,15 @@ where routine_schema = 'public'
     'submit_sos_alert',
     'acknowledge_sos_alert',
     'resolve_sos_alert',
+    'update_sos_live_location',
+    'fetch_active_sos_alert',
     'sync_screen_time_session',
     'mark_supervision_notification_read'
   )
 order by routine_name;
 ```
 
-Expected result: ten rows.
+Expected result: twelve rows.
 
 Verify the owner/family read policies and Realtime publication:
 
@@ -153,6 +165,8 @@ where schemaname = 'public'
     'screen_time_logs',
     'check_ins',
     'sos_alerts',
+    'sos_live_locations',
+    'sos_events',
     'supervision_notifications'
   )
 order by tablename, policyname;
@@ -164,14 +178,24 @@ where pubname = 'supabase_realtime'
   and tablename in (
     'parent_child_links',
     'sos_alerts',
+    'sos_live_locations',
+    'sos_events',
     'supervision_notifications'
   )
 order by tablename;
 ```
 
-The publication query must return all three listed tables. Current delivery is
-in-app Realtime only. FCM remains deferred until device push delivery is added
-later; Supervision Notifications remain separate from Messages notifications.
+The publication query must return all five listed tables. SOS GPS capture runs
+approximately every 10 seconds only while CyanZone is in the foreground. It
+pauses when the app is minimized, locked, or terminated, and resumes the newest
+unresolved child SOS when the app returns. Resolution prevents further server
+location updates. OpenStreetMap tiles are a best-effort visual layer for the
+MVP/UAT and do not affect coordinate capture or Supabase updates when tiles are
+unavailable. Current notification delivery is in-app Realtime only.
+FCM remains deferred until device push delivery is added later; Supervision Notifications
+remain separate from Messages notifications. Physical-device GPS, lifecycle,
+multi-account, and live Realtime evidence remains part of the manual acceptance
+pass.
 
 ## 5. Configure Authentication
 

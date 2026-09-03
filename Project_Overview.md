@@ -1,6 +1,6 @@
 # CyanZone Project Overview and SRS Delivery Handover
 
-Last reviewed against the workspace: **September 2, 2026**. The SRS traceability
+Last reviewed against the workspace: **September 3, 2026**. The SRS traceability
 baseline was last reviewed against **Software Requirement Specification.docx**
 on **August 2, 2026**.
 
@@ -18,7 +18,7 @@ This is the canonical starting point for a developer or AI session. Source code,
 
 CyanZone is a mobile-first, parent-supervised educational and interest-based social platform for teenagers, parents, and content creators.
 
-- Mobile: Flutter/Dart for Android, Supabase Flutter, SharedPreferences, `photo_manager`, and `image_picker`.
+- Mobile: Flutter/Dart for Android, Supabase Flutter, SharedPreferences, `photo_manager`, `image_picker`, and `flutter_map`/OpenStreetMap for location display.
 - Administration Portal: React, TypeScript, Vite, Tailwind, and Supabase JS.
 - Privileged API: Node.js, Express, TypeScript, Zod, and the Supabase service role.
 - Platform: Supabase Auth, PostgreSQL, Row Level Security (RLS), Storage, and Realtime.
@@ -88,7 +88,7 @@ Status meanings:
 | F005 / REQ_F005 | Intermediate | Post Engagement | **Partial** | Comments/replies, likes, saves, chat sharing, and private 14-day dislike hiding are implemented. Public comments are still missing Gemini moderation before publication. |
 | F006 / REQ_F006 | Intermediate | Content Reporting | **Implemented** | Users submit reason-only reports for public posts and comments. The repository report lifecycle is `pending_review` to `resolved` (Remove) or `dismissed` (Retain), with no separate Open/Reviewing state or reporter description. The Administration Portal groups cases by target, shows total/unique counts in a reason pie chart and legend, keeps two-line queue previews, and opens complete post evidence through the shared Post Detail viewer. `REPORT_REVIEW_THRESHOLD=1` is a testing convenience only and must be changed to `1000` before deployment. The destructive `report_flow_simplification.sql` migration is committed but has not been applied to the live Supabase project. |
 | F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Not implemented** | Moderation fields, pending/rejected UI states, post-appeal storage, rejected-post notifications, and a Pending-to-Approved publication-success notification foundation exist, but there is no Gemini route or worker. The below-40% approve, 40%-60% administrator review, above-60% reject, 20-second timeout, retry/failure behavior, and post/comment integration remain required. |
-| F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Server-authoritative parent/child linking, role enforcement, role dashboards, foreground CyanZone screen-time tracking and threshold events, location-aware Check-In/SOS, SOS acknowledgement/resolution, safety records, dedicated realtime supervision notifications, and two-party unlink request/accept/reject flows are implemented. The user reports that `parent_supervision.sql` was applied to Supabase. The user has one small SOS adjustment planned; password reauthentication for unlink, former-link historical-record authorization, remote inspection, and multi-account/device acceptance remain incomplete or unverified. |
+| F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Server-authoritative parent/child linking, role enforcement, role dashboards, foreground CyanZone screen-time tracking and threshold events, location-aware Check-In, foreground-only 10-second live SOS location, OpenStreetMap detail maps, multi-parent acknowledgement/timeline/resolution, safety records, dedicated realtime supervision notifications, and two-party unlink request/accept/reject flows are implemented in the repository. The updated `parent_supervision.sql` must be rerun on Supabase. Password reauthentication for unlink, former-link historical-record authorization, remote inspection, and multi-account/physical-device acceptance remain incomplete or unverified. |
 | F009 / REQ_F009 | Intermediate | Real-Time Communication | **Partial** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. Message requests are intentionally hidden from active mobile loading and UI while their existing data and backend foundation remain dormant. Active direct-chat entry and every new direct-message send require a current follow relationship in either direction, and group-member candidates/validation are limited to Followers and Following. Existing accepted conversations and history remain readable after both users unfollow, but their composer is blocked. The user applied the previous `chat.sql`; the updated follow-only functions still require live reapplication and verification. |
 | F010 / REQ_F010 | Intermediate | Notifications | **Partial** | Activity, New Followers, and System notification rows/counts refresh through foreground Supabase Realtime even before their section is opened. Per-section/conversation unread counts, the total Messaging-tab badge, preferences, compact structured System details, and notification-side one-final-appeal handling for administrator-rejected AI-flagged or report-removed posts are implemented. Verified creator assignment/removal, creator-request decisions with administrator feedback, Pending-to-Approved publication, reported-content removal, and appeal-outcome notification foundations exist. The current AI-Flagged portal queue is still isolated mock data and cannot create a real rejection notification until the Gemini/admin moderation integration replaces it. Retaining reported content intentionally sends no author notification. FCM background/closed-app delivery and Pending Administrator Review feedback remain missing. |
 | F011 / REQ_F011 | Advanced | Administration Portal | **Partial** | The functional portal includes Overview, Users, Creator Requests, grouped Reports, Appeals, and a production-facing AI-Flagged Content workflow with confirmations. Assign Creator, Retain Content, and AI Approve do not require manual reasons; Creator Request rejection, Remove Creator, Remove Content, AI Reject, and both Appeal actions require 10-500 characters. Reason-free persisted actions receive stable internal audit text. Users excludes administrator profiles at the API query boundary and currently exposes creator decisions only. AI-Flagged data is still isolated locally; Gemini and the real AI queue remain deferred. |
@@ -194,17 +194,19 @@ Implemented:
 - Server-authoritative link requests, acceptance, rejection, cancellation, duplicate prevention, and one-role-at-a-time enforcement for parent and child accounts.
 - Followers/Following candidate selection, responsive unlinked/child/parent dashboards, profile navigation, and parent-only linked-child screen-time summaries.
 - Persisted foreground CyanZone screen-time sessions, idempotent synchronization, and three-hour plus subsequent hourly threshold events.
-- Child-only Safety Check-In with a required message and optional location, plus SOS with a mandatory location attempt and a safe Location unavailable fallback.
-- Parent SOS acknowledgement/resolution, merged Check-In/SOS history, typed detail navigation, and a separate latest-ten realtime Supervision Notifications feed.
+- Child-only Safety Check-In with a required message and optional location; available Check-In coordinates retain their detail row and add a fixed OpenStreetMap pin below it.
+- SOS performs a mandatory initial location attempt, safely sends when location is unavailable, and then updates one server-authoritative latest-location row approximately every 10 seconds while CyanZone remains visible. Tracking pauses when the app is minimized, locked, or terminated, resumes the newest unresolved alert on foreground/relaunch, and stops after resolution.
+- SOS detail keeps coordinates visible, adds a moving OpenStreetMap pin, reports live/stale freshness, and refreshes the status, location, and chronological triggered/acknowledged/resolved timeline through focused Supabase Realtime subscriptions.
+- Multiple linked parents may each acknowledge once. A parent sees one bottom action: Acknowledge first, then Resolve only after their own acknowledgement. Resolve requires confirmation, is server-enforced/idempotent, and applies to all linked parents; the child cannot resolve.
+- Merged Check-In/SOS history, typed detail navigation, and a separate latest-ten realtime Supervision Notifications feed.
 - Two-party unlink requests: either participant may request; only the other participant may approve or reject; approval revokes the active link.
-- Repository/base-schema parity for the current Parent Supervision tables, RPCs, RLS foundations, grants, and Realtime publication entries.
+- Repository/base-schema parity for the current Parent Supervision tables, RPCs, RLS foundations, grants, and Realtime publication entries. The SOS implementation applies GoF Facade (`SosTrackingCoordinator`), Observer (app lifecycle, coordinator listeners, and Supabase Realtime), State (SOS lifecycle/action rules), and Adapter (GPS/live-location conversion to the shared app location model) patterns without Riverpod.
 
 Still required or unverified:
 
-- The user-requested small SOS adjustment.
 - Password reauthentication before sending an unlink request if the reviewed SRS requirement remains unchanged.
 - The exact former-link history rule: approved unlink stops new sharing, but retained historical-record access for the former linked pair still needs an explicit authorization implementation and acceptance test.
-- Applying `supabase/parent_supervision.sql` to the intended live Supabase project and completing multi-account, location-permission, Realtime, and physical-device acceptance.
+- Rerunning the complete updated `supabase/parent_supervision.sql` on the intended live Supabase project and completing multi-account, 10-second movement, foreground/background/resume, location-permission, Realtime, map-tile failure, concurrent acknowledgement, resolution, and physical-device acceptance.
 
 ## Backend, database, and Administration Portal
 
@@ -353,6 +355,9 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] Implement child-only Safety Check-In with a required short message and optional location.
 - [x] Request operating-system location permission only when needed for Check-In; always attempt it for SOS, allow either flow to continue safely without coordinates, and explain the fallback.
 - [x] Restrict SOS to a successfully linked child, record location availability, alert linked parents, and support parent acknowledgement/resolution.
+- [x] Track an unresolved child SOS approximately every 10 seconds while CyanZone remains in the foreground, persist only its latest point, pause outside the foreground, resume after return/relaunch, and stop after parent resolution.
+- [x] Add reusable OpenStreetMap detail maps: a moving SOS pin and a fixed Check-In pin below the retained latitude/longitude row.
+- [x] Add the live SOS event timeline and per-parent Acknowledge-to-Resolve action replacement with resolve confirmation and server-side enforcement.
 - [x] Build filtered Safety Check-In and SOS history with type, date, time, message, available location, and detail navigation.
 - [x] Implement server-authoritative two-party unlink request, approval, and rejection outcomes.
 - [ ] Add current-password reauthentication before an unlink request if the reviewed SRS password-verification requirement remains authoritative.
@@ -438,6 +443,21 @@ Observed:
 - The complete mobile suite was not rerun for this focused bug fix at the user's request; the latest complete-suite evidence remains the September 2 run below.
 - Direct-send enforcement is implemented through `515d5c6` (`fix: persist direct chat send permission`).
 
+Latest focused Parent Supervision verification run directly in the user's
+PowerShell environment on **September 3, 2026**:
+
+```powershell
+cd apps/mobile
+flutter test test/app_location_map_test.dart test/location_service_test.dart test/sos_lifecycle_state_test.dart test/sos_tracking_coordinator_test.dart test/parent_child_repository_test.dart test/parent_supervision_page_test.dart test/parent_supervision_flows_test.dart test/parent_supervision_sql_test.dart
+flutter analyze lib/src/core/widgets/app_location_map.dart lib/src/features/parent_child test/app_location_map_test.dart test/location_service_test.dart test/sos_lifecycle_state_test.dart test/sos_tracking_coordinator_test.dart test/parent_child_repository_test.dart test/parent_supervision_page_test.dart test/parent_supervision_flows_test.dart test/parent_supervision_sql_test.dart
+```
+
+Observed:
+
+- Focused Parent Supervision, SOS, location, map, repository, lifecycle, UI, and SQL verification: **80 tests passed**.
+- Focused Flutter analyzer: **no issues found**.
+- The complete mobile suite was not rerun for this feature at the user's request; the latest complete-suite evidence remains the September 2 run below.
+
 Latest mobile verification run directly in the user's PowerShell environment
 on **September 2, 2026**:
 
@@ -495,10 +515,10 @@ npm run build
 
 Not covered by this verification:
 
-- Live Supabase migration/application state. The user reports that
-  `parent_supervision.sql`, the previous `chat.sql`, and `admin_portal.sql` were
-  applied, but remote objects were not inspected in this workspace. The newly
-  updated `chat.sql` must be rerun. Local SQL contract regressions validate
+- Live Supabase migration/application state. The user reports that the previous
+  `parent_supervision.sql`, `chat.sql`, and `admin_portal.sql` were applied, but
+  remote objects were not inspected in this workspace. The newly updated
+  `parent_supervision.sql` and `chat.sql` must be rerun. Local SQL contract regressions validate
   repository text and behavior contracts but do not prove that hosted tables,
   functions, triggers, grants, RLS policies, and Realtime publication match it.
 - Gemini moderation or FCM, because they are not implemented.
@@ -510,30 +530,29 @@ Not covered by this verification:
 ## Next-chat handoff
 
 - Start by reading this file; it is the canonical project and SRS-delivery handover. Use `docs/superpowers/plans/2026-08-02-realtime-system-notifications-and-appeals.md` for the detailed history of the completed notification/admin revisions.
-- Parent Supervision is committed through responsive dashboards, family-link management, screen-time tracking, Check-In/SOS, records, realtime supervision notifications, and two-party unlink request/approval/rejection. Commit `2223b10` contains the latest implementation and passed 75 focused tests, all 279 mobile tests, and Flutter analysis on September 2, 2026.
+- Parent Supervision now includes foreground-only 10-second live SOS tracking, latest-point storage, multi-parent acknowledgement events, the live SOS timeline, per-parent Acknowledge-to-Resolve actions, resolve confirmation, and reusable OpenStreetMap views for SOS and Check-In details. The repository implementation is on `feature/AI-Moderation`; rerun the complete updated `supabase/parent_supervision.sql` before live testing.
 - The latest local notification work is complete through the post-publication brief revision. `Your post has completed moderation review.` is the brief; the publication result is shown alone in the white System detail card. Rejected-post details use `View post` above `Admin:`, and future AI risk-score/evidence UI remains documentation-only.
-- The user reports that `supabase/parent_supervision.sql`, the previous `supabase/chat.sql`, and `supabase/admin_portal.sql` were applied. Before live acceptance, inspect those hosted objects and rerun the newly updated complete `supabase/chat.sql`; repository files and local tests alone do not update or verify Supabase.
+- The user reports that the previous `supabase/parent_supervision.sql`, `supabase/chat.sql`, and `supabase/admin_portal.sql` were applied. Before live acceptance, rerun the newly updated complete `supabase/parent_supervision.sql` and `supabase/chat.sql`; repository files and local tests alone do not update or verify Supabase.
 - Message requests are now hidden/dormant. The Messages screen does not load or show them, and active profile/search/follower actions use `open_direct_conversation`, which requires a follow row in either direction. Existing accepted chat history remains readable after both users unfollow, while the Messages preview and chat-room composer become follow-required and `send_chat_message` rejects new direct messages.
 - The creator-application UI still says 10,000 followers and does not enforce the threshold. The approved MVP/UAT target is 2 followers; update the mobile copy and authoritative submission enforcement in a later implementation slice, align the source SRS when it is available, then revisit the production threshold after UAT.
-- The immediate planned work is a small SOS adjustment, registration consent/OTP, real Gemini moderation, and FCM push delivery. Do not report any of these as complete before implementation and fresh verification.
+- The immediate remaining implementation work is registration consent/OTP, real Gemini moderation, and FCM push delivery. The approved 2-follower MVP/UAT creator gate also remains pending. Do not report any of these as complete before implementation and fresh verification.
 - The user will perform the final non-functional acceptance evidence after all implementation work is complete.
 - Run all terminal commands directly in the user's PowerShell environment outside the Codex sandbox and use `apply_patch` for manual edits.
 
 ## Recommended implementation order
 
-Immediate implementation sequence approved on September 2, 2026:
+Immediate implementation sequence updated on September 3, 2026:
 
-1. Complete the small user-requested SOS adjustment.
-2. Complete F002 registration consent, email OTP, and activation conformance.
-3. Implement F007 real Gemini moderation, replace the two AI mock files, and connect the real AI-flagged queue to the protected Admin API.
-4. Add FCM push delivery, notification preferences, and safe deep links.
+1. Complete F002 registration consent, email OTP, and activation conformance.
+2. Implement F007 real Gemini moderation, replace the two AI mock files, and connect the real AI-flagged queue to the protected Admin API.
+3. Add FCM push delivery, notification preferences, and safe deep links.
 
 Before MVP/UAT completion:
 
-5. Replace the displayed 10,000-follower creator requirement with 2 followers and enforce the same MVP/UAT threshold at the authoritative backend boundary; revisit the production value after UAT.
-6. Rerun the updated complete `supabase/chat.sql` and verify that direct-chat entry, every new direct-message send, and group-member changes require a follow relationship in either direction. Dormant message-request rows and functions remain stored.
-7. Apply and verify the repository SQL against the intended Supabase project, then verify the Administration Portal/API deployment and cross-surface flows.
-8. Hand the completed build to the user for the final non-functional acceptance evidence pass.
+4. Replace the displayed 10,000-follower creator requirement with 2 followers and enforce the same MVP/UAT threshold at the authoritative backend boundary; revisit the production value after UAT.
+5. Rerun the updated complete `supabase/parent_supervision.sql` and `supabase/chat.sql`, then verify the SOS lifecycle/location rules, direct-chat entry/send revocation, and group-member relationship checks with live accounts. Dormant message-request rows and functions remain stored.
+6. Verify the remaining repository SQL against the intended Supabase project, then verify the Administration Portal/API deployment and cross-surface flows.
+7. Hand the completed build to the user for the final non-functional acceptance evidence pass.
 
 ## Risks and conventions
 
