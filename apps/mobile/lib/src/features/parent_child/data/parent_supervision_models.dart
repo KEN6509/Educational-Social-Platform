@@ -17,6 +17,8 @@ enum SupervisionEventType {
 
 enum SosStatus { open, acknowledged, resolved }
 
+enum SosEventType { triggered, acknowledged, resolved }
+
 enum LocationStatus { notRequested, available, unavailable }
 
 DateTime _date(Object? value) => DateTime.parse(value as String);
@@ -266,6 +268,91 @@ final class SosAlert {
   bool get hasLocation => location.status == LocationStatus.available;
 }
 
+final class SosLiveLocation {
+  const SosLiveLocation({
+    required this.sosId,
+    required this.childId,
+    required this.latitude,
+    required this.longitude,
+    required this.accuracyMeters,
+    required this.capturedAt,
+    required this.updatedAt,
+  });
+
+  factory SosLiveLocation.fromMap(Map<String, dynamic> map) => SosLiveLocation(
+        sosId: map['sos_id'] as String,
+        childId: map['child_id'] as String,
+        latitude: (map['latitude'] as num).toDouble(),
+        longitude: (map['longitude'] as num).toDouble(),
+        accuracyMeters: (map['accuracy_meters'] as num?)?.toDouble() ?? 0,
+        capturedAt: _date(map['captured_at']),
+        updatedAt:
+            _optionalDate(map['updated_at']) ?? _date(map['captured_at']),
+      );
+
+  final String sosId;
+  final String childId;
+  final double latitude;
+  final double longitude;
+  final double accuracyMeters;
+  final DateTime capturedAt;
+  final DateTime updatedAt;
+
+  LocationCapture toLocationCapture() => LocationCapture.available(
+        latitude: latitude,
+        longitude: longitude,
+        accuracyMeters: accuracyMeters,
+        capturedAt: capturedAt,
+      );
+}
+
+final class SosEvent {
+  const SosEvent({
+    required this.id,
+    required this.sosId,
+    required this.type,
+    required this.actorId,
+    required this.actorName,
+    required this.createdAt,
+  });
+
+  factory SosEvent.fromMap(Map<String, dynamic> map) => SosEvent(
+        id: map['id'] as String,
+        sosId: map['sos_id'] as String,
+        type: _sosEventType(map['event_type'] as String),
+        actorId: map['actor_id'] as String,
+        actorName: map['actor_name'] as String? ?? 'CyanZone user',
+        createdAt: _date(map['created_at']),
+      );
+
+  final String id;
+  final String sosId;
+  final SosEventType type;
+  final String actorId;
+  final String actorName;
+  final DateTime createdAt;
+}
+
+final class SosDetail {
+  SosDetail({
+    required this.alert,
+    required List<SosEvent> events,
+    this.latestLocation,
+  }) : events = List.unmodifiable(
+          List<SosEvent>.of(events)
+            ..sort((a, b) => a.createdAt.compareTo(b.createdAt)),
+        );
+
+  final SosAlert alert;
+  final SosLiveLocation? latestLocation;
+  final List<SosEvent> events;
+
+  bool hasAcknowledgementFrom(String userId) => events.any(
+        (event) =>
+            event.type == SosEventType.acknowledged && event.actorId == userId,
+      );
+}
+
 final class CheckInDraft {
   const CheckInDraft({required this.message, required this.location});
   final String message;
@@ -447,6 +534,13 @@ SosStatus _sosStatus(String value) => switch (value) {
       'acknowledged' => SosStatus.acknowledged,
       'resolved' => SosStatus.resolved,
       _ => throw FormatException('Unknown SOS status: $value'),
+    };
+
+SosEventType _sosEventType(String value) => switch (value) {
+      'triggered' => SosEventType.triggered,
+      'acknowledged' => SosEventType.acknowledged,
+      'resolved' => SosEventType.resolved,
+      _ => throw FormatException('Unknown SOS event type: $value'),
     };
 
 LocationStatus _locationStatus(String? value) => switch (value) {
