@@ -142,6 +142,10 @@ void main() {
       );
       expect(sql, contains('Active family views SOS live locations'));
       expect(sql, contains('Active family views SOS events'));
+      expect(
+        sql,
+        contains('Only the child can update an unresolved SOS location'),
+      );
     }
   });
 

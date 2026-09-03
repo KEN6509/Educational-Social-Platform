@@ -1336,21 +1336,26 @@ set search_path = public
 as $$
 declare
   v_user_id uuid := auth.uid();
+  v_sos public.sos_alerts;
   v_location public.sos_live_locations;
 begin
   if v_user_id is null then
     raise exception 'Authentication required' using errcode = '42501';
   end if;
-  if p_latitude not between -90 and 90
+  if p_latitude is null or p_longitude is null
+      or p_latitude not between -90 and 90
       or p_longitude not between -180 and 180 then
     raise exception 'Invalid SOS location';
   end if;
-  if not exists (
-    select 1 from public.sos_alerts alert
-    where alert.id = p_sos_id
-      and alert.child_id = v_user_id
-      and alert.status in ('open', 'acknowledged')
-  ) then
+
+  select alert.* into v_sos
+  from public.sos_alerts alert
+  where alert.id = p_sos_id
+    and alert.child_id = v_user_id
+    and alert.status in ('open', 'acknowledged')
+  for update;
+
+  if not found then
     raise exception 'Only the child can update an unresolved SOS location'
       using errcode = '42501';
   end if;

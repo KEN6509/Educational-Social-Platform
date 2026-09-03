@@ -457,6 +457,7 @@ void main() {
         repository.submittedSos?.location.status, LocationStatus.unavailable);
     expect(repository.submittedSos?.location.failureCode, 'services_disabled');
     expect(find.text('Location unavailable'), findsOneWidget);
+    expect(find.byKey(const Key('app-location-map')), findsNothing);
     expect(find.text('Sent'), findsOneWidget);
   });
 
@@ -608,6 +609,35 @@ void main() {
 
     expect(find.text('Acknowledge SOS'), findsOneWidget);
     expect(find.text('Resolve SOS'), findsNothing);
+  });
+
+  testWidgets('SOS detail labels an old live point as stale', (tester) async {
+    final alert = _sosAlert(location: _availableLocation());
+    await tester.pumpWidget(MaterialApp(
+      home: SosPage(
+        repository: FlowFakeRepository(),
+        initialDetail: SosDetail(
+          alert: alert,
+          currentUserId: 'parent-1',
+          latestLocation: SosLiveLocation(
+            sosId: alert.id,
+            childId: alert.childId,
+            latitude: 3.139,
+            longitude: 101.6869,
+            accuracyMeters: 8,
+            capturedAt: DateTime.now().subtract(const Duration(minutes: 2)),
+            updatedAt: DateTime.now().subtract(const Duration(minutes: 2)),
+          ),
+          events: const [],
+        ),
+        canManage: true,
+        subscribeToRealtime: false,
+      ),
+    ));
+
+    expect(find.textContaining('Last updated'), findsOneWidget);
+    expect(find.textContaining('tracking may be paused'), findsOneWidget);
+    expect(find.textContaining('Live location'), findsNothing);
   });
 
   testWidgets('open SOS uses the server-returned acknowledgement winner',

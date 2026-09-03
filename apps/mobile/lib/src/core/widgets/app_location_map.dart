@@ -65,7 +65,7 @@ final class _AppLocationMapState extends State<AppLocationMap> {
           children: [
             TileLayer(
               urlTemplate: widget.tileUrl,
-              userAgentPackageName: 'com.cyanzone.mobile',
+              userAgentPackageName: 'com.example.cyanzone_mobile',
             ),
             MarkerLayer(
               markers: [
