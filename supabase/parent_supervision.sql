@@ -666,6 +666,87 @@ alter table public.sos_alerts
   add column if not exists resolved_by uuid
     references public.profiles(id) on delete set null;
 
+create table if not exists public.sos_live_locations (
+  sos_id uuid primary key references public.sos_alerts(id) on delete cascade,
+  child_id uuid not null references public.profiles(id) on delete cascade,
+  latitude double precision not null check (latitude between -90 and 90),
+  longitude double precision not null check (longitude between -180 and 180),
+  accuracy_meters double precision not null default 0
+    check (accuracy_meters >= 0),
+  captured_at timestamptz not null,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.sos_events (
+  id uuid primary key default gen_random_uuid(),
+  sos_id uuid not null references public.sos_alerts(id) on delete cascade,
+  event_type text not null
+    check (event_type in ('triggered', 'acknowledged', 'resolved')),
+  actor_user_id uuid not null references public.profiles(id) on delete restrict,
+  actor_name text not null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists sos_events_one_trigger_idx
+on public.sos_events (sos_id)
+where event_type = 'triggered';
+
+create unique index if not exists sos_events_one_parent_ack_idx
+on public.sos_events (sos_id, actor_user_id)
+where event_type = 'acknowledged';
+
+create unique index if not exists sos_events_one_resolution_idx
+on public.sos_events (sos_id)
+where event_type = 'resolved';
+
+create index if not exists sos_events_sos_created_idx
+on public.sos_events (sos_id, created_at);
+
+insert into public.sos_live_locations (
+  sos_id, child_id, latitude, longitude, accuracy_meters, captured_at, updated_at
+)
+select alert.id, alert.child_id, alert.latitude, alert.longitude,
+  coalesce(alert.accuracy_meters, 0),
+  coalesce(alert.location_captured_at, alert.created_at),
+  coalesce(alert.updated_at, alert.created_at)
+from public.sos_alerts alert
+where alert.location_status = 'available'
+  and alert.latitude is not null
+  and alert.longitude is not null
+on conflict (sos_id) do nothing;
+
+insert into public.sos_events (
+  sos_id, event_type, actor_user_id, actor_name, created_at
+)
+select alert.id, 'triggered', alert.child_id,
+  coalesce(profile.name, 'CyanZone child'), alert.created_at
+from public.sos_alerts alert
+left join public.profiles profile on profile.id = alert.child_id
+on conflict (sos_id) where event_type = 'triggered' do nothing;
+
+insert into public.sos_events (
+  sos_id, event_type, actor_user_id, actor_name, created_at
+)
+select alert.id, 'acknowledged', alert.acknowledged_by,
+  coalesce(profile.name, 'Linked parent'),
+  coalesce(alert.acknowledged_at, alert.updated_at, alert.created_at)
+from public.sos_alerts alert
+left join public.profiles profile on profile.id = alert.acknowledged_by
+where alert.acknowledged_by is not null
+on conflict (sos_id, actor_user_id)
+where event_type = 'acknowledged' do nothing;
+
+insert into public.sos_events (
+  sos_id, event_type, actor_user_id, actor_name, created_at
+)
+select alert.id, 'resolved', alert.resolved_by,
+  coalesce(profile.name, 'Linked parent'),
+  coalesce(alert.resolved_at, alert.updated_at, alert.created_at)
+from public.sos_alerts alert
+left join public.profiles profile on profile.id = alert.resolved_by
+where alert.resolved_by is not null
+on conflict (sos_id) where event_type = 'resolved' do nothing;
+
 create table if not exists public.supervision_notifications (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -709,6 +790,8 @@ on public.supervision_notifications(user_id, created_at desc);
 alter table public.screen_time_sync_events enable row level security;
 alter table public.screen_time_threshold_events enable row level security;
 alter table public.supervision_notifications enable row level security;
+alter table public.sos_live_locations enable row level security;
+alter table public.sos_events enable row level security;
 
 drop policy if exists "Users can request family links"
 on public.parent_child_links;
@@ -775,6 +858,45 @@ using (
   )
 );
 
+drop policy if exists "Active family views SOS live locations"
+on public.sos_live_locations;
+create policy "Active family views SOS live locations"
+on public.sos_live_locations for select
+to authenticated
+using (
+  child_id = auth.uid()
+  or exists (
+    select 1
+    from public.parent_child_links link
+    where link.parent_id = auth.uid()
+      and link.child_id = sos_live_locations.child_id
+      and link.status = 'active'
+  )
+);
+
+drop policy if exists "Active family views SOS events"
+on public.sos_events;
+create policy "Active family views SOS events"
+on public.sos_events for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.sos_alerts alert
+    where alert.id = sos_events.sos_id
+      and (
+        alert.child_id = auth.uid()
+        or exists (
+          select 1
+          from public.parent_child_links link
+          where link.parent_id = auth.uid()
+            and link.child_id = alert.child_id
+            and link.status = 'active'
+        )
+      )
+  )
+);
+
 drop policy if exists "Users view own screen time sync events"
 on public.screen_time_sync_events;
 create policy "Users view own screen time sync events"
@@ -802,6 +924,8 @@ revoke insert, update, delete on public.screen_time_sync_events from authenticat
 revoke insert, update, delete on public.screen_time_threshold_events from authenticated;
 revoke insert, update, delete on public.check_ins from authenticated;
 revoke insert, update, delete on public.sos_alerts from authenticated;
+revoke insert, update, delete on public.sos_live_locations from authenticated;
+revoke insert, update, delete on public.sos_events from authenticated;
 revoke insert, update, delete on public.supervision_notifications from authenticated;
 
 grant select on public.parent_child_links to authenticated;
@@ -810,10 +934,14 @@ grant select on public.screen_time_sync_events to authenticated;
 grant select on public.screen_time_threshold_events to authenticated;
 grant select on public.check_ins to authenticated;
 grant select on public.sos_alerts to authenticated;
+grant select on public.sos_live_locations to authenticated;
+grant select on public.sos_events to authenticated;
 grant select on public.supervision_notifications to authenticated;
 
 alter table public.parent_child_links replica identity full;
 alter table public.sos_alerts replica identity full;
+alter table public.sos_live_locations replica identity full;
+alter table public.sos_events replica identity full;
 alter table public.supervision_notifications replica identity full;
 
 do $$
@@ -836,6 +964,26 @@ begin
       and tablename = 'sos_alerts'
   ) then
     alter publication supabase_realtime add table public.sos_alerts;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'sos_live_locations'
+  ) then
+    alter publication supabase_realtime add table public.sos_live_locations;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'sos_events'
+  ) then
+    alter publication supabase_realtime add table public.sos_events;
   end if;
 
   if not exists (
@@ -972,6 +1120,23 @@ begin
   select profile.name into v_child_name
   from public.profiles profile where profile.id = v_user_id;
 
+  insert into public.sos_events (
+    sos_id, event_type, actor_user_id, actor_name, created_at
+  ) values (
+    v_sos.id, 'triggered', v_user_id,
+    coalesce(v_child_name, 'CyanZone child'), v_sos.created_at
+  );
+
+  if v_location_status = 'available' then
+    insert into public.sos_live_locations (
+      sos_id, child_id, latitude, longitude, accuracy_meters, captured_at
+    ) values (
+      v_sos.id, v_user_id, p_latitude, p_longitude,
+      coalesce(p_accuracy_meters, 0),
+      coalesce(p_location_captured_at, now())
+    );
+  end if;
+
   insert into public.supervision_notifications (
     user_id, event_type, title, body, event_key, sos_id, child_id
   )
@@ -1008,62 +1173,72 @@ declare
   v_user_id uuid := auth.uid();
   v_sos public.sos_alerts;
   v_parent_name text;
-  v_first_acknowledgement boolean := false;
+  v_event_id uuid;
 begin
   if v_user_id is null then
     raise exception 'Authentication required' using errcode = '42501';
   end if;
 
-  update public.sos_alerts alert
-  set status = 'acknowledged',
-      acknowledged_by = v_user_id,
-      acknowledged_at = now()
+  select alert.* into v_sos
+  from public.sos_alerts alert
   where alert.id = p_sos_id
-    and alert.status = 'open'
-    and alert.acknowledged_by is null
     and exists (
       select 1 from public.parent_child_links link
       where link.parent_id = v_user_id
         and link.child_id = alert.child_id
         and link.status = 'active'
     )
+  for update;
+
+  if not found then
+    raise exception 'Only an active linked parent can acknowledge this SOS' using errcode = '42501';
+  end if;
+  if v_sos.status = 'resolved' then
+    return v_sos;
+  end if;
+
+  select profile.name into v_parent_name
+  from public.profiles profile where profile.id = v_user_id;
+
+  insert into public.sos_events (
+    sos_id, event_type, actor_user_id, actor_name
+  ) values (
+    v_sos.id, 'acknowledged', v_user_id,
+    coalesce(v_parent_name, 'Linked parent')
+  )
+  on conflict (sos_id, actor_user_id)
+  where event_type = 'acknowledged' do nothing
+  returning id into v_event_id;
+
+  if v_event_id is null then
+    return v_sos;
+  end if;
+
+  update public.sos_alerts alert
+  set status = case
+        when alert.status = 'open' then 'acknowledged'
+        else alert.status
+      end,
+      acknowledged_by = coalesce(alert.acknowledged_by, v_user_id),
+      acknowledged_at = coalesce(alert.acknowledged_at, now())
+  where alert.id = p_sos_id
+    and alert.status in ('open', 'acknowledged')
   returning alert.* into v_sos;
 
-  if found then
-    v_first_acknowledgement := true;
-  else
-    select alert.* into v_sos
-    from public.sos_alerts alert
-    where alert.id = p_sos_id
-      and exists (
-        select 1 from public.parent_child_links link
-        where link.parent_id = v_user_id
-          and link.child_id = alert.child_id
-          and link.status = 'active'
-      );
-    if not found then
-      raise exception 'Only an active linked parent can acknowledge this SOS' using errcode = '42501';
-    end if;
-  end if;
-
-  if v_first_acknowledgement then
-    select profile.name into v_parent_name
-    from public.profiles profile where profile.id = v_user_id;
-
-    insert into public.supervision_notifications (
-      user_id, event_type, title, body, event_key, sos_id, child_id
-    )
-    select recipient.user_id, 'sos_acknowledged', 'SOS acknowledged',
-      coalesce(v_parent_name, 'A linked parent') || ' acknowledged the SOS.',
-      'sos:' || v_sos.id::text || ':acknowledged:' || recipient.user_id::text,
-      v_sos.id, v_sos.child_id
-    from (
-      select v_sos.child_id as user_id
-      union
-      select link.parent_id from public.parent_child_links link
-      where link.child_id = v_sos.child_id and link.status = 'active'
-    ) recipient;
-  end if;
+  insert into public.supervision_notifications (
+    user_id, event_type, title, body, event_key, sos_id, child_id
+  )
+  select recipient.user_id, 'sos_acknowledged', 'SOS acknowledged',
+    coalesce(v_parent_name, 'A linked parent') || ' acknowledged the SOS.',
+    'sos:' || v_sos.id::text || ':acknowledged:' || v_user_id::text || ':' ||
+      recipient.user_id::text,
+    v_sos.id, v_sos.child_id
+  from (
+    select v_sos.child_id as user_id
+    union
+    select link.parent_id from public.parent_child_links link
+    where link.child_id = v_sos.child_id and link.status = 'active'
+  ) recipient;
 
   return v_sos;
 end;
@@ -1084,26 +1259,50 @@ begin
     raise exception 'Authentication required' using errcode = '42501';
   end if;
 
-  update public.sos_alerts alert
-  set status = 'resolved',
-      resolved_by = v_user_id,
-      resolved_at = now()
+  select alert.* into v_sos
+  from public.sos_alerts alert
   where alert.id = p_sos_id
-    and alert.status = 'acknowledged'
     and exists (
       select 1 from public.parent_child_links link
       where link.parent_id = v_user_id
         and link.child_id = alert.child_id
         and link.status = 'active'
     )
-  returning alert.* into v_sos;
+  for update;
 
   if not found then
-    raise exception 'Only an active linked parent can resolve an acknowledged SOS';
+    raise exception 'Only an active linked parent can resolve this SOS' using errcode = '42501';
   end if;
+  if not exists (
+    select 1 from public.sos_events event
+    where event.sos_id = p_sos_id
+      and event.event_type = 'acknowledged'
+      and event.actor_user_id = v_user_id
+  ) then
+    raise exception 'Current parent must acknowledge before resolving';
+  end if;
+  if v_sos.status = 'resolved' then
+    return v_sos;
+  end if;
+
+  update public.sos_alerts alert
+  set status = 'resolved',
+      resolved_by = v_user_id,
+      resolved_at = now()
+  where alert.id = p_sos_id
+    and alert.status in ('open', 'acknowledged')
+  returning alert.* into v_sos;
 
   select profile.name into v_parent_name
   from public.profiles profile where profile.id = v_user_id;
+
+  insert into public.sos_events (
+    sos_id, event_type, actor_user_id, actor_name
+  ) values (
+    v_sos.id, 'resolved', v_user_id,
+    coalesce(v_parent_name, 'Linked parent')
+  )
+  on conflict (sos_id) where event_type = 'resolved' do nothing;
 
   insert into public.supervision_notifications (
     user_id, event_type, title, body, event_key, sos_id, child_id
@@ -1121,6 +1320,83 @@ begin
 
   return v_sos;
 end;
+$$;
+
+create or replace function public.update_sos_live_location(
+  p_sos_id uuid,
+  p_latitude double precision,
+  p_longitude double precision,
+  p_accuracy_meters double precision,
+  p_location_captured_at timestamptz
+)
+returns public.sos_live_locations
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_location public.sos_live_locations;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if p_latitude not between -90 and 90
+      or p_longitude not between -180 and 180 then
+    raise exception 'Invalid SOS location';
+  end if;
+  if not exists (
+    select 1 from public.sos_alerts alert
+    where alert.id = p_sos_id
+      and alert.child_id = v_user_id
+      and alert.status in ('open', 'acknowledged')
+  ) then
+    raise exception 'Only the child can update an unresolved SOS location'
+      using errcode = '42501';
+  end if;
+
+  insert into public.sos_live_locations (
+    sos_id, child_id, latitude, longitude, accuracy_meters,
+    captured_at, updated_at
+  ) values (
+    p_sos_id, v_user_id, p_latitude, p_longitude,
+    greatest(coalesce(p_accuracy_meters, 0), 0),
+    coalesce(p_location_captured_at, now()), now()
+  )
+  on conflict (sos_id) do update
+  set latitude = excluded.latitude,
+      longitude = excluded.longitude,
+      accuracy_meters = excluded.accuracy_meters,
+      captured_at = excluded.captured_at,
+      updated_at = now()
+  returning * into v_location;
+
+  update public.sos_alerts alert
+  set latitude = v_location.latitude,
+      longitude = v_location.longitude,
+      accuracy_meters = v_location.accuracy_meters,
+      location_captured_at = v_location.captured_at,
+      location_status = 'available',
+      location_failure = null
+  where alert.id = p_sos_id;
+
+  return v_location;
+end;
+$$;
+
+create or replace function public.fetch_active_sos_alert()
+returns setof public.sos_alerts
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select alert.*
+  from public.sos_alerts alert
+  where alert.child_id = auth.uid()
+    and alert.status in ('open', 'acknowledged')
+  order by alert.created_at desc
+  limit 1;
 $$;
 
 create or replace function public.mark_supervision_notification_read(
@@ -1155,12 +1431,16 @@ revoke all on function public.submit_safety_check_in(text, double precision, dou
 revoke all on function public.submit_sos_alert(double precision, double precision, double precision, timestamptz, text) from public;
 revoke all on function public.acknowledge_sos_alert(uuid) from public;
 revoke all on function public.resolve_sos_alert(uuid) from public;
+revoke all on function public.update_sos_live_location(uuid, double precision, double precision, double precision, timestamptz) from public;
+revoke all on function public.fetch_active_sos_alert() from public;
 revoke all on function public.mark_supervision_notification_read(uuid) from public;
 
 grant execute on function public.submit_safety_check_in(text, double precision, double precision, double precision, timestamptz) to authenticated;
 grant execute on function public.submit_sos_alert(double precision, double precision, double precision, timestamptz, text) to authenticated;
 grant execute on function public.acknowledge_sos_alert(uuid) to authenticated;
 grant execute on function public.resolve_sos_alert(uuid) to authenticated;
+grant execute on function public.update_sos_live_location(uuid, double precision, double precision, double precision, timestamptz) to authenticated;
+grant execute on function public.fetch_active_sos_alert() to authenticated;
 grant execute on function public.mark_supervision_notification_read(uuid) to authenticated;
 
 create or replace function public.sync_screen_time_session(

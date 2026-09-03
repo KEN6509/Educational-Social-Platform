@@ -110,6 +110,41 @@ void main() {
     );
   });
 
+  test('defines server-authoritative live SOS location and event storage', () {
+    for (final token in [
+      'create table if not exists public.sos_live_locations',
+      'create table if not exists public.sos_events',
+      'update_sos_live_location',
+      'fetch_active_sos_alert',
+      "'triggered'",
+      "'acknowledged'",
+      "'resolved'",
+      'sos_events_one_parent_ack_idx',
+      'Current parent must acknowledge before resolving',
+      'alter publication supabase_realtime add table public.sos_live_locations',
+      'alter publication supabase_realtime add table public.sos_events',
+    ]) {
+      expect(migration, contains(token));
+      expect(schema, contains(token));
+    }
+    for (final sql in [migration, schema]) {
+      expect(
+        sql,
+        contains(
+          'revoke insert, update, delete on public.sos_live_locations from authenticated',
+        ),
+      );
+      expect(
+        sql,
+        contains(
+          'revoke insert, update, delete on public.sos_events from authenticated',
+        ),
+      );
+      expect(sql, contains('Active family views SOS live locations'));
+      expect(sql, contains('Active family views SOS events'));
+    }
+  });
+
   test('defines server-authoritative family link transitions', () {
     for (final name in [
       'create_parent_child_link',
@@ -155,9 +190,12 @@ void main() {
     }
     expect(migration, contains('No active parent link'));
     expect(migration, contains("status = 'open'"));
-    expect(migration, contains("status = 'acknowledged'"));
+    expect(migration, contains("status in ('open', 'acknowledged')"));
     expect(migration, contains("status = 'resolved'"));
-    expect(migration, contains('acknowledged_by is null'));
+    expect(
+      migration,
+      contains("where event_type = 'acknowledged' do nothing"),
+    );
     expect(migration, contains("'Location unavailable'"));
   });
 
