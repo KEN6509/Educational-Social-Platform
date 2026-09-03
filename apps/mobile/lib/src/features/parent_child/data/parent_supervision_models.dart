@@ -320,7 +320,7 @@ final class SosEvent {
         id: map['id'] as String,
         sosId: map['sos_id'] as String,
         type: _sosEventType(map['event_type'] as String),
-        actorId: map['actor_id'] as String,
+        actorId: (map['actor_user_id'] ?? map['actor_id']) as String,
         actorName: map['actor_name'] as String? ?? 'CyanZone user',
         createdAt: _date(map['created_at']),
       );

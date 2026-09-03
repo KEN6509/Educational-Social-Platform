@@ -52,4 +52,34 @@ void main() {
     expect(source, contains('LinkCandidateState.pending'));
     expect(source, contains('LinkCandidateState.linked'));
   });
+
+  test('repository exposes focused live SOS reads, writes, and realtime', () {
+    final source = File(
+      'lib/src/features/parent_child/data/parent_child_repository.dart',
+    ).readAsStringSync();
+
+    for (final method in [
+      'fetchActiveSos',
+      'fetchSosDetail',
+      'updateSosLocation',
+      'subscribeToSosDetailChanges',
+    ]) {
+      expect(source, contains(method));
+    }
+    expect(source, contains("'fetch_active_sos_alert'"));
+    expect(source, contains("'update_sos_live_location'"));
+    expect(source, contains(".from('sos_live_locations')"));
+    expect(source, contains(".from('sos_events')"));
+    for (final parameter in [
+      "'p_sos_id'",
+      "'p_latitude'",
+      "'p_longitude'",
+      "'p_accuracy_meters'",
+      "'p_location_captured_at'",
+    ]) {
+      expect(source, contains(parameter));
+    }
+    expect(source, contains("table: 'sos_live_locations'"));
+    expect(source, contains("table: 'sos_events'"));
+  });
 }

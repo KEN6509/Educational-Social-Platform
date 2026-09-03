@@ -22,6 +22,12 @@ abstract interface class ParentChildRepositoryContract {
   Future<FamilyLink> rejectUnlink(String linkId);
   Future<List<SafetyCheckIn>> fetchCheckIns();
   Future<List<SosAlert>> fetchSosAlerts();
+  Future<SosAlert?> fetchActiveSos();
+  Future<SosDetail> fetchSosDetail(String sosId);
+  Future<SosLiveLocation> updateSosLocation(
+    String sosId,
+    LocationCapture location,
+  );
   Future<SafetyCheckIn> submitCheckIn(CheckInDraft draft);
   Future<SosAlert> submitSos(SosDraft draft);
   Future<SosAlert> acknowledgeSos(String sosId);
@@ -30,6 +36,10 @@ abstract interface class ParentChildRepositoryContract {
   Future<void> markNotificationRead(String notificationId);
   RealtimeChannel subscribeToSupervisionChanges(
       {required void Function() onChange});
+  RealtimeChannel subscribeToSosDetailChanges({
+    required String sosId,
+    required void Function() onChange,
+  });
   Future<void> unsubscribe(RealtimeChannel channel);
 }
 
@@ -219,6 +229,74 @@ class ParentChildRepository implements ParentChildRepositoryContract {
   }
 
   @override
+  Future<SosAlert?> fetchActiveSos() async {
+    final response = await _client.rpc('fetch_active_sos_alert');
+    if (response == null) return null;
+    if (response is List) {
+      if (response.isEmpty) return null;
+      return SosAlert.fromMap(
+        Map<String, dynamic>.from(response.first as Map),
+      );
+    }
+    return SosAlert.fromMap(Map<String, dynamic>.from(response as Map));
+  }
+
+  @override
+  Future<SosDetail> fetchSosDetail(String sosId) async {
+    final alertRow = await _client
+        .from('sos_alerts')
+        .select(
+          '*, child:profiles!sos_alerts_child_id_fkey(id, name, avatar_url)',
+        )
+        .eq('id', sosId)
+        .single();
+    final locationRow = await _client
+        .from('sos_live_locations')
+        .select()
+        .eq('sos_id', sosId)
+        .maybeSingle();
+    final eventRows = await _client
+        .from('sos_events')
+        .select()
+        .eq('sos_id', sosId)
+        .order('created_at');
+    return SosDetail(
+      alert: SosAlert.fromMap(Map<String, dynamic>.from(alertRow)),
+      latestLocation: locationRow == null
+          ? null
+          : SosLiveLocation.fromMap(
+              Map<String, dynamic>.from(locationRow),
+            ),
+      events: eventRows
+          .map((row) => SosEvent.fromMap(Map<String, dynamic>.from(row)))
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<SosLiveLocation> updateSosLocation(
+    String sosId,
+    LocationCapture location,
+  ) async {
+    if (location.status != LocationStatus.available ||
+        location.latitude == null ||
+        location.longitude == null ||
+        location.capturedAt == null) {
+      throw ArgumentError.value(
+        location,
+        'location',
+        'An available captured location is required',
+      );
+    }
+    return SosLiveLocation.fromMap(
+      await _rpcRow('update_sos_live_location', {
+        'p_sos_id': sosId,
+        ..._locationParams(location),
+      }),
+    );
+  }
+
+  @override
   Future<SafetyCheckIn> submitCheckIn(CheckInDraft draft) async =>
       SafetyCheckIn.fromMap(await _rpcRow('submit_safety_check_in', {
         'p_message': draft.message.trim(),
@@ -289,6 +367,49 @@ class ParentChildRepository implements ParentChildRepositoryContract {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'sos_alerts',
+          callback: (_) => onChange(),
+        )
+        .subscribe();
+  }
+
+  @override
+  RealtimeChannel subscribeToSosDetailChanges({
+    required String sosId,
+    required void Function() onChange,
+  }) {
+    return _client
+        .channel('sos-detail-$sosId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'sos_alerts',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: sosId,
+          ),
+          callback: (_) => onChange(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'sos_live_locations',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'sos_id',
+            value: sosId,
+          ),
+          callback: (_) => onChange(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'sos_events',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'sos_id',
+            value: sosId,
+          ),
           callback: (_) => onChange(),
         )
         .subscribe();
