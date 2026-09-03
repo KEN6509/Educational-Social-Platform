@@ -106,6 +106,22 @@ void main() {
       expect(conversation.isGroup, isFalse);
       expect(conversation.isRequest, isTrue);
     });
+
+    test('defaults legacy conversations to sendable and parses blocked state',
+        () {
+      final legacy = ChatConversation.fromMap({
+        'id': 'legacy-direct',
+        'type': 'direct',
+      });
+      final blocked = ChatConversation.fromMap({
+        'id': 'blocked-direct',
+        'type': 'direct',
+        'can_send_messages': false,
+      });
+
+      expect(legacy.canSendMessages, isTrue);
+      expect(blocked.canSendMessages, isFalse);
+    });
   });
 
   test('ChatMessage parses structured mention entities', () {

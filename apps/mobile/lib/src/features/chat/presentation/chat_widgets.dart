@@ -1566,7 +1566,10 @@ class _ConversationTileState extends State<ConversationTile> {
                       body: conversation.lastMessageBody,
                       fallback: conversation.isRequest
                           ? 'Message request'
-                          : 'Start chatting',
+                          : !conversation.isGroup &&
+                                  !conversation.canSendMessages
+                              ? 'Follow this user to continue chatting.'
+                              : 'Start chatting',
                       unreadCount: conversation.unreadCount,
                       hasMention: conversation.hasUnvisitedMention,
                     ),

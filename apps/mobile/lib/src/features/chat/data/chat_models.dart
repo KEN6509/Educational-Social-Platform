@@ -96,6 +96,7 @@ class ChatConversation {
     this.createdByName,
     this.createdAt,
     this.hasUnvisitedMention = false,
+    this.canSendMessages = true,
   });
 
   final String id;
@@ -112,6 +113,7 @@ class ChatConversation {
   final String? createdByName;
   final DateTime? createdAt;
   final bool hasUnvisitedMention;
+  final bool canSendMessages;
 
   bool get isGroup => type == ChatConversationType.group;
 
@@ -146,6 +148,7 @@ class ChatConversation {
     String? createdByName,
     DateTime? createdAt,
     bool? hasUnvisitedMention,
+    bool? canSendMessages,
   }) {
     return ChatConversation(
       id: id ?? this.id,
@@ -162,6 +165,7 @@ class ChatConversation {
       createdByName: createdByName ?? this.createdByName,
       createdAt: createdAt ?? this.createdAt,
       hasUnvisitedMention: hasUnvisitedMention ?? this.hasUnvisitedMention,
+      canSendMessages: canSendMessages ?? this.canSendMessages,
     );
   }
 
@@ -203,6 +207,12 @@ class ChatConversation {
       hasUnvisitedMention: _boolValue(
         map['has_unvisited_mention'] ?? map['hasUnvisitedMention'],
       ),
+      canSendMessages: map.containsKey('can_send_messages') ||
+              map.containsKey('canSendMessages')
+          ? _boolValue(
+              map['can_send_messages'] ?? map['canSendMessages'],
+            )
+          : true,
     );
   }
 }

@@ -19,6 +19,10 @@ void main() {
         ChatRepository.createGroupConversationRpc,
         'create_group_conversation',
       );
+      expect(
+        ChatRepository.canSendChatMessageRpc,
+        'can_send_chat_message',
+      );
       expect(ChatRepository.sendChatMessageRpc, 'send_chat_message');
       expect(
         ChatRepository.acceptMessageRequestRpc,
@@ -452,6 +456,17 @@ void main() {
       expect(methodSource, contains(".from('follows')"));
       expect(methodSource, isNot(contains('acceptedDirectRows')));
       expect(methodSource, isNot(contains(".from('chat_conversations')")));
+    });
+
+    test('conversation hydration derives direct sendability from follow rows',
+        () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+
+      expect(source, contains('_fetchFollowRelationshipUserIds'));
+      expect(source, contains(".inFilter('follower_id', candidateIds)"));
+      expect(source, contains(".inFilter('following_id', candidateIds)"));
+      expect(source, contains("enriched['can_send_messages']"));
     });
 
     test('main shell uses total chat badge count instead of chat message only',

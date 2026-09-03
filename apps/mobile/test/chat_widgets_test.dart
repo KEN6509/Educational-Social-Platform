@@ -71,6 +71,30 @@ void main() {
         findsOneWidget);
   });
 
+  testWidgets('empty disconnected direct chat shows follow-required preview',
+      (tester) async {
+    const conversation = ChatConversation(
+      id: 'blocked-direct-preview',
+      type: ChatConversationType.direct,
+      requestStatus: ChatRequestStatus.accepted,
+      unreadCount: 0,
+      otherUserName: 'Ava',
+      canSendMessages: false,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ConversationTile(conversation: conversation, onTap: () {}),
+      ),
+    ));
+
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsOneWidget,
+    );
+    expect(find.text('Start chatting'), findsNothing);
+  });
+
   testWidgets('group composer shows admin @all before member suggestions',
       (tester) async {
     const conversation = ChatConversation(

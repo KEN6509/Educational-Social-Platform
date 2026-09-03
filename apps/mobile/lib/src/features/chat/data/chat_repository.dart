@@ -46,6 +46,7 @@ class ChatRepository {
   static const createDirectConversationRpc = 'create_direct_conversation';
   static const openDirectConversationRpc = 'open_direct_conversation';
   static const createGroupConversationRpc = 'create_group_conversation';
+  static const canSendChatMessageRpc = 'can_send_chat_message';
   static const sendChatMessageRpc = 'send_chat_message';
   static const acceptMessageRequestRpc = 'accept_message_request';
   static const clearChatRpc = 'clear_chat';
@@ -242,6 +243,14 @@ class ChatRepository {
       params: {'target_user_id': targetUserId},
     );
     return _stringIdFromRpc(response);
+  }
+
+  Future<bool> canSendMessage(String conversationId) async {
+    final response = await _client.rpc<bool>(
+      canSendChatMessageRpc,
+      params: {conversationIdParam: conversationId},
+    );
+    return response;
   }
 
   Future<String> createGroupConversation({
@@ -909,6 +918,26 @@ class ChatRepository {
     }
     profileIds.removeWhere((id) => id.isEmpty);
 
+    final directOtherUserIds = conversationRows
+        .where(
+          (row) => _string(row['type']) == ChatConversationType.direct.name,
+        )
+        .map(
+          (row) => _resolveOtherUserId(
+            row,
+            membersByConversation[_string(row['id'])] ?? const [],
+            currentUserId,
+          ),
+        )
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final followRelationshipUserIds = currentUserId == null
+        ? const <String>{}
+        : await _fetchFollowRelationshipUserIds(
+            currentUserId,
+            directOtherUserIds,
+          );
+
     final profilesById = await _fetchProfilesById(profileIds.toList());
     final lastMessagesByConversation =
         await _fetchLastMessagesByConversation(conversationIds);
@@ -959,10 +988,38 @@ class ChatRepository {
           ..['other_user_id'] = otherUserId
           ..['other_user_name'] = otherProfile?['name']
           ..['other_user_avatar_url'] = otherProfile?['avatar_url'];
+        enriched['can_send_messages'] =
+            followRelationshipUserIds.contains(otherUserId);
       }
 
       return ChatConversation.fromMap(enriched);
     }).toList();
+  }
+
+  Future<Set<String>> _fetchFollowRelationshipUserIds(
+    String currentUserId,
+    Iterable<String> candidateUserIds,
+  ) async {
+    final candidateIds = candidateUserIds.toSet().toList();
+    if (candidateIds.isEmpty) return const {};
+
+    final followerRows = await _client
+        .from('follows')
+        .select('follower_id')
+        .eq('following_id', currentUserId)
+        .inFilter('follower_id', candidateIds);
+    final followingRows = await _client
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', currentUserId)
+        .inFilter('following_id', candidateIds);
+
+    return <String>{
+      ..._mapListFromResponse(followerRows)
+          .map((row) => _string(row['follower_id'])),
+      ..._mapListFromResponse(followingRows)
+          .map((row) => _string(row['following_id'])),
+    }..removeWhere((id) => id.isEmpty);
   }
 
   static List<ChatNotification> _notificationListFromResponse(
