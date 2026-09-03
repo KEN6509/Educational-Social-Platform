@@ -907,6 +907,43 @@ void main() {
     expect(find.text('SOS triggered by Child'), findsOneWidget);
   });
 
+  testWidgets('SOS notification falls back when live detail is unavailable',
+      (tester) async {
+    final alert = _sosAlert(location: _availableLocation());
+    final repository = FlowFakeRepository(
+      sosAlerts: [alert],
+      failSosDetail: true,
+    );
+    final router = SupervisionNotificationRouter(
+      repository: repository,
+      currentUserId: 'parent-1',
+      canManageSos: true,
+      subscribeToRealtime: false,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => router.open(
+            context,
+            _notification(SupervisionEventType.sosOpened),
+          ),
+          child: const Text('Open notification'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Open notification'));
+    await tester.pumpAndSettle();
+
+    expect(repository.fetchedSosDetailId, 'sos-1');
+    expect(find.byType(SosPage), findsOneWidget);
+    expect(find.text('Timeline'), findsOneWidget);
+    expect(
+      find.text('This supervision record is no longer available.'),
+      findsNothing,
+    );
+  });
+
   testWidgets('linked account row opens the selected user profile',
       (tester) async {
     final repository = FlowFakeRepository(screenTimeSeconds: 3900);
@@ -1310,6 +1347,7 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
     this.sosFailures = 0,
     this.checkIns = const [],
     this.sosAlerts = const [],
+    this.failSosDetail = false,
     this.failMarkRead = false,
     this.dashboardNotifications = const [],
     this.screenTimeSeconds = 0,
@@ -1332,6 +1370,7 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
   int dashboardFetchCalls = 0;
   final List<SafetyCheckIn> checkIns;
   final List<SosAlert> sosAlerts;
+  final bool failSosDetail;
   final bool failMarkRead;
   final List<SupervisionNotification> dashboardNotifications;
   final int screenTimeSeconds;
@@ -1479,6 +1518,7 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
   @override
   Future<SosDetail> fetchSosDetail(String sosId) async {
     fetchedSosDetailId = sosId;
+    if (failSosDetail) throw Exception('live SOS detail unavailable');
     final alert = sosAlerts.firstWhere((item) => item.id == sosId);
     return SosDetail(
       alert: alert,

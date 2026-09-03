@@ -95,12 +95,21 @@ final class SupervisionNotificationRouter {
   }
 
   Future<void> _openSos(BuildContext context, String sosId) async {
-    final detail = await repository.fetchSosDetail(sosId);
+    SosDetail? detail;
+    SosAlert? alert;
+    try {
+      detail = await repository.fetchSosDetail(sosId);
+    } catch (_) {
+      final records = await repository.fetchSosAlerts();
+      alert = records.where((item) => item.id == sosId).firstOrNull;
+      if (alert == null) throw StateError('Missing SOS');
+    }
     if (!context.mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => SosPage(
           repository: repository,
+          initialAlert: alert,
           initialDetail: detail,
           canManage: canManageSos,
           subscribeToRealtime: subscribeToRealtime,
