@@ -338,6 +338,7 @@ final class SosDetail {
     required this.alert,
     required List<SosEvent> events,
     this.latestLocation,
+    this.currentUserId,
   }) : events = List.unmodifiable(
           List<SosEvent>.of(events)
             ..sort((a, b) => a.createdAt.compareTo(b.createdAt)),
@@ -346,11 +347,15 @@ final class SosDetail {
   final SosAlert alert;
   final SosLiveLocation? latestLocation;
   final List<SosEvent> events;
+  final String? currentUserId;
 
   bool hasAcknowledgementFrom(String userId) => events.any(
         (event) =>
             event.type == SosEventType.acknowledged && event.actorId == userId,
       );
+
+  bool get hasCurrentUserAcknowledged =>
+      currentUserId != null && hasAcknowledgementFrom(currentUserId!);
 }
 
 final class CheckInDraft {

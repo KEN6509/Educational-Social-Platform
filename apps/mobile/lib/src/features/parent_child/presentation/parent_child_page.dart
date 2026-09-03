@@ -204,6 +204,7 @@ class _ParentChildPageState extends State<ParentChildPage>
               repository: _repository,
               currentUserId: state.currentUserId,
               canManageSos: state.role == FamilyRole.parent,
+              subscribeToRealtime: widget.subscribeToRealtime,
             );
             return RefreshIndicator(
               onRefresh: () async => _refresh(),

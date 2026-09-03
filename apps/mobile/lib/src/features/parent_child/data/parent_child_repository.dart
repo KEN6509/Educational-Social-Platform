@@ -262,6 +262,7 @@ class ParentChildRepository implements ParentChildRepositoryContract {
         .order('created_at');
     return SosDetail(
       alert: SosAlert.fromMap(Map<String, dynamic>.from(alertRow)),
+      currentUserId: _userId,
       latestLocation: locationRow == null
           ? null
           : SosLiveLocation.fromMap(

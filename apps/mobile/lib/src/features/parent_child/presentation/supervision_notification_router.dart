@@ -13,11 +13,13 @@ final class SupervisionNotificationRouter {
     required this.repository,
     required this.currentUserId,
     this.canManageSos = false,
+    this.subscribeToRealtime = true,
   });
 
   final ParentChildRepositoryContract repository;
   final String currentUserId;
   final bool canManageSos;
+  final bool subscribeToRealtime;
 
   SupervisionDestination destinationFor(
     SupervisionNotification notification,
@@ -93,15 +95,15 @@ final class SupervisionNotificationRouter {
   }
 
   Future<void> _openSos(BuildContext context, String sosId) async {
-    final records = await repository.fetchSosAlerts();
-    final alert = records.where((item) => item.id == sosId).firstOrNull;
-    if (alert == null || !context.mounted) throw StateError('Missing SOS');
+    final detail = await repository.fetchSosDetail(sosId);
+    if (!context.mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => SosPage(
           repository: repository,
-          initialAlert: alert,
+          initialDetail: detail,
           canManage: canManageSos,
+          subscribeToRealtime: subscribeToRealtime,
         ),
       ),
     );

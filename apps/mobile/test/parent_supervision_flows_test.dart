@@ -356,7 +356,11 @@ void main() {
       results: [_availableLocation()],
     );
     await tester.pumpWidget(MaterialApp(
-      home: SosPage(repository: repository, locationService: location),
+      home: SosPage(
+        repository: repository,
+        locationService: location,
+        subscribeToRealtime: false,
+      ),
     ));
 
     await tester.tap(find.text('Send SOS'));
@@ -384,6 +388,7 @@ void main() {
           results: [_availableLocation()],
         ),
         onSosStarted: (alert) async => startedAlert = alert,
+        subscribeToRealtime: false,
       ),
     ));
 
@@ -435,7 +440,11 @@ void main() {
       results: [const LocationCapture.unavailable('services_disabled')],
     );
     await tester.pumpWidget(MaterialApp(
-      home: SosPage(repository: repository, locationService: location),
+      home: SosPage(
+        repository: repository,
+        locationService: location,
+        subscribeToRealtime: false,
+      ),
     ));
 
     await tester.tap(find.text('Send SOS'));
@@ -455,7 +464,11 @@ void main() {
     final repository = FlowFakeRepository(sosFailures: 1);
     final location = FlowFakeLocationService(results: [_availableLocation()]);
     await tester.pumpWidget(MaterialApp(
-      home: SosPage(repository: repository, locationService: location),
+      home: SosPage(
+        repository: repository,
+        locationService: location,
+        subscribeToRealtime: false,
+      ),
     ));
 
     await tester.tap(find.text('Send SOS'));
@@ -502,29 +515,98 @@ void main() {
     expect(find.byType(SosPage), findsOneWidget);
   });
 
-  testWidgets('acknowledged SOS shows winner, time, and resolve action',
+  testWidgets('SOS detail shows live map, timeline, and one bottom action',
       (tester) async {
     final repository = FlowFakeRepository();
+    final alert = _sosAlert(
+      location: _availableLocation(),
+      status: SosStatus.acknowledged,
+      acknowledgedBy: 'parent-2',
+      acknowledgedAt: DateTime.utc(2026, 8, 2, 8),
+    );
     await tester.pumpWidget(MaterialApp(
       home: SosPage(
         repository: repository,
-        initialAlert: _sosAlert(
-          location: _availableLocation(),
-          status: SosStatus.acknowledged,
-          acknowledgedBy: 'parent-2',
-          acknowledgedAt: DateTime.utc(2026, 8, 2, 8),
+        initialDetail: SosDetail(
+          alert: alert,
+          currentUserId: 'parent-2',
+          latestLocation: SosLiveLocation(
+            sosId: alert.id,
+            childId: alert.childId,
+            latitude: 3.139,
+            longitude: 101.6869,
+            accuracyMeters: 8,
+            capturedAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+          events: [
+            _sosEvent(
+              id: 'triggered',
+              type: SosEventType.triggered,
+              actorId: 'user-1',
+              actorName: 'Jamie Tan',
+              at: DateTime.utc(2026, 8, 2, 7, 58),
+            ),
+            _sosEvent(
+              id: 'acknowledged',
+              type: SosEventType.acknowledged,
+              actorId: 'parent-2',
+              actorName: 'Parent Tan',
+              at: DateTime.utc(2026, 8, 2, 8),
+            ),
+          ],
         ),
         canManage: true,
+        subscribeToRealtime: false,
       ),
     ));
 
-    expect(find.text('parent-2'), findsOneWidget);
-    expect(find.text('2 Aug 2026, 4:00 PM'), findsOneWidget);
+    expect(find.byKey(const Key('app-location-map')), findsOneWidget);
+    expect(find.text('Timeline'), findsOneWidget);
+    expect(find.text('SOS triggered by Jamie Tan'), findsOneWidget);
+    expect(find.text('Parent Tan acknowledged alert'), findsOneWidget);
     expect(find.text('Resolve SOS'), findsOneWidget);
+    expect(find.text('Acknowledge SOS'), findsNothing);
 
     await tester.tap(find.text('Resolve SOS'));
     await tester.pumpAndSettle();
+    expect(find.text('Resolve this SOS?'), findsOneWidget);
+    await tester.tap(find.text('Resolve SOS').last);
+    await tester.pumpAndSettle();
     expect(find.text('Resolved'), findsOneWidget);
+    expect(find.text('Resolve SOS'), findsNothing);
+  });
+
+  testWidgets('parent must personally acknowledge before resolve appears',
+      (tester) async {
+    final alert = _sosAlert(
+      location: _availableLocation(),
+      status: SosStatus.acknowledged,
+      acknowledgedBy: 'parent-2',
+      acknowledgedAt: DateTime.utc(2026, 8, 2, 8),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: SosPage(
+        repository: FlowFakeRepository(),
+        initialDetail: SosDetail(
+          alert: alert,
+          currentUserId: 'parent-1',
+          events: [
+            _sosEvent(
+              id: 'acknowledged',
+              type: SosEventType.acknowledged,
+              actorId: 'parent-2',
+              actorName: 'Other Parent',
+              at: DateTime.utc(2026, 8, 2, 8),
+            ),
+          ],
+        ),
+        canManage: true,
+        subscribeToRealtime: false,
+      ),
+    ));
+
+    expect(find.text('Acknowledge SOS'), findsOneWidget);
     expect(find.text('Resolve SOS'), findsNothing);
   });
 
@@ -536,13 +618,14 @@ void main() {
         repository: repository,
         initialAlert: _sosAlert(location: _availableLocation()),
         canManage: true,
+        subscribeToRealtime: false,
       ),
     ));
 
     await tester.tap(find.text('Acknowledge SOS'));
     await tester.pumpAndSettle();
     expect(find.text('Acknowledged'), findsOneWidget);
-    expect(find.text('parent-2'), findsOneWidget);
+    expect(find.text('parent-2 acknowledged alert'), findsOneWidget);
     expect(find.text('Resolve SOS'), findsOneWidget);
   });
 
@@ -762,6 +845,36 @@ void main() {
     expect(repository.markedNotificationId, 'notification-1');
     expect(find.byType(FamilyLinksPage), findsOneWidget);
     expect(find.text('PENDING REQUESTS'), findsOneWidget);
+  });
+
+  testWidgets('SOS notification opens hydrated timeline detail',
+      (tester) async {
+    final alert = _sosAlert(location: _availableLocation());
+    final repository = FlowFakeRepository(sosAlerts: [alert]);
+    final router = SupervisionNotificationRouter(
+      repository: repository,
+      currentUserId: 'parent-1',
+      canManageSos: true,
+      subscribeToRealtime: false,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => router.open(
+            context,
+            _notification(SupervisionEventType.sosOpened),
+          ),
+          child: const Text('Open notification'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Open notification'));
+    await tester.pumpAndSettle();
+
+    expect(repository.fetchedSosDetailId, 'sos-1');
+    expect(find.text('Timeline'), findsOneWidget);
+    expect(find.text('SOS triggered by Child'), findsOneWidget);
   });
 
   testWidgets('linked account row opens the selected user profile',
@@ -1173,6 +1286,7 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
   String? createdCandidateId;
   CheckInDraft? submittedCheckIn;
   SosDraft? submittedSos;
+  String? fetchedSosDetailId;
 
   @override
   Future<SupervisionDashboardState> fetchDashboard({
@@ -1299,6 +1413,26 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
   Future<List<SosAlert>> fetchSosAlerts() async => sosAlerts;
 
   @override
+  Future<SosDetail> fetchSosDetail(String sosId) async {
+    fetchedSosDetailId = sosId;
+    final alert = sosAlerts.firstWhere((item) => item.id == sosId);
+    return SosDetail(
+      alert: alert,
+      currentUserId: 'parent-1',
+      events: [
+        SosEvent(
+          id: '$sosId-triggered',
+          sosId: sosId,
+          type: SosEventType.triggered,
+          actorId: alert.childId,
+          actorName: alert.child?.name ?? 'Child',
+          createdAt: alert.createdAt,
+        ),
+      ],
+    );
+  }
+
+  @override
   Future<void> markNotificationRead(String notificationId) async {
     markedNotificationId = notificationId;
     if (failMarkRead) throw Exception('read state unavailable');
@@ -1392,6 +1526,22 @@ SosAlert _sosAlert({
       createdAt: createdAt ?? DateTime.utc(2026, 8, 2, 8),
       acknowledgedBy: acknowledgedBy,
       acknowledgedAt: acknowledgedAt,
+    );
+
+SosEvent _sosEvent({
+  required String id,
+  required SosEventType type,
+  required String actorId,
+  required String actorName,
+  required DateTime at,
+}) =>
+    SosEvent(
+      id: id,
+      sosId: 'sos-1',
+      type: type,
+      actorId: actorId,
+      actorName: actorName,
+      createdAt: at,
     );
 
 SafetyCheckIn _checkIn({
