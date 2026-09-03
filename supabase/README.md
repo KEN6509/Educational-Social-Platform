@@ -224,9 +224,12 @@ fresh databases differ from existing databases.
 
 If an earlier `chat.sql` was already applied, run the complete updated file
 again. `create table if not exists` keeps existing tables and rows, while
-`create or replace function` installs the latest `open_direct_conversation`
-and follow-only group-member rules. Inspect and resolve any SQL Editor error
-before retrying.
+`create or replace function` installs the latest `open_direct_conversation`,
+`can_send_chat_message`, follow-gated `send_chat_message`, and follow-only
+group-member rules. Existing direct conversations and messages remain stored;
+when neither participant follows the other, history stays readable but new
+direct messages are rejected. Inspect and resolve any SQL Editor error before
+retrying.
 
 Verify the active and dormant chat functions:
 
@@ -236,6 +239,7 @@ from information_schema.routines
 where routine_schema = 'public'
   and routine_name in (
     'open_direct_conversation',
+    'can_send_chat_message',
     'create_direct_conversation',
     'accept_message_request',
     'chat_can_add_group_member'
@@ -243,8 +247,9 @@ where routine_schema = 'public'
 order by routine_name;
 ```
 
-Expected result: all four routines are present. Active Flutter entry points use
-`open_direct_conversation`; the request-capable functions remain dormant.
+Expected result: all five routines are present. Active Flutter entry points use
+`open_direct_conversation`, and direct chat rooms use `can_send_chat_message`;
+the request-capable functions remain dormant.
 
 Verify the mention objects:
 
