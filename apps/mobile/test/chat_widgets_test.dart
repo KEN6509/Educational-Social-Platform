@@ -1169,6 +1169,121 @@ void main() {
     expect(shellSource, contains('onBadgeCountChanged'));
   });
 
+  testWidgets('ChatRoomPage blocks disconnected direct chat but keeps history',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'blocked-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_name': 'Ming',
+      'can_send_messages': false,
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => [
+            ChatMessage.fromMap({
+              'id': 'old-message',
+              'conversation_id': 'blocked-room',
+              'sender_id': 'user-2',
+              'body': 'Existing history stays visible',
+              'created_at': '2026-09-02T12:00:00Z',
+            }, currentUserId: 'user-1'),
+          ],
+          loadSendPermission: (_) async => false,
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Existing history stays visible'), findsOneWidget);
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsOneWidget,
+    );
+    expect(find.byType(TextField), findsNothing);
+    expect(find.byIcon(Icons.image_outlined), findsNothing);
+    expect(find.byIcon(Icons.send_rounded), findsNothing);
+  });
+
+  testWidgets('ChatRoomPage uses follow-required copy for blocked empty room',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'blocked-empty-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_name': 'Ming',
+      'can_send_messages': false,
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => const [],
+          loadSendPermission: (_) async => false,
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsNWidgets(2),
+    );
+    expect(find.text('Say hi with a kind message.'), findsNothing);
+  });
+
+  testWidgets('ChatRoomPage blocks stale direct send and preserves draft',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'stale-direct-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_name': 'Ming',
+    });
+    var permissionChecks = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => const [],
+          loadSendPermission: (_) async {
+            permissionChecks += 1;
+            return true;
+          },
+          sendMessage: (_, __) async =>
+              throw Exception('Follow relationship required'),
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'draft');
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsWidgets,
+    );
+    expect(find.byIcon(Icons.send_rounded), findsNothing);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 2);
+    expect(find.text('draft'), findsOneWidget);
+  });
+
   testWidgets('ChatRoomPage keeps text when send fails', (tester) async {
     final conversation = ChatConversation.fromMap({
       'id': 'send-fail-test',
