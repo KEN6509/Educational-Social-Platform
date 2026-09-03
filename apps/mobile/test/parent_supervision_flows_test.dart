@@ -9,11 +9,14 @@ import 'package:cyanzone_mobile/src/features/parent_child/presentation/link_cand
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/parent_child_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/safety_records_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/sos_page.dart';
+import 'package:cyanzone_mobile/src/features/parent_child/presentation/sos_tracking_scope.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/supervision_notification_router.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/services/location_service.dart';
+import 'package:cyanzone_mobile/src/features/parent_child/services/sos_tracking_coordinator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   test('link candidate exposes typed request state', () {
@@ -368,6 +371,62 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sent'), findsOneWidget);
     expect(repository.submittedSos?.location.status, LocationStatus.available);
+  });
+
+  testWidgets('successful SOS starts the app-scoped tracking callback',
+      (tester) async {
+    final repository = FlowFakeRepository();
+    SosAlert? startedAlert;
+    await tester.pumpWidget(MaterialApp(
+      home: SosPage(
+        repository: repository,
+        locationService: FlowFakeLocationService(
+          results: [_availableLocation()],
+        ),
+        onSosStarted: (alert) async => startedAlert = alert,
+      ),
+    ));
+
+    await tester.tap(find.text('Send SOS'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send SOS').last);
+    await tester.pumpAndSettle();
+
+    expect(startedAlert?.id, 'sos-1');
+  });
+
+  testWidgets('SOS tracking host forwards app lifecycle changes',
+      (tester) async {
+    final repository = _TrackingHostRepository();
+    final schedule = _TrackingHostSchedule();
+    final coordinator = SosTrackingCoordinator(
+      repository: repository,
+      locationService: FlowFakeLocationService(),
+      schedule: schedule,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SosTrackingHost(
+          coordinator: coordinator,
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(repository.fetchActiveCalls, 1);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(schedule.stopCalls, greaterThanOrEqualTo(1));
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(repository.fetchActiveCalls, 2);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pump();
+    expect(schedule.stopCalls, greaterThanOrEqualTo(2));
   });
 
   testWidgets('SOS still submits when location is unavailable', (tester) async {
@@ -1276,6 +1335,39 @@ final class FlowFakeLocationService implements LocationService {
     calls += 1;
     return _results[index];
   }
+}
+
+final class _TrackingHostSchedule implements SosTrackingSchedule {
+  int stopCalls = 0;
+
+  @override
+  void start(Duration interval, void Function() onTick) {}
+
+  @override
+  void stop() => stopCalls += 1;
+}
+
+final class _TrackingHostRepository implements ParentChildRepositoryContract {
+  int fetchActiveCalls = 0;
+
+  @override
+  Future<SosAlert?> fetchActiveSos() async {
+    fetchActiveCalls += 1;
+    return null;
+  }
+
+  @override
+  RealtimeChannel subscribeToSosDetailChanges({
+    required String sosId,
+    required void Function() onChange,
+  }) =>
+      throw UnimplementedError('No active alert is returned by this fake');
+
+  @override
+  Future<void> unsubscribe(RealtimeChannel channel) async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 LocationCapture _availableLocation() => LocationCapture.available(

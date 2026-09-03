@@ -10,6 +10,7 @@ import 'family_links_page.dart';
 import 'link_candidates_page.dart';
 import 'safety_records_page.dart';
 import 'sos_page.dart';
+import 'sos_tracking_scope.dart';
 import 'supervision_dashboards.dart';
 import 'supervision_notification_router.dart';
 
@@ -119,9 +120,13 @@ class _ParentChildPageState extends State<ParentChildPage>
   }
 
   Future<void> _openSos() async {
+    final coordinator = SosTrackingScope.maybeOf(context);
     final sent = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => SosPage(repository: _repository),
+        builder: (_) => SosPage(
+          repository: _repository,
+          onSosStarted: coordinator?.start,
+        ),
       ),
     );
     if (sent == true) _refresh();

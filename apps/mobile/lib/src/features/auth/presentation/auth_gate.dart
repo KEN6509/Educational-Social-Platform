@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shell/presentation/main_shell.dart';
+import '../../parent_child/presentation/sos_tracking_scope.dart';
 import 'auth_page.dart';
 
 class AuthGate extends StatefulWidget {
@@ -31,7 +32,9 @@ class _AuthGateState extends State<AuthGate> {
           return const _AuthLoadingScreen();
         }
 
-        return session == null ? const AuthPage() : const MainShell();
+        return session == null
+            ? const AuthPage()
+            : const SosTrackingHost(child: MainShell());
       },
     );
   }

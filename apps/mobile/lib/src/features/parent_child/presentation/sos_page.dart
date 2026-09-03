@@ -12,12 +12,14 @@ class SosPage extends StatefulWidget {
     LocationService? locationService,
     this.initialAlert,
     this.canManage = false,
+    this.onSosStarted,
   }) : locationService = locationService ?? GeolocatorLocationService();
 
   final ParentChildRepositoryContract repository;
   final LocationService locationService;
   final SosAlert? initialAlert;
   final bool canManage;
+  final Future<void> Function(SosAlert alert)? onSosStarted;
 
   @override
   State<SosPage> createState() => _SosPageState();
@@ -77,6 +79,14 @@ class _SosPageState extends State<SosPage> {
         _sentHere = true;
         _busy = false;
       });
+      final onSosStarted = widget.onSosStarted;
+      if (onSosStarted != null) {
+        try {
+          await onSosStarted(alert);
+        } catch (_) {
+          // The SOS is already delivered; foreground tracking retries itself.
+        }
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
