@@ -55,6 +55,9 @@ create table if not exists public.profiles (
   is_admin boolean not null default false,
   account_status text not null default 'active'
     check (account_status in ('active', 'suspended', 'deleted')),
+  terms_version text,
+  privacy_version text,
+  consent_accepted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -357,6 +360,9 @@ begin
       new.is_admin is distinct from old.is_admin
       or new.is_content_creator is distinct from old.is_content_creator
       or new.account_status is distinct from old.account_status
+      or new.terms_version is distinct from old.terms_version
+      or new.privacy_version is distinct from old.privacy_version
+      or new.consent_accepted_at is distinct from old.consent_accepted_at
     )
   then
     raise exception 'Profile privilege fields can only be changed by trusted server operations';
@@ -390,11 +396,30 @@ alter table public.sos_alerts enable row level security;
 alter table public.supervision_notifications enable row level security;
 alter table public.follows enable row level security;
 
+create or replace function public.is_profile_email_confirmed(profile_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public, auth
+stable
+as $$
+  select exists (
+    select 1
+    from auth.users
+    where id = profile_id
+      and email_confirmed_at is not null
+  );
+$$;
+
+revoke all on function public.is_profile_email_confirmed(uuid) from public;
+grant execute on function public.is_profile_email_confirmed(uuid)
+  to authenticated, service_role;
+
 drop policy if exists "Profiles are visible to signed-in users" on public.profiles;
 create policy "Profiles are visible to signed-in users"
 on public.profiles for select
 to authenticated
-using (true);
+using (public.is_profile_email_confirmed(id));
 
 drop policy if exists "Users can update own profile" on public.profiles;
 create policy "Users can update own profile"
