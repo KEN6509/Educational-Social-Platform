@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/security/password_policy.dart';
 import '../../../core/widgets/password_checklist.dart';
 import '../domain/auth_gateway.dart';
+import '../domain/registration_request.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({
@@ -57,9 +58,17 @@ class _AuthPageState extends State<AuthPage> {
 
       if (_isRegistering) {
         final outcome = await widget.authGateway.register(
-          name: _nameController.text.trim(),
-          email: email,
-          password: password,
+          RegistrationRequest(
+            name: _nameController.text.trim(),
+            email: email,
+            password: password,
+            termsVersion: '',
+            privacyVersion: '',
+            consentAcceptedAt: DateTime.fromMillisecondsSinceEpoch(
+              0,
+              isUtc: true,
+            ),
+          ),
         );
 
         if (outcome == RegistrationOutcome.confirmationRequired && mounted) {

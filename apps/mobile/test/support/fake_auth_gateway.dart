@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cyanzone_mobile/src/features/auth/domain/auth_gateway.dart';
+import 'package:cyanzone_mobile/src/features/auth/domain/registration_request.dart';
 
 final class FakeAuthGateway implements AuthGateway {
   FakeAuthGateway({bool isSignedIn = false}) : _isSignedIn = isSignedIn;
@@ -12,11 +13,17 @@ final class FakeAuthGateway implements AuthGateway {
   String? signInPassword;
   Object? signInError;
 
-  String? registrationName;
-  String? registrationEmail;
-  String? registrationPassword;
+  RegistrationRequest? registrationRequest;
+  String? get registrationName => registrationRequest?.name;
+  String? get registrationEmail => registrationRequest?.email;
+  String? get registrationPassword => registrationRequest?.password;
   Object? registrationError;
   RegistrationOutcome registrationOutcome = RegistrationOutcome.signedIn;
+  String? verificationEmail;
+  String? verificationToken;
+  Object? verificationError;
+  String? resendEmail;
+  Object? resendError;
 
   @override
   bool get isSignedIn => _isSignedIn;
@@ -38,19 +45,35 @@ final class FakeAuthGateway implements AuthGateway {
   }
 
   @override
-  Future<RegistrationOutcome> register({
-    required String name,
-    required String email,
-    required String password,
-  }) async {
+  Future<RegistrationOutcome> register(RegistrationRequest request) async {
     final error = registrationError;
     if (error != null) {
       throw error;
     }
-    registrationName = name;
-    registrationEmail = email;
-    registrationPassword = password;
+    registrationRequest = request;
     return registrationOutcome;
+  }
+
+  @override
+  Future<void> verifyRegistrationOtp({
+    required String email,
+    required String token,
+  }) async {
+    final error = verificationError;
+    if (error != null) {
+      throw error;
+    }
+    verificationEmail = email;
+    verificationToken = token;
+  }
+
+  @override
+  Future<void> resendRegistrationOtp({required String email}) async {
+    final error = resendError;
+    if (error != null) {
+      throw error;
+    }
+    resendEmail = email;
   }
 
   void emitSignedIn(bool value) {
