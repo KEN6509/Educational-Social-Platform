@@ -1,23 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:cyanzone_mobile/src/app_dependencies.dart';
 import 'package:cyanzone_mobile/src/app.dart';
 
-void main() {
-  setUpAll(() async {
-    SharedPreferences.setMockInitialValues({});
+import 'support/fake_auth_gateway.dart';
 
-    await Supabase.initialize(
-      url: 'https://example.supabase.co',
-      anonKey: 'test-anon-key',
-    );
+void main() {
+  late FakeAuthGateway authGateway;
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    authGateway = FakeAuthGateway();
+    addTearDown(authGateway.dispose);
   });
+
+  Future<void> pumpApp(WidgetTester tester) {
+    return tester.pumpWidget(
+      CyanZoneApp(
+        dependencies: AppDependencies(authGateway: authGateway),
+      ),
+    );
+  }
 
   testWidgets('shows the auth screen when signed out',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const CyanZoneApp());
+    await pumpApp(tester);
     await tester.pump();
 
     expect(find.text('CyanZone'), findsOneWidget);
@@ -32,7 +41,7 @@ void main() {
 
   testWidgets('clears validation errors when switching auth modes',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const CyanZoneApp());
+    await pumpApp(tester);
     await tester.pump();
 
     await tester.tap(find.text('Log in').last);
@@ -74,7 +83,7 @@ void main() {
 
   testWidgets('dismisses focused auth input when tapping empty space',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const CyanZoneApp());
+    await pumpApp(tester);
     await tester.pump();
 
     await tester.tap(find.byKey(const ValueKey('login-email-field')));
@@ -95,7 +104,7 @@ void main() {
 
   testWidgets('registration enforces the strong password policy',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const CyanZoneApp());
+    await pumpApp(tester);
     await tester.pump();
 
     await tester.tap(find.text('Create account'));
@@ -134,7 +143,7 @@ void main() {
 
   testWidgets('registration shows and updates the live password checklist',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const CyanZoneApp());
+    await pumpApp(tester);
     await tester.pump();
 
     expect(find.text('At least 12 characters'), findsNothing);

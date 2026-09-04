@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/app.dart';
+import 'src/app_dependencies.dart';
 import 'src/core/config/supabase_config.dart';
 
 Future<void> main() async {
@@ -18,5 +19,6 @@ Future<void> main() async {
     anonKey: SupabaseConfig.anonKey,
   );
 
-  runApp(const CyanZoneApp());
+  final dependencies = AppDependencies.production(Supabase.instance.client);
+  runApp(CyanZoneApp(dependencies: dependencies));
 }
