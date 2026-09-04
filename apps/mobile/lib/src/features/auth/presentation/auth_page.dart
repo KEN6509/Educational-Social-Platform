@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/security/password_policy.dart';
 import '../../../core/widgets/password_checklist.dart';
+import '../domain/auth_gateway.dart';
 
 class AuthPage extends StatefulWidget {
-  const AuthPage({super.key});
+  const AuthPage({
+    required this.authGateway,
+    super.key,
+  });
+
+  final AuthGateway authGateway;
 
   @override
   State<AuthPage> createState() => _AuthPageState();
@@ -47,18 +52,17 @@ class _AuthPageState extends State<AuthPage> {
     });
 
     try {
-      final auth = Supabase.instance.client.auth;
       final email = _emailController.text.trim();
       final password = _passwordController.text;
 
       if (_isRegistering) {
-        final response = await auth.signUp(
+        final outcome = await widget.authGateway.register(
+          name: _nameController.text.trim(),
           email: email,
           password: password,
-          data: {'name': _nameController.text.trim()},
         );
 
-        if (response.session == null && mounted) {
+        if (outcome == RegistrationOutcome.confirmationRequired && mounted) {
           setState(() {
             _message =
                 'Account created. Check your email if confirmation is enabled.';
@@ -66,12 +70,16 @@ class _AuthPageState extends State<AuthPage> {
           });
         }
       } else {
-        await auth.signInWithPassword(email: email, password: password);
+        await widget.authGateway.signIn(email: email, password: password);
       }
-    } on AuthException catch (error) {
-      setState(() => _message = error.message);
+    } on AuthFailure catch (error) {
+      if (mounted) {
+        setState(() => _message = error.message);
+      }
     } catch (_) {
-      setState(() => _message = 'Something went wrong. Please try again.');
+      if (mounted) {
+        setState(() => _message = 'Something went wrong. Please try again.');
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
