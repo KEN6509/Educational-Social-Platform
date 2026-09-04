@@ -188,23 +188,62 @@ class _CheckInPageState extends State<CheckInPage> {
                         'You can retry location or send your message without it.',
                       ),
                       const SizedBox(height: 12),
-                      Row(children: [
-                        OutlinedButton(
-                          onPressed: _busy ? null : _captureLocation,
-                          child: const Text('Retry location'),
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                key: const Key('check-in-retry-location'),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(52),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                onPressed: _busy ? null : _captureLocation,
+                                child: const Text(
+                                  'Retry location',
+                                  maxLines: 2,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: FilledButton.tonal(
+                                key: const Key(
+                                  'check-in-send-without-location',
+                                ),
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(52),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                onPressed: _busy
+                                    ? null
+                                    : () => _submit(
+                                          const LocationCapture.notRequested(),
+                                        ),
+                                child: const Text(
+                                  'Send without location',
+                                  maxLines: 2,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: FilledButton.tonal(
-                            onPressed: _busy
-                                ? null
-                                : () => _submit(
-                                      const LocationCapture.notRequested(),
-                                    ),
-                            child: const Text('Continue without location'),
-                          ),
-                        ),
-                      ]),
+                      ),
                     ],
                   ),
                 ),

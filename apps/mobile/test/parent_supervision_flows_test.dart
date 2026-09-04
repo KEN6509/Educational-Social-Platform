@@ -282,6 +282,7 @@ void main() {
 
   testWidgets('check in location failure preserves message and offers choices',
       (tester) async {
+    _usePhoneViewport(tester);
     final repository = FlowFakeRepository();
     final location = FlowFakeLocationService(
       results: [const LocationCapture.unavailable('permission_denied')],
@@ -295,12 +296,22 @@ void main() {
     await tester.tap(find.text('Send Check-In'));
     await tester.pumpAndSettle();
 
+    final retryButton = find.byKey(const Key('check-in-retry-location'));
+    final sendWithoutLocationButton =
+        find.byKey(const Key('check-in-send-without-location'));
+    expect(retryButton, findsOneWidget);
+    expect(sendWithoutLocationButton, findsOneWidget);
     expect(find.text('Retry location'), findsOneWidget);
-    expect(find.text('Continue without location'), findsOneWidget);
+    expect(find.text('Send without location'), findsOneWidget);
+    final retrySize = tester.getSize(retryButton);
+    final sendWithoutLocationSize = tester.getSize(sendWithoutLocationButton);
+    expect(retrySize.width, closeTo(sendWithoutLocationSize.width, 0.1));
+    expect(retrySize.height, closeTo(sendWithoutLocationSize.height, 0.1));
+    expect(retrySize.height, greaterThanOrEqualTo(48));
     expect(find.text('Waiting at the lobby.'), findsOneWidget);
     expect(repository.submittedCheckIn, isNull);
 
-    await tester.tap(find.text('Continue without location'));
+    await tester.tap(find.text('Send without location'));
     await tester.pumpAndSettle();
     expect(repository.submittedCheckIn?.message, 'Waiting at the lobby.');
     expect(
