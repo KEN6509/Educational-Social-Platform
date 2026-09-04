@@ -459,6 +459,23 @@ Observed:
 - Focused Flutter analyzer: **no issues found**.
 - The complete mobile suite was not rerun for this feature at the user's request; the latest complete-suite evidence remains the September 2 run below.
 
+Latest focused registration consent and email OTP verification run directly in
+the user's PowerShell environment on **September 4, 2026**:
+
+```powershell
+cd apps/mobile
+flutter test test/features/auth test/widget_test.dart
+flutter analyze lib/src/app.dart lib/src/app_dependencies.dart lib/src/features/auth test/features/auth test/support/fake_auth_gateway.dart test/support/fake_pending_registration_store.dart test/widget_test.dart
+```
+
+Observed:
+
+- Focused authentication, consent, OTP, persistence, and app-composition tests:
+  **39 tests passed**.
+- Focused Flutter analyzer: **no issues found**.
+- Hosted Supabase Confirm Email, the OTP email template, migration execution,
+  real email delivery, and live activation evidence remain pending manual setup.
+
 Latest mobile verification run directly in the user's PowerShell environment
 on **September 2, 2026**:
 
