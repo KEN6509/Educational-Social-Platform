@@ -6,14 +6,15 @@ final class SupabaseAuthGateway implements AuthGateway {
   SupabaseAuthGateway(this._client);
 
   final SupabaseClient _client;
+  late final Stream<bool> _signedInChanges = _client.auth.onAuthStateChange
+      .map((state) => state.session != null)
+      .distinct();
 
   @override
   bool get isSignedIn => _client.auth.currentSession != null;
 
   @override
-  Stream<bool> get signedInChanges => _client.auth.onAuthStateChange
-      .map((state) => state.session != null)
-      .distinct();
+  Stream<bool> get signedInChanges => _signedInChanges;
 
   @override
   Future<void> signIn({
