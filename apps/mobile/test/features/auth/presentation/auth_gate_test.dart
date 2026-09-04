@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/fake_auth_gateway.dart';
+import '../../../support/fake_pending_registration_store.dart';
 
 void main() {
   late FakeAuthGateway authGateway;
@@ -18,6 +19,7 @@ void main() {
     return MaterialApp(
       home: AuthGate(
         authGateway: authGateway,
+        pendingRegistrationStore: FakePendingRegistrationStore(),
         authenticatedChild: const SizedBox(
           key: ValueKey('authenticated-destination'),
         ),

@@ -3,16 +3,19 @@ import 'package:flutter/material.dart';
 import '../../parent_child/presentation/sos_tracking_scope.dart';
 import '../../shell/presentation/main_shell.dart';
 import '../domain/auth_gateway.dart';
+import '../domain/pending_registration_store.dart';
 import 'auth_page.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({
     required this.authGateway,
+    required this.pendingRegistrationStore,
     this.authenticatedChild = const SosTrackingHost(child: MainShell()),
     super.key,
   });
 
   final AuthGateway authGateway;
+  final PendingRegistrationStore pendingRegistrationStore;
   final Widget authenticatedChild;
 
   @override
@@ -24,7 +27,10 @@ class AuthGate extends StatelessWidget {
         final isSignedIn = snapshot.data ?? authGateway.isSignedIn;
         return isSignedIn
             ? authenticatedChild
-            : AuthPage(authGateway: authGateway);
+            : AuthPage(
+                authGateway: authGateway,
+                pendingRegistrationStore: pendingRegistrationStore,
+              );
       },
     );
   }

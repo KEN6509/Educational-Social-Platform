@@ -6,6 +6,7 @@ import 'package:cyanzone_mobile/src/app_dependencies.dart';
 import 'package:cyanzone_mobile/src/app.dart';
 
 import 'support/fake_auth_gateway.dart';
+import 'support/fake_pending_registration_store.dart';
 
 void main() {
   late FakeAuthGateway authGateway;
@@ -19,7 +20,10 @@ void main() {
   Future<void> pumpApp(WidgetTester tester) {
     return tester.pumpWidget(
       CyanZoneApp(
-        dependencies: AppDependencies(authGateway: authGateway),
+        dependencies: AppDependencies(
+          authGateway: authGateway,
+          pendingRegistrationStore: FakePendingRegistrationStore(),
+        ),
       ),
     );
   }

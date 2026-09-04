@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import '../../../core/security/password_policy.dart';
 import '../../../core/widgets/password_checklist.dart';
 import '../domain/auth_gateway.dart';
+import '../domain/pending_registration_store.dart';
 import '../domain/registration_request.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({
     required this.authGateway,
+    required this.pendingRegistrationStore,
     super.key,
   });
 
   final AuthGateway authGateway;
+  final PendingRegistrationStore pendingRegistrationStore;
 
   @override
   State<AuthPage> createState() => _AuthPageState();

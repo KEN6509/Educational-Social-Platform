@@ -18,7 +18,10 @@ class CyanZoneApp extends StatelessWidget {
       title: 'CyanZone',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: AuthGate(authGateway: dependencies.authGateway),
+      home: AuthGate(
+        authGateway: dependencies.authGateway,
+        pendingRegistrationStore: dependencies.pendingRegistrationStore,
+      ),
     );
   }
 }
