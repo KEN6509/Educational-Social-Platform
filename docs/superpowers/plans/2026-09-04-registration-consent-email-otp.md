@@ -49,6 +49,7 @@
 **Files:**
 - Create: `apps/mobile/lib/src/features/auth/domain/registration_request.dart`
 - Modify: `apps/mobile/lib/src/features/auth/domain/auth_gateway.dart`
+- Modify: `apps/mobile/lib/src/features/auth/presentation/auth_page.dart`
 - Modify: `apps/mobile/test/features/auth/domain/auth_gateway_test.dart`
 - Modify: `apps/mobile/test/support/fake_auth_gateway.dart`
 
@@ -167,7 +168,7 @@ abstract interface class AuthGateway {
 }
 ```
 
-Update `FakeAuthGateway` to capture a `RegistrationRequest`, verification email/token, and resend email. Add independently configurable errors for all three operations.
+Update `FakeAuthGateway` to capture a `RegistrationRequest`, verification email/token, and resend email. Keep the existing `registrationName`, `registrationEmail`, and `registrationPassword` getters as derived compatibility fields until Task 6 replaces the old widget assertion. Add independently configurable errors for all three operations.
 
 ```dart
 RegistrationRequest? registrationRequest;
@@ -200,6 +201,8 @@ Future<void> resendRegistrationOtp({required String email}) async {
   resendEmail = email;
 }
 ```
+
+Update the existing registration call in `auth_page.dart` to construct a `RegistrationRequest` with the current name, email, and password. During this transitional commit, pass empty consent versions and a UTC epoch timestamp; Task 6 must block the call and replace these values with the accepted `LegalPolicy` versions and the current UTC time. Keep the existing confirmation message until the OTP panel is integrated.
 
 - [ ] **Step 5: Run and pass the domain test**
 

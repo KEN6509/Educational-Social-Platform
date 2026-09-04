@@ -12,13 +12,71 @@ Save:
 
 ## 2. Configure Auth
 
-For the prototype:
+For the MVP:
 
 - Enable email/password auth.
 - Disable role selection during registration.
-- Keep email confirmation optional for local demo speed.
+- Enable `Confirm Email` under the Email provider before testing mobile registration.
 
 The `profiles` table is added in Phase 2. The signup trigger is added in Phase 3.
+
+### Registration consent and email OTP
+
+For an existing project, run `registration_consent_otp.sql` after `schema.sql`.
+This is the only new SQL migration needed for the registration change. It adds
+the consent audit columns, delays new public profiles until email confirmation,
+and installs the confirmation trigger. It is safe to rerun. Do not rerun the
+chat or Parent Supervision migrations for this feature.
+
+In the hosted Supabase Dashboard:
+
+1. Open `Authentication` -> `Providers` -> `Email`.
+2. Keep Email enabled and enable `Confirm Email`.
+3. Open `Authentication` -> `Email Templates` -> `Confirm signup`.
+4. Set the subject to `Your CyanZone verification code`.
+5. Replace the template body with:
+
+```html
+<h2>Verify your CyanZone email</h2>
+<p>Enter this code in CyanZone to finish creating your account:</p>
+<p style="font-size: 28px; font-weight: 700; letter-spacing: 6px;">
+  {{ .Token }}
+</p>
+<p>If you did not create this account, you can ignore this email.</p>
+```
+
+6. Save the template.
+7. Open `SQL Editor`, paste the complete `registration_consent_otp.sql`, and
+   run it once.
+
+Verify the migration:
+
+```sql
+select column_name, data_type
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'profiles'
+  and column_name in (
+    'terms_version',
+    'privacy_version',
+    'consent_accepted_at'
+  )
+order by column_name;
+
+select trigger_name
+from information_schema.triggers
+where event_object_schema = 'auth'
+  and event_object_table = 'users'
+  and trigger_name in (
+    'on_auth_user_created',
+    'on_auth_user_email_confirmed'
+  )
+order by trigger_name;
+```
+
+Expected result: three consent-column rows and two auth-trigger rows. The
+mobile app uses the six-digit `{{ .Token }}` value and verifies it as a signup
+OTP. Existing users remain usable even if their consent columns are null.
 
 ## 3. Configure Storage
 
