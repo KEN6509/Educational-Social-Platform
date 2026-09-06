@@ -10,7 +10,7 @@ CyanZone currently supports email and password registration, but registration do
 ## Goals
 
 - Require every new user to accept the current Terms and Conditions and Privacy Policy before registration.
-- Provide concise version 1.0 Terms and Privacy pages inside the mobile app.
+- Provide concise version 1.0 Terms and Privacy content on one combined in-app page.
 - Record the accepted document versions and acceptance time for each new verified profile.
 - Use Supabase Confirm Email with a numeric OTP entered inside CyanZone.
 - Support verification, resend after 60 seconds, wrong-email correction, and recovery after an app restart.
@@ -55,7 +55,7 @@ A custom server could control pending accounts and immediately delete abandoned 
 
 1. The user enters their name, email, password, and password confirmation.
 2. One unchecked consent control states that the user agrees to the Terms and Conditions and Privacy Policy.
-3. Each document name is an interactive link that opens its own in-app document page.
+3. One inline `Terms and Conditions and Privacy Policy` link opens a combined in-app page that clearly separates and displays both documents.
 4. Registration validation fails with a clear message until consent is accepted.
 5. On submission, the app captures the current document versions and a UTC acceptance timestamp.
 6. The app calls the gateway with the normalized email, registration fields, and consent metadata.
@@ -136,7 +136,7 @@ The current form controllers remain alive when moving between the form and OTP s
 
 ### Legal documents
 
-Add reusable legal-document presentation components with separate Terms and Privacy content. Both documents use simple English and show version 1.0 with an effective date. Policy version constants are defined outside the widgets so the displayed version and stored version cannot drift apart.
+Add reusable legal-document presentation components with separate Terms and Privacy content rendered on one combined scrollable page. Both documents use simple English and show version 1.0 with an effective date. The checkbox and inline agreement text share one centered row, and the full legal phrase is one clickable link. Policy version constants are defined outside the widgets so the displayed version and stored version cannot drift apart.
 
 ## Data Design
 
@@ -187,7 +187,7 @@ Verification will be focused rather than running every project test:
 - Gateway tests for signup metadata, confirmation-required outcomes, OTP verification, OTP resend, and safe error mapping.
 - Pending-store tests for read, save, and clear behavior.
 - Authentication gate tests proving unverified accounts cannot enter protected functions.
-- Widget tests proving consent is mandatory and both legal links open the correct documents.
+- Widget tests proving consent is mandatory, the checkbox and agreement text remain aligned, and the combined legal link opens both documents.
 - Widget tests for OTP input, verification, resend countdown, resend success, errors, back navigation, and restored pending email.
 - SQL review for idempotent profile creation and protection of consent audit fields.
 - Scoped `flutter analyze` for the affected mobile authentication files.
@@ -195,7 +195,7 @@ Verification will be focused rather than running every project test:
 ## Acceptance Criteria
 
 - A new user cannot submit registration without accepting the combined consent control.
-- Terms and Privacy content is readable inside CyanZone.
+- One combined legal page displays both Terms and Privacy content inside CyanZone.
 - A submitted registration displays the correct email on the OTP page.
 - The user can verify a valid signup OTP and then access the application.
 - An invalid or expired OTP does not activate the account.

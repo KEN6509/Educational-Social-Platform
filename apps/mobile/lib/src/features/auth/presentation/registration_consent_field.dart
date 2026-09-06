@@ -1,9 +1,9 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'legal_document_page.dart';
-import 'legal_policy.dart';
 
-class RegistrationConsentField extends StatelessWidget {
+class RegistrationConsentField extends StatefulWidget {
   const RegistrationConsentField({
     required this.value,
     required this.showError,
@@ -16,9 +16,32 @@ class RegistrationConsentField extends StatelessWidget {
   final ValueChanged<bool> onChanged;
 
   @override
+  State<RegistrationConsentField> createState() =>
+      _RegistrationConsentFieldState();
+}
+
+class _RegistrationConsentFieldState extends State<RegistrationConsentField> {
+  late final TapGestureRecognizer _legalDocumentRecognizer;
+
+  @override
+  void initState() {
+    super.initState();
+    _legalDocumentRecognizer = TapGestureRecognizer()
+      ..onTap = _openLegalDocuments;
+  }
+
+  @override
+  void dispose() {
+    _legalDocumentRecognizer.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final error =
-        showError ? 'Accept the Terms and Privacy Policy to continue.' : null;
+    final theme = Theme.of(context);
+    final error = widget.showError
+        ? 'Accept the Terms and Privacy Policy to continue.'
+        : null;
 
     return Semantics(
       container: true,
@@ -27,30 +50,32 @@ class RegistrationConsentField extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Checkbox(
                 key: const ValueKey('registration-consent-checkbox'),
-                value: value,
-                onChanged: (next) => onChanged(next ?? false),
+                value: widget.value,
+                onChanged: (next) => widget.onChanged(next ?? false),
               ),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 11),
-                  child: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                child: Text.rich(
+                  key: const ValueKey('registration-consent-text'),
+                  TextSpan(
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      height: 1.4,
+                    ),
                     children: [
-                      const Text('I agree to the '),
-                      TextButton(
-                        onPressed: () => _openTerms(context),
-                        child: const Text('Terms and Conditions'),
+                      const TextSpan(text: 'I agree to the '),
+                      TextSpan(
+                        text: 'Terms and Conditions and Privacy Policy',
+                        style: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        recognizer: _legalDocumentRecognizer,
                       ),
-                      const Text(' and '),
-                      TextButton(
-                        onPressed: () => _openPrivacy(context),
-                        child: const Text('Privacy Policy'),
-                      ),
-                      const Text('.'),
+                      const TextSpan(text: '.'),
                     ],
                   ),
                 ),
@@ -62,7 +87,7 @@ class RegistrationConsentField extends StatelessWidget {
               padding: const EdgeInsets.only(left: 12, top: 2),
               child: Text(
                 error,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                style: TextStyle(color: theme.colorScheme.error),
               ),
             ),
         ],
@@ -70,28 +95,10 @@ class RegistrationConsentField extends StatelessWidget {
     );
   }
 
-  void _openTerms(BuildContext context) {
+  void _openLegalDocuments() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const LegalDocumentPage(
-          title: 'Terms and Conditions',
-          version: LegalPolicy.termsVersion,
-          effectiveDate: LegalPolicy.effectiveDateLabel,
-          sections: termsSections,
-        ),
-      ),
-    );
-  }
-
-  void _openPrivacy(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const LegalDocumentPage(
-          title: 'Privacy Policy',
-          version: LegalPolicy.privacyVersion,
-          effectiveDate: LegalPolicy.effectiveDateLabel,
-          sections: privacySections,
-        ),
+        builder: (_) => const RegistrationLegalDocumentsPage(),
       ),
     );
   }
