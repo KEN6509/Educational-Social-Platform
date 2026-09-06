@@ -4,6 +4,8 @@ import './admin/adminPostViews.test.js';
 import './admin/adminRepository.test.js';
 import './admin/adminService.test.js';
 import './moderation/geminiModerationGateway.test.js';
+import './moderation/moderationAuth.test.js';
+import './moderation/moderationRepository.test.js';
 import './admin/adminSql.test.js';
 import './moderation/moderationSql.test.js';
 import './config/env.test.js';

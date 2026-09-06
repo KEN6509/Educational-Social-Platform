@@ -43,6 +43,67 @@ export type ModerationProviderResult = {
   promptVersion: string;
 };
 
+export type ModerationCaseState =
+  | 'processing'
+  | 'admin_review'
+  | 'approved'
+  | 'rejected'
+  | 'failed'
+  | 'superseded';
+
+export type ModerationTargetRecord = {
+  id: string;
+  ownerId: string;
+  revision: number;
+  target: ModerationTarget;
+};
+
+export type ModerationCase = {
+  id: string;
+  targetType: ModerationTargetType;
+  targetId: string;
+  ownerId: string;
+  revision: number;
+  state: ModerationCaseState;
+  claimToken: string | null;
+  attemptCount: number;
+};
+
+export type PersistedModerationResult = ModerationProviderResult & {
+  claimToken: string;
+  state: Exclude<ModerationCaseState, 'processing' | 'failed' | 'superseded'>;
+  attemptCount: number;
+};
+
+export type PersistedModerationFailure = {
+  claimToken: string;
+  code: string;
+  message: string;
+  attemptCount: number;
+};
+
+export interface ModerationRepository {
+  loadTarget(
+    type: ModerationTargetType,
+    id: string,
+  ): Promise<ModerationTargetRecord | null>;
+  prepare(
+    type: ModerationTargetType,
+    id: string,
+    ownerId: string,
+  ): Promise<ModerationCase>;
+  applyResult(
+    caseId: string,
+    revision: number,
+    result: PersistedModerationResult,
+  ): Promise<ModerationCase>;
+  markFailed(
+    caseId: string,
+    revision: number,
+    failure: PersistedModerationFailure,
+  ): Promise<ModerationCase>;
+}
+
 export type ModerationDecision = 'approved' | 'admin_review' | 'rejected';
 
 export function decideModeration(score: number): ModerationDecision {
