@@ -1,7 +1,7 @@
 # Modern Registration OTP Entry Design
 
 **Date:** September 6, 2026  
-**Status:** Approved visual direction; pending implementation
+**Status:** Implemented; automated verification passed; physical visual QA pending
 
 ## Purpose
 
@@ -68,3 +68,17 @@ Run the focused authentication tests and scoped Flutter analyzer. The full mobil
 - Redesigning the full authentication page or CyanZone brand header.
 - Adding a third-party OTP input dependency.
 
+## Implementation Evidence
+
+- Added a reusable `RegistrationOtpField` with one real numeric Flutter input
+  and six centered visual cells.
+- Moved the existing borderless Back action beside the
+  `Enter the 6-digit code` heading.
+- Preserved the existing verification controller, resend countdown, failure
+  messages, pending-registration recovery, and Supabase gateway behavior.
+- Focused authentication, consent, OTP, persistence, and app-composition run:
+  **45 tests passed**.
+- Scoped Flutter analyzer: **no issues found**.
+- The updated debug build installed successfully on the connected Android 16
+  device. Physical pixel comparison is still pending because the device was
+  locked during capture; no visual-pass claim is made yet.

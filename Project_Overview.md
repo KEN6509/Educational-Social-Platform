@@ -82,7 +82,7 @@ Status meanings:
 | ID | SRS level | Feature | Status | Current evidence and remaining boundary |
 | --- | --- | --- | --- | --- |
 | F001 / REQ_F001 | Basic | User Authentication | **Implemented** | Mobile and administrator login, authenticated sessions, confirmation-based mobile and Administration Portal logout, and mobile password change with current-password reauthentication are implemented. New mobile registration passwords, changed passwords, and administrator bootstrap passwords require at least 12 characters with uppercase, lowercase, number, and non-whitespace symbol; `.` and `_` are accepted symbols. Existing passwords remain valid for login until changed. |
-| F002 / REQ_F002 | Basic | User Registration | **Partial** | The repository now contains required Terms and Privacy consent, version/timestamp metadata, one combined in-app legal page, six-digit email OTP verification/resend, pending-email recovery, confirmed-session activation gating, deferred public-profile creation, and confirmation-time rejection of missing current consent metadata. Hosted Supabase Confirm Email, the OTP email template, the new migration, and live email/activation evidence remain pending. |
+| F002 / REQ_F002 | Basic | User Registration | **Partial** | The repository now contains required Terms and Privacy consent, version/timestamp metadata, one combined in-app legal page, centered six-cell email OTP verification/resend, an inline borderless Back action for wrong-email correction, pending-email recovery, confirmed-session activation gating, deferred public-profile creation, and confirmation-time rejection of missing current consent metadata. The user has confirmed real six-digit email delivery and verification through hosted Supabase/Brevo; the new migration and hosted activation state still require independent live verification. |
 | F003 / REQ_F003 | Basic | User Profile Management | **Implemented** | Own/other public profiles, own-profile editing, follow/unfollow, follower/following lists, public creator badge display, and database protection against self-following are present. Administrator assignment/removal of creator status remains under F011. |
 | F004 / REQ_F004 | Intermediate | Social Feed | **Partial** | Feed browsing, search, create/edit/soft-delete, selection of one to five predefined tags, `Others` fallback, image and text posts, profiles, saves/following views, and media flows are implemented. New and edited posts are not yet processed by the required Gemini publication workflow. UC004 must state one to five predefined tags, not exactly one tag. |
 | F005 / REQ_F005 | Intermediate | Post Engagement | **Partial** | Comments/replies, likes, saves, chat sharing, and private 14-day dislike hiding are implemented. Public comments are still missing Gemini moderation before publication. |
@@ -100,7 +100,7 @@ Status meanings:
 Implemented:
 
 - Supabase auth/session gate, login and registration validation, confirmation-based logout, and password update with current-password reauthentication.
-- New registration consent and activation flow: one aligned checkbox/agreement row, one combined inline legal link and page for the concise Terms and Privacy content, required combined consent, stored policy versions/timestamp, six-digit email OTP verification, 60-second resend recovery, wrong-email correction, restart recovery, an unverified-login OTP path, visible registration failures, and database rejection when a normal confirmation lacks current consent metadata.
+- New registration consent and activation flow: one aligned checkbox/agreement row, one combined inline legal link and page for the concise Terms and Privacy content, required combined consent, stored policy versions/timestamp, a centered six-cell email OTP input with an inline borderless Back action, 60-second resend recovery, wrong-email correction, restart recovery, an unverified-login OTP path, visible registration failures, and database rejection when a normal confirmation lacks current consent metadata.
 - A shared mobile confirmation dialog standard covers logout, post update/deletion, chat message and group danger actions, notification deletion, and SOS submission.
 - A shared mobile strong-password policy and live checklist are used by registration and password change: 12 or more characters with uppercase, lowercase, number, and any non-whitespace symbol. The checklist examples are `!`, `@`, `#`, `$`, `%`, and `&`; other symbols including `.` and `_` remain accepted.
 - Five-tab shell: Home, Parent-Child, Create, Chats, and Profile.
@@ -471,12 +471,17 @@ flutter analyze lib/src/app.dart lib/src/app_dependencies.dart lib/src/features/
 Observed:
 
 - Focused authentication, consent, OTP, persistence, and app-composition tests:
-  **42 tests passed**, including registration-error display, confirmation-time
-  consent enforcement, consent-row alignment, and combined legal-page navigation
-  regressions.
+  **45 tests passed**, including the centered six-cell OTP component, numeric
+  filtering and length enforcement, complete-only submission, focused-cell
+  styling, the inline Back/heading arrangement, registration-error display,
+  confirmation-time consent enforcement, consent-row alignment, and combined
+  legal-page navigation regressions.
 - Focused Flutter analyzer: **no issues found**.
-- Hosted Supabase Confirm Email, the OTP email template, migration execution,
-  real email delivery, and live activation evidence remain pending manual setup.
+- The updated debug build installed successfully on the connected Android 16
+  device. The user has confirmed real six-digit email delivery and verification
+  through the configured Supabase/Brevo flow. Independent hosted migration and
+  activation-state verification remain pending. Physical OTP pixel comparison
+  remains pending because the device was locked during the automated capture.
 
 Latest mobile verification run directly in the user's PowerShell environment
 on **September 2, 2026**:
@@ -542,7 +547,7 @@ Not covered by this verification:
   repository text and behavior contracts but do not prove that hosted tables,
   functions, triggers, grants, RLS policies, and Realtime publication match it.
 - Gemini moderation or FCM, because they are not implemented.
-- Android physical-device, location, background/terminated notification, or screen-size acceptance.
+- Android physical-device location, background/terminated notification, or full screen-size acceptance. The latest OTP build was installed on the Android 16 device, but its pixel comparison remains pending because the device was locked during capture.
 - Latest Chrome and Edge acceptance outside the in-app browser.
 - Vercel deployment.
 - SRS performance, concurrency, usability, reliability, recovery, and security acceptance.
@@ -555,7 +560,7 @@ Not covered by this verification:
 - The user reports that the previous `supabase/parent_supervision.sql`, `supabase/chat.sql`, and `supabase/admin_portal.sql` were applied. Before live acceptance, rerun the newly updated complete `supabase/parent_supervision.sql` and `supabase/chat.sql`; repository files and local tests alone do not update or verify Supabase.
 - Message requests are now hidden/dormant. The Messages screen does not load or show them, and active profile/search/follower actions use `open_direct_conversation`, which requires a follow row in either direction. Existing accepted chat history remains readable after both users unfollow, while the Messages preview and chat-room composer become follow-required and `send_chat_message` rejects new direct messages.
 - The creator-application UI still says 10,000 followers and does not enforce the threshold. The approved MVP/UAT target is 2 followers; update the mobile copy and authoritative submission enforcement in a later implementation slice, align the source SRS when it is available, then revisit the production threshold after UAT.
-- Registration consent/OTP is implemented in the repository. The remaining F002 boundary is hosted Confirm Email/template configuration, running `supabase/registration_consent_otp.sql`, and live activation verification. Real Gemini moderation, FCM push delivery, and the approved 2-follower MVP/UAT creator gate also remain pending. Do not report any of these as complete before fresh verification.
+- Registration consent/OTP is implemented in the repository, including the combined legal page, centered six-cell OTP input, inline borderless Back action, and the existing resend/recovery behavior. The user has confirmed real six-digit Supabase/Brevo email delivery and verification. The remaining F002 boundary is running/verifying `supabase/registration_consent_otp.sql`, independently checking hosted activation state, and completing the OTP screen pixel comparison after the device is unlocked. Real Gemini moderation and the approved 2-follower MVP/UAT creator gate also remain pending. Do not report any unverified boundary as complete.
 - The user will perform the final non-functional acceptance evidence after all implementation work is complete.
 - Run all terminal commands directly in the user's PowerShell environment outside the Codex sandbox and use `apply_patch` for manual edits.
 

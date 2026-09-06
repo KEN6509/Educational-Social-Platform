@@ -16,7 +16,7 @@
 - Create: `apps/mobile/lib/src/features/auth/presentation/registration_otp_field.dart`
 - Create: `apps/mobile/test/features/auth/presentation/registration_otp_field_test.dart`
 
-- [ ] **Step 1: Write failing widget tests for structure and input behavior**
+- [x] **Step 1: Write failing widget tests for structure and input behavior**
 
 Create `registration_otp_field_test.dart` with tests that expect six keyed cells, a centered cell group, one real numeric text field, digit-only input, a six-character limit, focus styling, and complete-only submission:
 
@@ -87,7 +87,7 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run the new tests and verify RED**
+- [x] **Step 2: Run the new tests and verify RED**
 
 Run directly in the user's PowerShell terminal:
 
@@ -98,7 +98,7 @@ flutter test test/features/auth/presentation/registration_otp_field_test.dart
 
 Expected: FAIL because `registration_otp_field.dart` and `RegistrationOtpField` do not exist.
 
-- [ ] **Step 3: Implement the minimal reusable OTP field**
+- [x] **Step 3: Implement the minimal reusable OTP field**
 
 Create `registration_otp_field.dart` with:
 
@@ -247,7 +247,7 @@ class _RegistrationOtpFieldState extends State<RegistrationOtpField> {
 }
 ```
 
-- [ ] **Step 4: Format and run the focused component tests to verify GREEN**
+- [x] **Step 4: Format and run the focused component tests to verify GREEN**
 
 ```powershell
 cd apps/mobile
@@ -257,7 +257,7 @@ flutter test test/features/auth/presentation/registration_otp_field_test.dart
 
 Expected: all new OTP component tests pass.
 
-- [ ] **Step 5: Commit the reusable field**
+- [x] **Step 5: Commit the reusable field**
 
 ```powershell
 git add -- apps/mobile/lib/src/features/auth/presentation/registration_otp_field.dart apps/mobile/test/features/auth/presentation/registration_otp_field_test.dart
@@ -270,7 +270,7 @@ git commit -m "feat: add modern registration otp field"
 - Modify: `apps/mobile/lib/src/features/auth/presentation/email_otp_panel.dart`
 - Modify: `apps/mobile/test/features/auth/presentation/auth_page_test.dart`
 
-- [ ] **Step 1: Update the flow tests first**
+- [x] **Step 1: Update the flow tests first**
 
 In `auth_page_test.dart`, change OTP heading expectations from `Verify your email` to `Enter the 6-digit code`. Add assertions proving the Back action and heading share a row and the new field remains compatible with the existing controller and Verify button flow:
 
@@ -294,7 +294,7 @@ expect(
 
 Keep the existing test that enters `123456`, enables Verify Email, delegates the token, clears pending storage, and preserves form values after Back.
 
-- [ ] **Step 2: Run the updated flow test and verify RED**
+- [x] **Step 2: Run the updated flow test and verify RED**
 
 ```powershell
 cd apps/mobile
@@ -303,7 +303,7 @@ flutter test test/features/auth/presentation/auth_page_test.dart
 
 Expected: FAIL because the current screen still uses the old heading arrangement and single decorated field.
 
-- [ ] **Step 3: Integrate `RegistrationOtpField` and rearrange the header**
+- [x] **Step 3: Integrate `RegistrationOtpField` and rearrange the header**
 
 In `email_otp_panel.dart`:
 
@@ -355,7 +355,7 @@ RegistrationOtpField(
 
 Remove the old wide `TextField` and its no-longer-needed `flutter/services.dart` import. Keep the existing status message, Verify Email button, and resend controls unchanged.
 
-- [ ] **Step 4: Format and run focused authentication tests to verify GREEN**
+- [x] **Step 4: Format and run focused authentication tests to verify GREEN**
 
 ```powershell
 cd apps/mobile
@@ -365,7 +365,7 @@ flutter test test/features/auth test/widget_test.dart test/registration_consent_
 
 Expected: all focused registration/authentication tests pass.
 
-- [ ] **Step 5: Run scoped static analysis**
+- [x] **Step 5: Run scoped static analysis**
 
 ```powershell
 cd apps/mobile
@@ -374,7 +374,7 @@ flutter analyze lib/src/app.dart lib/src/app_dependencies.dart lib/src/features/
 
 Expected: `No issues found!`
 
-- [ ] **Step 6: Commit the integration**
+- [x] **Step 6: Commit the integration**
 
 ```powershell
 git add -- apps/mobile/lib/src/features/auth/presentation/email_otp_panel.dart apps/mobile/test/features/auth/presentation/auth_page_test.dart
@@ -386,13 +386,14 @@ git commit -m "fix: modernize registration otp entry"
 **Files:**
 - Modify: `Project_Overview.md`
 - Modify: `docs/superpowers/specs/2026-09-06-modern-registration-otp-entry-design.md`
-- Create temporarily for the Product Design gate: `design-qa.md`
+- Record the physical visual-QA status in the design spec; do not recreate the
+  previously removed root `design-qa.md`.
 
-- [ ] **Step 1: Update documentation after tests are known**
+- [x] **Step 1: Update documentation after tests are known**
 
 In the design spec, change its status to `Implemented and verified`. In `Project_Overview.md`, describe the centered six-cell registration OTP input, inline borderless Back action, and the exact focused test count observed during Task 2.
 
-- [ ] **Step 2: Run the app on the connected Android device**
+- [x] **Step 2: Run the app on the connected Android device**
 
 ```powershell
 cd apps/mobile
@@ -411,9 +412,12 @@ Capture the physical device at the OTP step and compare it against the approved 
 - the card does not overflow at the device's 1080 × 2400 display;
 - the status, Verify Email, and resend controls preserve their hierarchy.
 
-Write `design-qa.md` with the compared viewport/state, findings by P0–P3 priority, fixes applied, and `final result: passed`. If capture is unavailable, record `final result: blocked` and do not claim visual verification.
+Record the compared viewport/state, findings by P0–P3 priority, fixes applied,
+and the final result in the design spec. The user previously removed the root
+`design-qa.md`, so do not recreate it. If capture is unavailable, record the
+visual QA as pending/blocked and do not claim visual verification.
 
-- [ ] **Step 4: Re-run focused verification after any visual correction**
+- [x] **Step 4: Re-run focused verification after any visual correction**
 
 ```powershell
 cd apps/mobile
@@ -425,10 +429,10 @@ git diff --check
 
 Expected: focused tests pass, analyzer reports no issues, and Git reports no whitespace errors.
 
-- [ ] **Step 5: Commit documentation and QA evidence without staging unrelated deletions**
+- [x] **Step 5: Commit documentation and QA evidence without staging unrelated deletions**
 
 ```powershell
-git add -- Project_Overview.md docs/superpowers/specs/2026-09-06-modern-registration-otp-entry-design.md design-qa.md
+git add -- Project_Overview.md docs/superpowers/specs/2026-09-06-modern-registration-otp-entry-design.md docs/superpowers/plans/2026-09-06-modern-registration-otp-entry.md
 git commit -m "docs: verify modern registration otp entry"
 git status --short
 ```
