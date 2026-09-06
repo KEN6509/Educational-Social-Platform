@@ -56,7 +56,6 @@ class EmailOtpPanel extends StatelessWidget {
                   onPressed: isBusy ? null : onBack,
                   icon: const Icon(Icons.arrow_back_rounded),
                 ),
-                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Enter the 6-digit code',

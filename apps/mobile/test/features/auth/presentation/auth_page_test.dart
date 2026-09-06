@@ -170,6 +170,14 @@ void main() {
       ),
       findsOneWidget,
     );
+    final backIconRect = tester.getRect(
+      find.descendant(
+        of: headingRow,
+        matching: find.byIcon(Icons.arrow_back_rounded),
+      ),
+    );
+    final headingRect = tester.getRect(find.text('Enter the 6-digit code'));
+    expect(headingRect.left - backIconRect.right, lessThanOrEqualTo(12));
     expect(find.textContaining('ming@example.com'), findsOneWidget);
     expect(authGateway.registrationRequest?.name, 'Ming Jiang');
     expect(authGateway.registrationRequest?.termsVersion, '1.0');
