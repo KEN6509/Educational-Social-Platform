@@ -152,7 +152,8 @@ The profile trigger behavior changes as follows:
 
 - An Auth user inserted with a confirmed email can receive a profile immediately.
 - An Auth user inserted without confirmation does not receive a public profile yet.
-- When `email_confirmed_at` becomes non-null, a trigger creates the profile and copies the name and consent metadata.
+- When `email_confirmed_at` becomes non-null, a trigger requires the current consent metadata, then creates the profile and copies the name and consent metadata.
+- Users created already confirmed by a trusted service flow, such as administrator bootstrap, keep their existing insert path. Existing confirmed users are not reprocessed by the new trigger.
 - Profile creation is idempotent so a repeated applicable event does not create a duplicate profile.
 - The profile privilege-protection trigger prevents a normal user from manually rewriting the consent audit columns.
 

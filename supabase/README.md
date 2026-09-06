@@ -76,7 +76,11 @@ order by trigger_name;
 
 Expected result: three consent-column rows and two auth-trigger rows. The
 mobile app uses the six-digit `{{ .Token }}` value and verifies it as a signup
-OTP. Existing users remain usable even if their consent columns are null.
+OTP. When a normal pending email becomes confirmed, the database rejects the
+confirmation if the current Terms version, Privacy version, or acceptance time
+is missing. Existing users remain usable even if their consent columns are
+null, and trusted service users created already confirmed (such as the first
+administrator) retain their existing creation path.
 
 ## 3. Configure Storage
 

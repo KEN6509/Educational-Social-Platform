@@ -246,8 +246,12 @@ class _AuthPageState extends State<AuthPage> {
                                     isRegistering: _isRegistering,
                                     isLoading:
                                         _isLoading || _registrationState.isBusy,
-                                    message: _message,
-                                    isSuccessMessage: _isSuccessMessage,
+                                    message: _isRegistering
+                                        ? _registrationState.message
+                                        : _message,
+                                    isSuccessMessage: _isRegistering
+                                        ? _registrationState.isSuccessMessage
+                                        : _isSuccessMessage,
                                     formKey: _formKey,
                                     nameController: _nameController,
                                     emailController: _emailController,

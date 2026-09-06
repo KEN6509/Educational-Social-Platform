@@ -83,6 +83,45 @@ void main() {
     );
   });
 
+  testWidgets('registration failures remain visible on the form',
+      (tester) async {
+    authGateway.registrationError = const AuthFailure(
+      'Unable to create this account. Please try again.',
+    );
+    await pumpAuthPage(tester);
+
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('register-name-field')),
+      'Ming Jiang',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-email-field')),
+      'ming@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-password-field')),
+      'StrongPass12!',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-confirm-password-field')),
+      'StrongPass12!',
+    );
+    final consent = find.byKey(const ValueKey('registration-consent-checkbox'));
+    await tester.ensureVisible(consent);
+    await tester.tap(consent);
+    final submit = find.widgetWithText(FilledButton, 'Create account');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pump();
+
+    expect(
+      find.text('Unable to create this account. Please try again.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('accepted registration opens OTP with normalized email',
       (tester) async {
     authGateway.registrationOutcome = RegistrationOutcome.confirmationRequired;

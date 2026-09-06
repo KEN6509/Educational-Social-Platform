@@ -9,6 +9,26 @@ begin
     return new;
   end if;
 
+  -- Normal email registrations are inserted unconfirmed and reach this
+  -- function again when their email is confirmed. Requiring the current
+  -- consent metadata on that update prevents clients from bypassing the
+  -- mobile consent control. Trusted service users that are created already
+  -- confirmed, such as the administrator bootstrap, keep their insert path.
+  if tg_op = 'UPDATE'
+    and (
+      nullif(trim(new.raw_user_meta_data ->> 'terms_version'), '')
+        is distinct from '1.0'
+      or nullif(trim(new.raw_user_meta_data ->> 'privacy_version'), '')
+        is distinct from '1.0'
+      or nullif(
+        trim(new.raw_user_meta_data ->> 'consent_accepted_at'),
+        ''
+      ) is null
+    )
+  then
+    raise exception 'Registration consent metadata is required';
+  end if;
+
   insert into public.profiles (
     id,
     email,

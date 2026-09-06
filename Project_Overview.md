@@ -82,7 +82,7 @@ Status meanings:
 | ID | SRS level | Feature | Status | Current evidence and remaining boundary |
 | --- | --- | --- | --- | --- |
 | F001 / REQ_F001 | Basic | User Authentication | **Implemented** | Mobile and administrator login, authenticated sessions, confirmation-based mobile and Administration Portal logout, and mobile password change with current-password reauthentication are implemented. New mobile registration passwords, changed passwords, and administrator bootstrap passwords require at least 12 characters with uppercase, lowercase, number, and non-whitespace symbol; `.` and `_` are accepted symbols. Existing passwords remain valid for login until changed. |
-| F002 / REQ_F002 | Basic | User Registration | **Partial** | The repository now contains required Terms and Privacy consent, version/timestamp metadata, in-app legal pages, six-digit email OTP verification/resend, pending-email recovery, confirmed-session activation gating, and deferred public-profile creation. Hosted Supabase Confirm Email, the OTP email template, the new migration, and live email/activation evidence remain pending. |
+| F002 / REQ_F002 | Basic | User Registration | **Partial** | The repository now contains required Terms and Privacy consent, version/timestamp metadata, in-app legal pages, six-digit email OTP verification/resend, pending-email recovery, confirmed-session activation gating, deferred public-profile creation, and confirmation-time rejection of missing current consent metadata. Hosted Supabase Confirm Email, the OTP email template, the new migration, and live email/activation evidence remain pending. |
 | F003 / REQ_F003 | Basic | User Profile Management | **Implemented** | Own/other public profiles, own-profile editing, follow/unfollow, follower/following lists, public creator badge display, and database protection against self-following are present. Administrator assignment/removal of creator status remains under F011. |
 | F004 / REQ_F004 | Intermediate | Social Feed | **Partial** | Feed browsing, search, create/edit/soft-delete, selection of one to five predefined tags, `Others` fallback, image and text posts, profiles, saves/following views, and media flows are implemented. New and edited posts are not yet processed by the required Gemini publication workflow. UC004 must state one to five predefined tags, not exactly one tag. |
 | F005 / REQ_F005 | Intermediate | Post Engagement | **Partial** | Comments/replies, likes, saves, chat sharing, and private 14-day dislike hiding are implemented. Public comments are still missing Gemini moderation before publication. |
@@ -100,7 +100,7 @@ Status meanings:
 Implemented:
 
 - Supabase auth/session gate, login and registration validation, confirmation-based logout, and password update with current-password reauthentication.
-- New registration consent and activation flow: concise in-app Terms and Privacy pages, required combined consent, stored policy versions/timestamp, six-digit email OTP verification, 60-second resend recovery, wrong-email correction, restart recovery, and an unverified-login OTP path.
+- New registration consent and activation flow: concise in-app Terms and Privacy pages, required combined consent, stored policy versions/timestamp, six-digit email OTP verification, 60-second resend recovery, wrong-email correction, restart recovery, an unverified-login OTP path, visible registration failures, and database rejection when a normal confirmation lacks current consent metadata.
 - A shared mobile confirmation dialog standard covers logout, post update/deletion, chat message and group danger actions, notification deletion, and SOS submission.
 - A shared mobile strong-password policy and live checklist are used by registration and password change: 12 or more characters with uppercase, lowercase, number, and any non-whitespace symbol. The checklist examples are `!`, `@`, `#`, `$`, `%`, and `&`; other symbols including `.` and `_` remain accepted.
 - Five-tab shell: Home, Parent-Child, Create, Chats, and Profile.
@@ -460,18 +460,19 @@ Observed:
 - The complete mobile suite was not rerun for this feature at the user's request; the latest complete-suite evidence remains the September 2 run below.
 
 Latest focused registration consent and email OTP verification run directly in
-the user's PowerShell environment on **September 4, 2026**:
+the user's PowerShell environment on **September 6, 2026**:
 
 ```powershell
 cd apps/mobile
-flutter test test/features/auth test/widget_test.dart
-flutter analyze lib/src/app.dart lib/src/app_dependencies.dart lib/src/features/auth test/features/auth test/support/fake_auth_gateway.dart test/support/fake_pending_registration_store.dart test/widget_test.dart
+flutter test test/features/auth test/widget_test.dart test/registration_consent_sql_test.dart
+flutter analyze lib/src/app.dart lib/src/app_dependencies.dart lib/src/features/auth test/features/auth test/registration_consent_sql_test.dart test/support/fake_auth_gateway.dart test/support/fake_pending_registration_store.dart test/widget_test.dart
 ```
 
 Observed:
 
 - Focused authentication, consent, OTP, persistence, and app-composition tests:
-  **39 tests passed**.
+  **41 tests passed**, including registration-error display and confirmation-time
+  consent enforcement regressions.
 - Focused Flutter analyzer: **no issues found**.
 - Hosted Supabase Confirm Email, the OTP email template, migration execution,
   real email delivery, and live activation evidence remain pending manual setup.
