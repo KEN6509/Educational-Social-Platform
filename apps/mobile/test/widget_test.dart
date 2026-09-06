@@ -7,6 +7,7 @@ import 'package:cyanzone_mobile/src/app.dart';
 
 import 'support/fake_auth_gateway.dart';
 import 'support/fake_pending_registration_store.dart';
+import 'support/fake_content_moderation_gateway.dart';
 
 void main() {
   late FakeAuthGateway authGateway;
@@ -23,6 +24,7 @@ void main() {
         dependencies: AppDependencies(
           authGateway: authGateway,
           pendingRegistrationStore: FakePendingRegistrationStore(),
+          contentModerationGateway: FakeContentModerationGateway(),
         ),
       ),
     );
