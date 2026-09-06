@@ -84,7 +84,8 @@ create table if not exists public.posts (
   title text not null check (char_length(title) between 0 and 40),
   content text not null check (char_length(content) between 0 and 1000),
   tags text[] not null default '{}',
-  moderation_status public.moderation_status not null default 'approved', -- Temporary: auto-approve for testing
+  moderation_status public.moderation_status not null default 'pending',
+  moderation_revision integer not null default 1,
   ai_toxicity_score numeric(5,4) check (ai_toxicity_score is null or ai_toxicity_score between 0 and 1),
   moderation_reason text,
   reviewed_by uuid references public.profiles(id) on delete set null,
@@ -99,6 +100,9 @@ create table if not exists public.post_images (
   post_id uuid not null references public.posts(id) on delete cascade,
   storage_path text not null,
   public_url text,
+  mime_type text check (mime_type is null or mime_type in (
+    'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif'
+  )),
   position int not null check (position between 1 and 9),
   created_at timestamptz not null default now(),
   unique (post_id, position)
@@ -110,11 +114,44 @@ create table if not exists public.comments (
   author_id uuid not null references public.profiles(id) on delete cascade,
   parent_comment_id uuid references public.comments(id) on delete cascade,
   content text not null check (char_length(content) between 1 and 1000),
-  moderation_status public.moderation_status not null default 'approved', -- Temporary: auto-approve for testing
+  moderation_status public.moderation_status not null default 'pending',
+  moderation_revision integer not null default 1,
   ai_toxicity_score numeric(5,4) check (ai_toxicity_score is null or ai_toxicity_score between 0 and 1),
   moderation_reason text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.content_moderation_cases (
+  id uuid primary key default gen_random_uuid(),
+  target_type text not null check (target_type in ('post', 'comment')),
+  target_id uuid not null,
+  owner_id uuid not null references public.profiles(id) on delete cascade,
+  moderation_revision integer not null check (moderation_revision > 0),
+  state text not null check (
+    state in ('processing', 'admin_review', 'approved', 'rejected', 'failed', 'superseded')
+  ),
+  overall_risk_score numeric(5,2)
+    check (overall_risk_score between 0 and 100),
+  category_scores jsonb not null default '{}'::jsonb,
+  evidence jsonb not null default '[]'::jsonb,
+  user_reason text,
+  provider text,
+  model text,
+  prompt_version text,
+  attempt_count integer not null default 0 check (attempt_count >= 0),
+  claim_token uuid,
+  lease_expires_at timestamptz,
+  failure_code text,
+  failure_message text,
+  decision_source text check (decision_source in ('gemini', 'admin')),
+  decided_by uuid references public.profiles(id) on delete set null,
+  decision_reason text,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (target_type, target_id, moderation_revision)
 );
 
 create table if not exists public.likes (
@@ -307,11 +344,6 @@ create index if not exists screen_time_threshold_user_day_idx on public.screen_t
 create index if not exists check_ins_user_created_idx on public.check_ins(user_id, created_at desc);
 create index if not exists sos_alerts_child_status_idx on public.sos_alerts(child_id, status, created_at desc);
 create index if not exists supervision_notifications_user_created_idx on public.supervision_notifications(user_id, created_at desc);
-
--- TEMPORARY: Approve existing pending content for testing
--- Run these in Supabase SQL Editor if you have existing data
-update public.posts set moderation_status = 'approved' where moderation_status = 'pending';
-update public.comments set moderation_status = 'approved' where moderation_status = 'pending';
 
 drop trigger if exists set_profiles_updated_at on public.profiles;
 create trigger set_profiles_updated_at
