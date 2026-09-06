@@ -1,6 +1,6 @@
 # CyanZone Project Overview and SRS Delivery Handover
 
-Last reviewed against the workspace: **September 3, 2026**. The SRS traceability
+Last reviewed against the workspace: **September 6, 2026**. The SRS traceability
 baseline was last reviewed against **Software Requirement Specification.docx**
 on **August 2, 2026**.
 
@@ -27,7 +27,7 @@ CyanZone is a mobile-first, parent-supervised educational and interest-based soc
 - Required deployment target: Vercel for the Administration Portal and Express API/Vercel Functions.
 - Version control: Git with the GitHub `origin` repository.
 
-Gemini moderation, FCM push delivery, and verified Vercel deployment are not implemented yet. Private direct and group chat messages are intentionally excluded from AI moderation.
+The Gemini moderation workflow and authenticated Admin moderation queue are implemented in code. FCM push delivery and live Vercel/Supabase acceptance evidence remain pending. Private direct and group chat messages are intentionally excluded from AI moderation.
 
 ## Stable product rules
 
@@ -69,7 +69,7 @@ apps/mobile/lib/src/features/parent_child/
 - Normal users include teenagers, parents, and content creators. Teenagers are the primary audience; parent-only access begins after successful linking; verified creators remain normal users.
 - System Administrators operate the web Administration Portal and require moderation procedures and basic data-management knowledge, not an advanced technical background.
 - The documented development/test baseline is Windows 10/11 with Visual Studio Code, an Intel Core i5 or equivalent, 8 GB RAM, 256 GB SSD, an Android test phone, and stable internet access.
-- The required software baseline is represented by the stack above: Flutter/Dart, React/Vite/TypeScript/Tailwind, Node/Express/TypeScript, Supabase/PostgreSQL/Auth/RLS/Storage/Realtime, FCM, Gemini, Git/GitHub, and Vercel. FCM, Gemini, and Vercel remain pending as stated above.
+- The required software baseline is represented by the stack above: Flutter/Dart, React/Vite/TypeScript/Tailwind, Node/Express/TypeScript, Supabase/PostgreSQL/Auth/RLS/Storage/Realtime, FCM, Gemini, Git/GitHub, and Vercel. FCM and live deployment/acceptance evidence remain pending; Gemini is connected through the privileged API.
 
 ## SRS functional traceability
 
@@ -84,14 +84,14 @@ Status meanings:
 | F001 / REQ_F001 | Basic | User Authentication | **Implemented** | Mobile and administrator login, authenticated sessions, confirmation-based mobile and Administration Portal logout, and mobile password change with current-password reauthentication are implemented. New mobile registration passwords, changed passwords, and administrator bootstrap passwords require at least 12 characters with uppercase, lowercase, number, and non-whitespace symbol; `.` and `_` are accepted symbols. Existing passwords remain valid for login until changed. |
 | F002 / REQ_F002 | Basic | User Registration | **Partial** | The repository now contains required Terms and Privacy consent, version/timestamp metadata, one combined in-app legal page, centered six-cell email OTP verification/resend, an inline borderless Back action for wrong-email correction, pending-email recovery, confirmed-session activation gating, deferred public-profile creation, and confirmation-time rejection of missing current consent metadata. The user has confirmed real six-digit email delivery and verification through hosted Supabase/Brevo; the new migration and hosted activation state still require independent live verification. |
 | F003 / REQ_F003 | Basic | User Profile Management | **Implemented** | Own/other public profiles, own-profile editing, follow/unfollow, follower/following lists, public creator badge display, and database protection against self-following are present. Administrator assignment/removal of creator status remains under F011. |
-| F004 / REQ_F004 | Intermediate | Social Feed | **Partial** | Feed browsing, search, create/edit/soft-delete, selection of one to five predefined tags, `Others` fallback, image and text posts, profiles, saves/following views, and media flows are implemented. New and edited posts are not yet processed by the required Gemini publication workflow. UC004 must state one to five predefined tags, not exactly one tag. |
-| F005 / REQ_F005 | Intermediate | Post Engagement | **Partial** | Comments/replies, likes, saves, chat sharing, and private 14-day dislike hiding are implemented. Public comments are still missing Gemini moderation before publication. |
+| F004 / REQ_F004 | Intermediate | Social Feed | **Partial** | Feed browsing, search, create/edit/soft-delete, selection of one to five predefined tags, `Others` fallback, image and text posts, profiles, saves/following views, media flows, and server-side Gemini moderation for new/edited posts are implemented. Live Supabase migration, deployed API, and 20-second device acceptance evidence remain pending. UC004 must state one to five predefined tags, not exactly one tag. |
+| F005 / REQ_F005 | Intermediate | Post Engagement | **Partial** | Comments/replies, likes, saves, chat sharing, private 14-day dislike hiding, and server-side Gemini moderation for public comments are implemented. Live migration, deployed API, and device acceptance evidence remain pending. |
 | F006 / REQ_F006 | Intermediate | Content Reporting | **Implemented** | Users submit reason-only reports for public posts and comments. The repository report lifecycle is `pending_review` to `resolved` (Remove) or `dismissed` (Retain), with no separate Open/Reviewing state or reporter description. The Administration Portal groups cases by target, shows total/unique counts in a reason pie chart and legend, keeps two-line queue previews, and opens complete post evidence through the shared Post Detail viewer. `REPORT_REVIEW_THRESHOLD=1` is a testing convenience only and must be changed to `1000` before deployment. The destructive `report_flow_simplification.sql` migration is committed but has not been applied to the live Supabase project. |
-| F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Not implemented** | Moderation fields, pending/rejected UI states, post-appeal storage, rejected-post notifications, and a Pending-to-Approved publication-success notification foundation exist, but there is no Gemini route or worker. The below-40% approve, 40%-60% administrator review, above-60% reject, 20-second timeout, retry/failure behavior, and post/comment integration remain required. |
+| F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Partial** | The privileged API now performs structured Gemini text/image moderation for posts, edits, and public comments; persists revisioned results, risk scores, evidence, model/version, timestamps, and decision source; retries transient failures once; keeps content unpublished on failure; and routes 40%-60% cases to the authenticated Admin review queue. Mobile and Admin clients consume the real case/status APIs. Live `ai_moderation.sql`, Gemini/Vercel configuration, and final 20-second/device acceptance evidence remain required. |
 | F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Server-authoritative parent/child linking, role enforcement, role dashboards, foreground CyanZone screen-time tracking and threshold events, location-aware Check-In, foreground-only 10-second live SOS location, OpenStreetMap detail maps, multi-parent acknowledgement/timeline/resolution, safety records, dedicated realtime supervision notifications, and two-party unlink request/accept/reject flows are implemented in the repository. The updated `parent_supervision.sql` must be rerun on Supabase. Password reauthentication for unlink, former-link historical-record authorization, remote inspection, and multi-account/physical-device acceptance remain incomplete or unverified. |
 | F009 / REQ_F009 | Intermediate | Real-Time Communication | **Partial** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. Message requests are intentionally hidden from active mobile loading and UI while their existing data and backend foundation remain dormant. Active direct-chat entry and every new direct-message send require a current follow relationship in either direction, and group-member candidates/validation are limited to Followers and Following. Existing accepted conversations and history remain readable after both users unfollow, but their composer is blocked. The user applied the previous `chat.sql`; the updated follow-only functions still require live reapplication and verification. |
-| F010 / REQ_F010 | Intermediate | Notifications | **Partial** | Activity, New Followers, and System notification rows/counts refresh through foreground Supabase Realtime even before their section is opened. Per-section/conversation unread counts, the total Messaging-tab badge, preferences, compact structured System details, and notification-side one-final-appeal handling for administrator-rejected AI-flagged or report-removed posts are implemented. Verified creator assignment/removal, creator-request decisions with administrator feedback, Pending-to-Approved publication, reported-content removal, and appeal-outcome notification foundations exist. The current AI-Flagged portal queue is still isolated mock data and cannot create a real rejection notification until the Gemini/admin moderation integration replaces it. Retaining reported content intentionally sends no author notification. FCM background/closed-app delivery and Pending Administrator Review feedback remain missing. |
-| F011 / REQ_F011 | Advanced | Administration Portal | **Partial** | The functional portal includes Overview, Users, Creator Requests, grouped Reports, Appeals, and a production-facing AI-Flagged Content workflow with confirmations. Assign Creator, Retain Content, and AI Approve do not require manual reasons; Creator Request rejection, Remove Creator, Remove Content, AI Reject, and both Appeal actions require 10-500 characters. Reason-free persisted actions receive stable internal audit text. Users excludes administrator profiles at the API query boundary and currently exposes creator decisions only. AI-Flagged data is still isolated locally; Gemini and the real AI queue remain deferred. |
+| F010 / REQ_F010 | Intermediate | Notifications | **Partial** | Activity, New Followers, and System notification rows/counts refresh through foreground Supabase Realtime even before their section is opened. Per-section/conversation unread counts, the total Messaging-tab badge, notification preferences, compact structured System details, notification-side one-final-appeal handling, and Gemini moderation outcome foundations are implemented. FCM background/closed-app delivery and final live moderation acceptance remain missing. Retaining reported content intentionally sends no author notification. |
+| F011 / REQ_F011 | Advanced | Administration Portal | **Partial** | The functional portal includes Overview, Users, Creator Requests, grouped Reports, Appeals, and an authenticated API-backed AI-Flagged Content queue/detail/decision workflow. Assign Creator, Retain Content, and AI Approve do not require manual reasons; Creator Request rejection, Remove Creator, Remove Content, AI Reject, and both Appeal actions require 10-500 characters. Reason-free persisted actions receive stable internal audit text. Users excludes administrator profiles at the API query boundary. Live deployment and acceptance evidence remain pending. |
 
 ## Current mobile implementation
 
@@ -116,7 +116,8 @@ Implemented:
 
 Important SRS boundary:
 
-- Current post/comment schema defaults and client operations are prototype foundations, not completed AI moderation.
+- New and edited public posts and public comments now go through the server-side Gemini workflow before publication. Private chat is excluded.
+- Live Supabase migration/application, API deployment, and final acceptance evidence are still separate release steps.
 - Registration consent and OTP UX remain required under F002.
 
 ### Chat module
@@ -234,6 +235,11 @@ POST /admin/report-cases/:targetType/:targetId/decision
 GET  /admin/appeals
 GET  /admin/appeals/:appealId
 POST /admin/appeals/:appealId/decision
+GET  /admin/moderation-cases
+GET  /admin/moderation-cases/:caseId
+POST /admin/moderation-cases/:caseId/decision
+POST /moderation/posts/:postId
+POST /moderation/comments/:commentId
 ```
 
 All `/admin/*` casework routes require a valid bearer session belonging to an
@@ -241,7 +247,12 @@ active administrator. Administrator decisions require a 10-500 character
 reason. Administrator bootstrap rejects passwords that do not meet the same
 12-character uppercase/lowercase/number/symbol policy used by the mobile app.
 
-`GEMINI_API_KEY` is optional in the current code only because moderation routes do not exist. SRS completion requires server-side Gemini credentials and moderation endpoints/workers with structured validation, timeouts, retries, and audit logging.
+`GEMINI_API_KEY` is read only by the privileged Express API. `GEMINI_MODEL` and
+`GEMINI_TIMEOUT_MS` control the configured model and bounded request timeout.
+The API validates structured Gemini output, sends trusted post images as
+multimodal inputs, retries transient provider failures once, and records the
+revisioned moderation result before publication. The key must never be placed
+in Flutter, React, Supabase client configuration, or the repository.
 
 ### Administration Portal
 
@@ -256,7 +267,7 @@ Implemented:
 - Creator Request Pending/Approved/Rejected queues reuse the exact Users recent-post carousel, placeholder, and Post Detail viewer alongside profile evidence and confirmed approval/rejection. Administrator decision text is carried into the applicant's structured verification notification.
 - Grouped Report queues for Pending Review, Resolved, and Dismissed with two-line target previews, visibility evidence, a horizontal report-reason pie chart/legend, post-only **View Post >** access to the shared Post Detail viewer, inline comment evidence, and confirmed Retain/Remove decisions. Retain requires no manual reason and sends no author notification; Remove requires a 10-500 character reason and sends the existing removal notification. The current `REPORT_REVIEW_THRESHOLD=1` is for functional testing; set it to `1000` before deployment.
 - Appeal Pending/Approved/Rejected queues support administrator-rejected AI-flagged and report-removed posts, preserve original moderation evidence, allow one owner-only mobile submission, and enforce the administrator outcome as final. Both administrator actions require a 10-500 character reason and send an outcome notification; only the original eligible moderation notification shows appeal status/action.
-- AI-Flagged Content uses normal production-facing queue/detail/status/score/decision wording, count-free queue tabs, and confirmation dialogs. Approve requires no manual reason; Reject requires a 10-500 character reason. Its six-case adapter/data remains isolated locally and does not create real notifications.
+- AI-Flagged Content uses the authenticated API-backed queue/detail/status/score/decision workflow, count-free queue tabs, and confirmation dialogs. Approve requires no manual reason; Reject requires a 10-500 character reason. Decisions are persisted through the service-role API and feed the existing moderation notification foundations.
 
 Reason-free persisted Assign Creator and Retain Content requests are converted by
 the API service to stable internal audit reasons before the existing non-null SQL
@@ -264,16 +275,8 @@ audit boundary. The real moderation foundation also creates a publication-succes
 System notification only when a post changes specifically from `pending` to
 `approved`, avoiding duplicate generic messages for approved appeals.
 
-The AI preview must be replaced, not extended, when Gemini integration begins.
-Delete or replace these temporary files:
-
-```text
-apps/admin/src/features/aiFlagged/aiFlaggedMockData.ts
-apps/admin/src/features/aiFlagged/aiFlaggedMockAdapter.ts
-```
-
-Keep the reusable UI/types only after reconnecting them to the authenticated
-Admin API and real moderation records.
+The temporary AI preview files were removed. The remaining reusable UI/types are
+connected to the authenticated Admin API and real moderation records.
 
 ### Supabase
 
@@ -294,11 +297,18 @@ supabase/comment_moderation.sql
 supabase/comment_mentions.sql
 supabase/chat.sql
 supabase/admin_portal.sql
+supabase/ai_moderation.sql
 ```
 
 The `images` bucket stores post and chat images. Deleted posts, unsent image messages, and final-member group deletion should clean up related objects.
 
 Before relying on a live Supabase project, apply and verify the current SQL in the documented order. Repository SQL does not prove the remote database is current, and notification triggers do not backfill historical events.
+
+For an existing project, run `supabase/ai_moderation.sql` after
+`admin_portal.sql`. Fresh projects receive the matching base objects from
+`schema.sql`; still run the incremental script so RPCs, RLS, and indexes are
+present. The API cannot moderate successfully until this migration and the
+server-only Gemini environment variables are configured.
 
 ## Required implementation to-do list
 
@@ -317,22 +327,23 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 ### 2. AI moderation and public-content publication
 
 - [x] Allow one to five predefined tags on post creation/editing and use `Others` when no listed topic fits; predefined tag administration remains out of scope.
-- [ ] Define the versioned moderation request/response schema for text, images, combined posts, and comments.
-- [ ] Implement server-side Gemini calls; never expose the Gemini key to Flutter or React.
-- [ ] Enforce SRS thresholds: below 40% approve, 40%-60% inclusive queue for administrator review, and above 60% reject.
-- [ ] Keep new posts, edited posts, and public comments unpublished until moderation finishes.
-- [ ] Complete the initial assessment within 20 seconds under normal conditions; on timeout/failure keep content unpublished and show retry/error feedback.
-- [ ] Add bounded retry handling and idempotency so repeated submissions do not duplicate content or decisions.
-- [ ] Persist risk score, evidence/reason, status, timestamps, model/version, and decision source for audit.
-- [ ] Connect the implemented Approved/Rejected notification foundations and add Pending Administrator Review feedback through the real Gemini workflow.
-- [ ] Add text, image, combined-content, comment, timeout, quota, malformed-response, and retry tests.
+- [x] Define the versioned moderation request/response schema for text, images, combined posts, and comments.
+- [x] Implement server-side Gemini calls; never expose the Gemini key to Flutter or React.
+- [x] Enforce SRS thresholds: below 40% approve, 40%-60% inclusive queue for administrator review, and above 60% reject.
+- [x] Keep new posts, edited posts, and public comments unpublished until moderation finishes.
+- [x] Complete the initial assessment within a bounded timeout; on timeout/failure keep content unpublished and show retry/error feedback.
+- [x] Add bounded retry handling and idempotency so repeated submissions do not duplicate content or decisions.
+- [x] Persist risk score, evidence/reason, status, timestamps, model/version, and decision source for audit.
+- [x] Connect the implemented Approved/Rejected notification foundations and Pending Administrator Review feedback through the real Gemini workflow.
+- [x] Add text, image, combined-content, comment, timeout, quota, malformed-response, and retry tests.
+- [ ] Run the live Supabase migration, deploy the API/Admin clients, and capture final 20-second/device acceptance evidence.
 
 ### 3. Reporting, appeals, and Administration Portal
 
 - [x] Prevent the same user from creating multiple unresolved reports for the same post/comment in repository SQL.
 - [x] Group the queue by post/comment target without automatic removal; use `REPORT_REVIEW_THRESHOLD=1` only for functional testing and change it to `1000` before deployment.
 - [x] Simplify report storage to reason-only `pending_review`, `resolved`, and `dismissed` records; commit the manual migration without applying it remotely.
-- [ ] Replace the temporary AI-Flagged Content mock adapter/data with Gemini-backed moderation records and authenticated API reads/decisions.
+- [x] Replace the temporary AI-Flagged Content mock adapter/data with Gemini-backed moderation records and authenticated API reads/decisions.
 - [x] Build the User-Reported Content queue with total/unique counts, a reason pie chart/legend, two-line content previews, shared post evidence, inline comment evidence, and Retain/Remove actions.
 - [x] Record moderator identity, decision, reason, and timestamps; update public visibility atomically.
 - [x] Build the Content Appeals queue/detail and Approve/Reject workflow.
@@ -538,6 +549,35 @@ npm run build
   and appeal-state changes have automated regression coverage but have not yet
   been re-captured side by side in the user's selected browser/device surface.
 
+Latest focused Gemini moderation verification was run directly in the user's
+PowerShell environment on **September 6, 2026**:
+
+```powershell
+cd services/api
+npx tsx --test src/config/env.test.ts src/moderation/geminiModerationGateway.test.ts src/moderation/moderationAuth.test.ts src/moderation/moderationRepository.test.ts src/moderation/moderationService.test.ts src/moderation/moderationRouter.test.ts src/admin/adminModeration.test.ts src/index.test.ts
+npm run typecheck
+npm run build
+
+cd ../../apps/admin
+npm test -- --run src/features/aiFlagged/AiFlaggedContentPage.test.tsx src/lib/adminApi.test.ts
+npm run typecheck
+npm run build
+
+cd ../mobile
+flutter test test/http_content_moderation_gateway_test.dart test/content_moderation_scope_test.dart test/widget_test.dart --reporter compact
+flutter analyze lib/src/core/config/api_config.dart lib/src/features/posts
+```
+
+Observed:
+
+- Express API moderation/auth/repository/service/router/admin/index tests,
+  typecheck, and production build passed.
+- Admin moderation queue/API tests, typecheck, and production build passed;
+  Vite reported only the existing large-chunk advisory.
+- Focused mobile moderation gateway/scope/widget tests and scoped analyzer
+  passed. The full mobile repository test file still contains one unrelated
+  brittle report-ID assertion and was not used as moderation evidence.
+
 Not covered by this verification:
 
 - Live Supabase migration/application state. The user reports that the previous
@@ -546,7 +586,9 @@ Not covered by this verification:
   `parent_supervision.sql` and `chat.sql` must be rerun. Local SQL contract regressions validate
   repository text and behavior contracts but do not prove that hosted tables,
   functions, triggers, grants, RLS policies, and Realtime publication match it.
-- Gemini moderation or FCM, because they are not implemented.
+- Live Gemini/Supabase configuration, Vercel deployment, FCM, or final device
+  acceptance. The API code and client integrations are implemented, but hosted
+  configuration and acceptance evidence are still required.
 - Android physical-device location, background/terminated notification, or full screen-size acceptance. The latest OTP build was installed on the Android 16 device, but its pixel comparison remains pending because the device was locked during capture.
 - Latest Chrome and Edge acceptance outside the in-app browser.
 - Vercel deployment.
@@ -556,20 +598,20 @@ Not covered by this verification:
 
 - Start by reading this file; it is the canonical project and SRS-delivery handover. Use `docs/superpowers/plans/2026-08-02-realtime-system-notifications-and-appeals.md` for the detailed history of the completed notification/admin revisions.
 - Parent Supervision now includes foreground-only 10-second live SOS tracking, latest-point storage, multi-parent acknowledgement events, the live SOS timeline, per-parent Acknowledge-to-Resolve actions, resolve confirmation, and reusable OpenStreetMap views for SOS and Check-In details. The repository implementation is on `feature/AI-Moderation`; rerun the complete updated `supabase/parent_supervision.sql` before live testing.
-- The latest local notification work is complete through the post-publication brief revision. `Your post has completed moderation review.` is the brief; the publication result is shown alone in the white System detail card. Rejected-post details use `View post` above `Admin:`, and future AI risk-score/evidence UI remains documentation-only.
+- The latest local notification work is complete through the post-publication brief revision. `Your post has completed moderation review.` is the brief; the publication result is shown alone in the white System detail card. Rejected-post details use `View post` above `Admin:`. Gemini evidence is now persisted by the API and available to the Admin moderation detail; mobile still keeps private chat outside moderation.
 - The user reports that the previous `supabase/parent_supervision.sql`, `supabase/chat.sql`, and `supabase/admin_portal.sql` were applied. Before live acceptance, rerun the newly updated complete `supabase/parent_supervision.sql` and `supabase/chat.sql`; repository files and local tests alone do not update or verify Supabase.
 - Message requests are now hidden/dormant. The Messages screen does not load or show them, and active profile/search/follower actions use `open_direct_conversation`, which requires a follow row in either direction. Existing accepted chat history remains readable after both users unfollow, while the Messages preview and chat-room composer become follow-required and `send_chat_message` rejects new direct messages.
 - The creator-application UI still says 10,000 followers and does not enforce the threshold. The approved MVP/UAT target is 2 followers; update the mobile copy and authoritative submission enforcement in a later implementation slice, align the source SRS when it is available, then revisit the production threshold after UAT.
-- Registration consent/OTP is implemented in the repository, including the combined legal page, centered six-cell OTP input, inline borderless Back action, and the existing resend/recovery behavior. The user has confirmed real six-digit Supabase/Brevo email delivery and verification. The remaining F002 boundary is running/verifying `supabase/registration_consent_otp.sql`, independently checking hosted activation state, and completing the OTP screen pixel comparison after the device is unlocked. Real Gemini moderation and the approved 2-follower MVP/UAT creator gate also remain pending. Do not report any unverified boundary as complete.
+- Registration consent/OTP is implemented in the repository, including the combined legal page, centered six-cell OTP input, inline borderless Back action, and the existing resend/recovery behavior. The user has confirmed real six-digit Supabase/Brevo email delivery and verification. The remaining F002 boundary is running/verifying `supabase/registration_consent_otp.sql`, independently checking hosted activation state, and completing the OTP screen pixel comparison after the device is unlocked. The approved 2-follower MVP/UAT creator gate and live Gemini/Vercel acceptance remain pending. Do not report any unverified boundary as complete.
 - The user will perform the final non-functional acceptance evidence after all implementation work is complete.
 - Run all terminal commands directly in the user's PowerShell environment outside the Codex sandbox and use `apply_patch` for manual edits.
 
 ## Recommended implementation order
 
-Immediate implementation sequence updated on September 3, 2026:
+Immediate implementation sequence updated on September 6, 2026:
 
 1. Complete F002 registration consent, email OTP, and activation conformance.
-2. Implement F007 real Gemini moderation, replace the two AI mock files, and connect the real AI-flagged queue to the protected Admin API.
+2. Configure and verify the implemented F007 Gemini workflow in Supabase and Vercel, then capture the required acceptance evidence.
 3. Add FCM push delivery, notification preferences, and safe deep links.
 
 Before MVP/UAT completion:

@@ -3,10 +3,10 @@
 ## Required Accounts
 
 - Supabase project
-- Google AI Studio or Google Cloud access for Gemini when AI moderation is implemented
+- Google AI Studio or Google Cloud access for the Gemini API
 
-Gemini moderation is planned for both text and images, but it is not connected
-yet. The current application can run without a Gemini API key.
+Gemini moderation is connected for public posts, edited posts, and public
+comments. Private chat is intentionally excluded.
 
 ## Supabase Connection Values
 
@@ -18,8 +18,7 @@ Find these in Supabase project settings:
 
 Use the anon key in Flutter and React. Use the service role key only in the Express API.
 
-Future Gemini credentials must also be stored only in the Express API
-environment.
+Gemini credentials must also be stored only in the Express API environment.
 
 ## Storage Buckets
 
@@ -52,7 +51,8 @@ by the current mobile app. At minimum, the live project should include:
 7. `supabase/comment_mentions.sql`
 8. `supabase/chat.sql`
 9. `supabase/admin_portal.sql`
-10. `supabase/report_flow_simplification.sql` for an existing database only
+10. `supabase/ai_moderation.sql`
+11. `supabase/report_flow_simplification.sql` for an existing database only
 
 The latest `chat.sql` is required for group-chat mentions and current System
 notifications. Run it manually in the Supabase SQL Editor after updating the
@@ -67,6 +67,12 @@ script.
 table, duplicate unresolved-report guard, administrator appeal access, and the
 transactional RPCs used for account, creator, request, report, and appeal
 decisions. Inspect and resolve any SQL Editor error before using the portal.
+
+`ai_moderation.sql` must run after `admin_portal.sql` for an existing project.
+It creates the moderation-case table, revisioned result storage, RLS, and the
+service-role preparation/result/decision RPCs used by the Express API. Run the
+complete file; do not copy only one function. Fresh projects still need the
+incremental file so the RPCs, policies, and indexes are present.
 
 Fresh projects use the simplified report schema already present in `schema.sql`
 and `admin_portal.sql`. For an existing database that still has Open/Reviewing
@@ -87,7 +93,8 @@ do not backfill old Activity/New Followers rows.
   foundations. Retaining reported content intentionally sends no notification.
 - External FCM/APNs push delivery is deferred to the next notification phase.
 - Chat messages are not sent to Gemini moderation.
-- `GEMINI_API_KEY` remains optional until post/comment moderation is connected.
+- `GEMINI_API_KEY` is required by the API moderation routes and must remain
+  server-side. `GEMINI_MODEL` and `GEMINI_TIMEOUT_MS` are optional API overrides.
 
 ## Local Tooling
 
@@ -117,6 +124,9 @@ SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 ADMIN_BOOTSTRAP_SECRET=replace-with-long-random-secret
 REPORT_REVIEW_THRESHOLD=1
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-3.8-flash
+GEMINI_TIMEOUT_MS=8500
 ```
 
 `REPORT_REVIEW_THRESHOLD` counts unique reporters per post/comment target.
@@ -156,6 +166,35 @@ flutter analyze
 ```
 
 The Admin Portal requires an authenticated active administrator. Apply the
-appropriate SQL sequence before testing real casework. AI-Flagged Content uses
-production-facing wording, but its isolated local adapter/data still does not
-read or write Supabase until Gemini integration replaces it.
+appropriate SQL sequence before testing real casework. AI-Flagged Content now
+reads and writes real moderation cases through the privileged API.
+
+## Vercel deployment
+
+Deploy the Express API and Admin Portal only after the local checks pass:
+
+1. Import the GitHub repository into Vercel.
+2. Create an API project with root directory `services/api`. Vercel should use
+   the Express entry point; no static output directory is needed.
+3. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_BOOTSTRAP_SECRET`,
+   `REPORT_REVIEW_THRESHOLD`, `GEMINI_API_KEY`, `GEMINI_MODEL`, and
+   `GEMINI_TIMEOUT_MS` to the Preview and Production environments.
+4. Deploy and verify `https://<api-domain>/health` returns a healthy response.
+5. Set the Admin `VITE_API_BASE_URL` to the API domain and rebuild/redeploy the
+   Admin Portal.
+6. Set the mobile `API_BASE_URL` to the API domain before the release build.
+
+Never put the service-role key or Gemini key in Admin/mobile variables. After
+deployment, verify one approved, one administrator-review, one rejected, and
+one retry/failure moderation path with test content; also verify that the
+Supabase moderation rows and Admin decision remain linked.
+
+## Live SQL and deployment verification
+
+This means checking the deployed Supabase objects and deployed API, not checking
+whether chat history is consistent. In the Supabase SQL Editor, confirm
+`content_moderation_cases` exists, the four moderation RPCs exist, RLS/policies
+are enabled, and the API can create a case. In Vercel, confirm `/health`, an
+authenticated moderation request, and an Admin decision. Repository tests prove
+the code contract only; they cannot prove the hosted database or environment
+variables are current.

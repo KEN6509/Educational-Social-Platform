@@ -8,7 +8,7 @@ AI-Assisted Parent-Supervised Educational Social Platform for Teenagers.
 - Admin dashboard: React, TypeScript, Tailwind
 - Backend service: Node.js, Express
 - Backend platform: Supabase Auth, PostgreSQL, Storage, Realtime
-- Planned AI moderation: Gemini for text and images
+- AI moderation: Google Gemini for public text and image posts/comments
 
 ## Workspace Structure
 
@@ -17,7 +17,7 @@ apps/
   mobile/       Flutter mobile app for teenagers, parents, and creators
   admin/        React admin dashboard
 services/
-  api/          Express API for privileged operations and future Gemini moderation
+  api/          Express API for privileged operations and Gemini moderation
 supabase/
   auth.sql      Phase 3 auth trigger and admin policies
   README.md     Supabase setup guide
@@ -36,7 +36,8 @@ docs/
 5. Run `supabase/schema.sql` in the Supabase SQL editor to create database tables.
 6. Run `supabase/auth.sql` in the Supabase SQL editor to enable profile auto-create.
 7. Apply the incremental SQL required by current modules, especially
-   `follow.sql`, `comment_mentions.sql`, and `chat.sql`; see `docs/setup.md`.
+   `follow.sql`, `comment_mentions.sql`, `chat.sql`, `admin_portal.sql`, and
+   `ai_moderation.sql`; see `docs/setup.md`.
 8. Install dependencies for each app when local tooling is available.
 
 ## Applications
@@ -62,8 +63,11 @@ npm install
 npm run dev
 ```
 
-`GEMINI_API_KEY` is optional until the Gemini moderation workflow is
-implemented. The current health and admin-bootstrap routes do not require it.
+The moderation routes require `GEMINI_API_KEY` in the Express API environment.
+`GEMINI_MODEL` and `GEMINI_TIMEOUT_MS` are optional overrides. Keep all Gemini
+credentials server-side; never put them in Flutter, React, Supabase client
+configuration, or source control. Health and admin-bootstrap routes do not
+call Gemini.
 
 Create the first admin after running `supabase/auth.sql`.
 
@@ -109,7 +113,9 @@ CyanZone prioritizes a polished prototype over broad unfinished scope:
 
 - Supabase-backed in-app chat notifications and badges are implemented.
 - External Android/iOS push delivery is not implemented yet.
-- Gemini text/image moderation is selected but not connected yet.
+- Gemini text/image moderation is connected through the privileged API and the
+  mobile/Admin clients. Live Supabase migration, Vercel environment setup, and
+  final acceptance evidence are still required.
 - Chat is intentionally excluded from AI moderation.
 - Parent-child linking and supervision flows remain incomplete and are a next
   implementation priority.

@@ -399,9 +399,8 @@ live generation, use a test account and create a new state transition after
 applying the SQL: change `is_content_creator` from false to true, change a post
 from a non-rejected status to `rejected`, or change a post specifically from
 `pending` to `approved`. Re-saving the same final state does not create another
-notification. The Administration Portal AI queue remains an isolated local
-adapter and does not create database notifications until the real moderation
-workflow replaces it.
+notification. The Administration Portal AI queue now reads and writes real
+moderation cases through the privileged API.
 
 ### Administration Portal
 
@@ -441,6 +440,48 @@ Expected results:
 
 - `to_regclass` returns `public.admin_action_audit`.
 - The routine query returns five rows.
+
+### Gemini moderation
+
+Run `ai_moderation.sql` after `admin_portal.sql` for an existing project. The
+complete migration creates `content_moderation_cases`, revisioned moderation
+results, RLS policies, and the service-role RPCs used by the Express API:
+
+- `prepare_content_moderation`
+- `apply_ai_moderation_result`
+- `mark_content_moderation_failed`
+- `decide_content_moderation_case`
+
+It is designed to be rerun: table/index/policy creation is guarded and the
+functions are replaced with their current definitions. Inspect any SQL Editor
+error before retrying. The Gemini key is configured only in the API environment;
+Supabase does not call Gemini directly.
+
+Verify the hosted objects:
+
+```sql
+select to_regclass('public.content_moderation_cases');
+
+select routine_name
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name in (
+    'prepare_content_moderation',
+    'apply_ai_moderation_result',
+    'mark_content_moderation_failed',
+    'decide_content_moderation_case'
+  )
+order by routine_name;
+
+select relname, relrowsecurity
+from pg_class
+where oid = 'public.content_moderation_cases'::regclass;
+```
+
+Expected results are one `content_moderation_cases` table, four routine rows,
+and `relrowsecurity = true`. This is live SQL verification: it checks the
+deployed database objects, RLS, and API prerequisites. It is unrelated to chat
+history consistency.
 
 ### Chat activity notification triggers
 
