@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'registration_controller.dart';
+import 'registration_otp_field.dart';
 
 class EmailOtpPanel extends StatelessWidget {
   const EmailOtpPanel({
@@ -43,49 +43,45 @@ class EmailOtpPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                tooltip: 'Change email',
-                onPressed: isBusy ? null : onBack,
-                icon: const Icon(Icons.arrow_back_rounded),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Verify your email',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: const Color(0xFF0B1F3E),
-                    fontWeight: FontWeight.w900,
+            Row(
+              key: const ValueKey('registration-otp-header'),
+              children: [
+                IconButton(
+                  tooltip: 'Change email',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
                   ),
+                  onPressed: isBusy ? null : onBack,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Enter the 6-digit code',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: const Color(0xFF0B1F3E),
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
-              'Enter the 6-digit code sent to ${state.pendingEmail ?? ''}.',
+              'We sent a verification code to ${state.pendingEmail ?? ''}.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: const Color(0xFF536A74),
                     height: 1.4,
                   ),
             ),
             const SizedBox(height: 18),
-            TextField(
-              key: const ValueKey('registration-otp-field'),
+            RegistrationOtpField(
               controller: tokenController,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
               enabled: !isBusy,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(6),
-              ],
-              autofillHints: const [AutofillHints.oneTimeCode],
-              decoration: const InputDecoration(
-                labelText: 'Verification code',
-                prefixIcon: Icon(Icons.password_rounded),
-              ),
               onChanged: onTokenChanged,
-              onSubmitted: (value) =>
-                  value.trim().length == 6 && !isBusy ? onVerify() : null,
+              onSubmitted: (_) => onVerify(),
             ),
             if (state.message != null) ...[
               const SizedBox(height: 14),

@@ -153,7 +153,23 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Verify your email'), findsOneWidget);
+    expect(find.text('Enter the 6-digit code'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('registration-otp-cells')),
+      findsOneWidget,
+    );
+    final headingRow = find.ancestor(
+      of: find.text('Enter the 6-digit code'),
+      matching: find.byKey(const ValueKey('registration-otp-header')),
+    );
+    expect(headingRow, findsOneWidget);
+    expect(
+      find.descendant(
+        of: headingRow,
+        matching: find.byTooltip('Change email'),
+      ),
+      findsOneWidget,
+    );
     expect(find.textContaining('ming@example.com'), findsOneWidget);
     expect(authGateway.registrationRequest?.name, 'Ming Jiang');
     expect(authGateway.registrationRequest?.termsVersion, '1.0');
@@ -275,7 +291,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Verify your email'), findsOneWidget);
+    expect(find.text('Enter the 6-digit code'), findsOneWidget);
     expect(find.textContaining('child@example.com'), findsOneWidget);
     expect(find.text('Verify your email before logging in.'), findsOneWidget);
   });
