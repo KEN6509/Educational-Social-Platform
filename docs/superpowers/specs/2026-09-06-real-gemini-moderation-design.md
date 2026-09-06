@@ -188,6 +188,7 @@ Add `content_moderation_cases` with one logical case per target revision:
 - structured evidence and user-safe reason;
 - provider, model, and prompt version;
 - AI attempt count, failure code, and failure message suitable for operations;
+- a per-attempt claim token and short processing lease expiry;
 - AI decision source or administrator decision source;
 - administrator ID, reason, and decision time when applicable;
 - created, started, completed, and updated timestamps.
@@ -196,6 +197,13 @@ A unique target-type, target-ID, and revision constraint provides idempotency.
 The target row keeps the final score and reason fields already used by feeds,
 notifications, reports, and appeals; the case table retains the richer audit
 history.
+
+Preparing a case creates a random claim token and a 30-second processing lease.
+A duplicate request received during a live lease returns the current processing
+state without calling Gemini. After the lease expires, a retry may issue a new
+claim token and continue the same case. Result and failure functions require the
+current token, so a late response from an older Vercel invocation cannot
+overwrite a reclaimed attempt.
 
 Direct client writes to moderation authority fields are blocked. Security-
 definer database functions claim a revision and apply AI or administrator
@@ -290,7 +298,9 @@ Completed tabs are read-only.
 - Missing image, unsupported MIME type, or provider failure to read a trusted
   Storage URL: keep unpublished and report a recoverable moderation failure.
 - Duplicate request for a processing revision: return the current processing
-  case rather than starting a second Gemini call.
+  case rather than starting a second Gemini call while its lease is live.
+- Processing invocation terminated: permit a same-case retry after the
+  30-second lease expires and invalidate the previous claim token.
 - Duplicate request for a completed revision: return its stored result.
 - Content edited during moderation: mark the old case superseded; never apply
   its result to the new revision.
