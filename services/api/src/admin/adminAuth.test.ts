@@ -24,6 +24,7 @@ function createTestDependencies(
     createAdministrator: async () => ({ id: 'created-admin' }),
     upsertAdministratorProfile: async () => undefined,
     protectedAdminRouter,
+    moderationRouter: Router(),
     verifyAdmin,
   };
 }

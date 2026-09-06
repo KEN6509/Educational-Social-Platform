@@ -67,6 +67,9 @@ export type ModerationCase = {
   state: ModerationCaseState;
   claimToken: string | null;
   attemptCount: number;
+  riskScore?: number | null;
+  reason?: string | null;
+  shouldProcess?: boolean;
 };
 
 export type PersistedModerationResult = ModerationProviderResult & {

@@ -19,6 +19,7 @@ export type AppDependencies = {
     input: CreateAdministratorInput & { id: string },
   ) => Promise<void>;
   protectedAdminRouter: Router;
+  moderationRouter: Router;
   verifyAdmin: VerifyAdmin;
 };
 
@@ -30,6 +31,7 @@ export function createApp(dependencies: AppDependencies) {
   app.use(express.json({ limit: '2mb' }));
 
   app.use('/admin', createAdminRouter(dependencies));
+  app.use('/moderation', dependencies.moderationRouter);
   app.use('/health', healthRouter);
 
   app.use(

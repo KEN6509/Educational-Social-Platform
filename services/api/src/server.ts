@@ -11,6 +11,21 @@ import {
   createSupabaseAdminRequestClient,
   supabaseAdmin,
 } from './lib/supabase.js';
+import {
+  createVerifyMember,
+  type MemberAuthSource,
+} from './moderation/moderationAuth.js';
+import {
+  createModerationRepository,
+  type ModerationSupabaseClient,
+} from './moderation/moderationRepository.js';
+import { GeminiModerationGateway } from './moderation/geminiModerationGateway.js';
+import {
+  createModerationService,
+  ModerationProviderFailureError,
+} from './moderation/moderationService.js';
+import { createModerationRouter } from './moderation/moderationRouter.js';
+import { ModerationProviderError } from './moderation/moderationTypes.js';
 import { AdminBootstrapError } from './routes/admin.js';
 
 const adminAuthSource: AdminAuthSource = {
@@ -61,6 +76,51 @@ const protectedAdminRouter = createProtectedAdminRouter({
     ),
 });
 
+const memberAuthSource: MemberAuthSource = {
+  getUser: async (token) => {
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data.user) return null;
+    return { id: data.user.id, email: data.user.email ?? null };
+  },
+  getProfile: async (userId) => {
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email, is_admin, account_status')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    return {
+      id: data.id,
+      email: data.email,
+      isAdmin: data.is_admin,
+      accountStatus: data.account_status,
+    };
+  },
+};
+
+const moderationProvider = env.GEMINI_API_KEY
+  ? new GeminiModerationGateway({
+      apiKey: env.GEMINI_API_KEY,
+      model: env.GEMINI_MODEL,
+      timeoutMs: env.GEMINI_TIMEOUT_MS,
+    })
+  : {
+      moderate: async () => {
+        throw new ModerationProviderError('Gemini moderation is not configured.');
+      },
+    };
+
+const moderationRouter = createModerationRouter({
+  verifyMember: createVerifyMember(memberAuthSource),
+  service: createModerationService(
+    createModerationRepository(
+      supabaseAdmin as unknown as ModerationSupabaseClient,
+    ),
+    moderationProvider,
+  ),
+});
+
 const app = createApp({
   bootstrapSecret: env.ADMIN_BOOTSTRAP_SECRET,
   countAdministrators: async () => {
@@ -109,6 +169,7 @@ const app = createApp({
     }
   },
   protectedAdminRouter,
+  moderationRouter,
   verifyAdmin: createVerifyAdmin(adminAuthSource),
 });
 

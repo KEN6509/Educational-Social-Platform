@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { Router } from 'express';
 import request from 'supertest';
 
 import { createApp, type AppDependencies } from '../app.js';
@@ -84,6 +85,7 @@ function createDependencies(
     protectedAdminRouter: createProtectedAdminRouter({
       createService: () => service,
     }),
+    moderationRouter: Router(),
     verifyAdmin: async () => ({
       id: 'admin-id',
       email: 'admin@cyanzone.test',

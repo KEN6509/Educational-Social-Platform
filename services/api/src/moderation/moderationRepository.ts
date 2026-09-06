@@ -167,6 +167,9 @@ function mapRpcCase(result: { data: unknown; error: { message: string } | null }
     state: row.state as ModerationCase['state'],
     claimToken: typeof row.claim_token === 'string' ? row.claim_token : null,
     attemptCount: Number(row.attempt_count ?? 0),
+    riskScore: typeof row.overall_risk_score === 'number' ? row.overall_risk_score : null,
+    reason: typeof row.user_reason === 'string' ? row.user_reason : null,
+    shouldProcess: row.should_process === true,
   };
 }
 

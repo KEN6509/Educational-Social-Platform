@@ -329,13 +329,13 @@ begin
 
   if found then
     if v_case.state in ('approved', 'rejected', 'admin_review') then
-      return to_jsonb(v_case);
+      return to_jsonb(v_case) || jsonb_build_object('should_process', false);
     end if;
 
     if v_case.state = 'processing'
       and coalesce(v_case.lease_expires_at, now()) > now()
     then
-      return to_jsonb(v_case);
+      return to_jsonb(v_case) || jsonb_build_object('should_process', false);
     end if;
 
     if v_case.state = 'failed'
@@ -377,7 +377,7 @@ begin
     returning * into v_case;
   end if;
 
-  return to_jsonb(v_case);
+  return to_jsonb(v_case) || jsonb_build_object('should_process', true);
 end;
 $$;
 
