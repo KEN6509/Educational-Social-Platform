@@ -257,6 +257,40 @@ export type AppealDecisionInput = {
   reason: string;
 };
 
+export type AiModerationTab = 'pending' | 'approved' | 'rejected';
+
+export type AiModerationCaseView = {
+  id: string;
+  targetType: 'post' | 'comment';
+  targetId: string;
+  moderationRevision: number;
+  authorName: string;
+  authorEmail: string;
+  submittedAt: string;
+  title: string | null;
+  content: string;
+  imageUrls: string[];
+  riskScore: number;
+  categoryScores: Record<string, number>;
+  evidence: string[];
+  userReason: string;
+  model: string;
+  status: AiModerationTab;
+  decisionReason: string | null;
+  decidedAt: string | null;
+};
+
+export type AiModerationListQuery = PageRequest & {
+  search: string;
+  status: AiModerationTab;
+  targetType?: ReportTargetType;
+};
+
+export type AiModerationDecisionInput = {
+  decision: 'approved' | 'rejected';
+  reason: string;
+};
+
 export type AdminRepository = {
   getOverviewSnapshot: () => Promise<OverviewSnapshot>;
   listUsers: (query: UserListQuery) => Promise<PageResult<UserSummaryView>>;
@@ -302,6 +336,16 @@ export type AdminRepository = {
   decideAppeal: (
     appealId: string,
     input: AppealDecisionInput,
+  ) => Promise<void>;
+  listModerationCases: (
+    query: AiModerationListQuery,
+  ) => Promise<PageResult<AiModerationCaseView>>;
+  getModerationCase: (
+    caseId: string,
+  ) => Promise<AiModerationCaseView | null>;
+  decideModerationCase: (
+    caseId: string,
+    input: AiModerationDecisionInput,
   ) => Promise<void>;
 };
 
@@ -350,6 +394,14 @@ export type AdminService = {
   decideAppeal: (
     appealId: string,
     input: AppealDecisionInput,
+  ) => Promise<void>;
+  listModerationCases: (
+    query: AiModerationListQuery,
+  ) => Promise<PageResult<AiModerationCaseView>>;
+  getModerationCase: (caseId: string) => Promise<AiModerationCaseView>;
+  decideModerationCase: (
+    caseId: string,
+    input: AiModerationDecisionInput,
   ) => Promise<void>;
 };
 

@@ -34,6 +34,7 @@ export const appealStatusSchema = z.enum([
   'rejected',
 ]);
 export const reportTargetTypeSchema = z.enum(['post', 'comment']);
+export const aiModerationStatusSchema = z.enum(['pending', 'approved', 'rejected']);
 
 export const creatorRequestDecisionSchema = z.object({
   decision: z.enum(['approved', 'rejected']),
@@ -93,3 +94,20 @@ export const appealListQuerySchema = pageSchema.extend({
   search: z.string().trim().max(100).default(''),
   status: appealStatusSchema.default('pending'),
 });
+
+export const aiModerationListQuerySchema = pageSchema.extend({
+  search: z.string().trim().max(100).default(''),
+  status: aiModerationStatusSchema.default('pending'),
+  targetType: reportTargetTypeSchema.optional(),
+});
+
+export const aiModerationDecisionSchema = z.discriminatedUnion('decision', [
+  z.object({
+    decision: z.literal('approved'),
+    reason: optionalDecisionReasonSchema,
+  }),
+  z.object({
+    decision: z.literal('rejected'),
+    reason: reasonSchema,
+  }),
+]);

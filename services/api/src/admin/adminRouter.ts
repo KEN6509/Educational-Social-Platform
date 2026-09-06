@@ -4,6 +4,8 @@ import type { AdminIdentity } from './adminAuth.js';
 import {
   appealDecisionSchema,
   appealListQuerySchema,
+  aiModerationDecisionSchema,
+  aiModerationListQuerySchema,
   creatorRequestDecisionSchema,
   creatorRequestListQuerySchema,
   reportCaseListQuerySchema,
@@ -275,6 +277,44 @@ export function createProtectedAdminRouter(
     try {
       const service = dependencies.createService(getRequestContext(req));
       await service.decideAppeal(req.params.appealId, parsed.data);
+      return res.status(204).send();
+    } catch (error) {
+      return sendAdminError(res, error);
+    }
+  });
+
+  router.get('/moderation-cases', async (req, res) => {
+    const parsed = aiModerationListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid moderation filters.' });
+    }
+
+    try {
+      const service = dependencies.createService(getRequestContext(req));
+      return res.json(await service.listModerationCases(parsed.data));
+    } catch (error) {
+      return sendAdminError(res, error);
+    }
+  });
+
+  router.get('/moderation-cases/:caseId', async (req, res) => {
+    try {
+      const service = dependencies.createService(getRequestContext(req));
+      return res.json(await service.getModerationCase(req.params.caseId));
+    } catch (error) {
+      return sendAdminError(res, error);
+    }
+  });
+
+  router.post('/moderation-cases/:caseId/decision', async (req, res) => {
+    const parsed = aiModerationDecisionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid moderation decision.' });
+    }
+
+    try {
+      const service = dependencies.createService(getRequestContext(req));
+      await service.decideModerationCase(req.params.caseId, parsed.data);
       return res.status(204).send();
     } catch (error) {
       return sendAdminError(res, error);

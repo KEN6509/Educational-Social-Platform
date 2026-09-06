@@ -8,6 +8,7 @@ import './moderation/moderationAuth.test.js';
 import './moderation/moderationRepository.test.js';
 import './moderation/moderationService.test.js';
 import './moderation/moderationRouter.test.js';
+import './admin/adminModeration.test.js';
 import './admin/adminSql.test.js';
 import './moderation/moderationSql.test.js';
 import './config/env.test.js';

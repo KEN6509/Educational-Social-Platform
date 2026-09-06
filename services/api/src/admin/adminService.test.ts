@@ -63,6 +63,14 @@ function createRepository(
     }),
     getAppealDetail: async () => null,
     decideAppeal: async () => undefined,
+    listModerationCases: async (query) => ({
+      items: [],
+      page: query.page,
+      pageSize: query.pageSize,
+      total: 0,
+    }),
+    getModerationCase: async () => null,
+    decideModerationCase: async () => undefined,
     ...overrides,
   };
 }

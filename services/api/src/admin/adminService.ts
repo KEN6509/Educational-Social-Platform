@@ -3,6 +3,8 @@ import type {
 } from './adminAuth.js';
 import type {
   AdminRepository,
+  AiModerationDecisionInput,
+  AiModerationListQuery,
   AdminService,
   AppealDecisionInput,
   AppealListQuery,
@@ -262,6 +264,27 @@ export function createAdminService(
       input: AppealDecisionInput,
     ) => {
       await repository.decideAppeal(appealId, {
+        ...input,
+        reason: input.reason.trim(),
+      });
+    },
+    listModerationCases: async (query: AiModerationListQuery) =>
+      repository.listModerationCases({
+        ...query,
+        search: query.search.trim(),
+      }),
+    getModerationCase: async (caseId: string) => {
+      const moderationCase = await repository.getModerationCase(caseId);
+      if (!moderationCase) {
+        throw new AdminNotFoundError('Moderation case not found.');
+      }
+      return moderationCase;
+    },
+    decideModerationCase: async (
+      caseId: string,
+      input: AiModerationDecisionInput,
+    ) => {
+      await repository.decideModerationCase(caseId, {
         ...input,
         reason: input.reason.trim(),
       });

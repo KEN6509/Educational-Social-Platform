@@ -74,6 +74,16 @@ function createDependencies(
       throw new AdminNotFoundError('Appeal not found.');
     },
     decideAppeal: async () => undefined,
+    listModerationCases: async (query) => ({
+      items: [],
+      page: query.page,
+      pageSize: query.pageSize,
+      total: 0,
+    }),
+    getModerationCase: async () => {
+      throw new AdminNotFoundError('Moderation case not found.');
+    },
+    decideModerationCase: async () => undefined,
     ...overrides,
   };
 

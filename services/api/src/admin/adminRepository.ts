@@ -10,6 +10,8 @@ import {
 } from './adminPostViews.js';
 import type {
   AdminRepository,
+  AiModerationCaseView,
+  AiModerationListQuery,
   AuditView,
   CreatorRequestDetailView,
   CreatorRequestListQuery,
@@ -173,6 +175,84 @@ function throwRpcError(error: { message: string } | null) {
   }
 
   throw new Error('Unable to complete the administrator decision.');
+}
+
+function moderationStatusFromState(state: string): AiModerationCaseView['status'] {
+  if (state === 'approved') return 'approved';
+  if (state === 'rejected') return 'rejected';
+  return 'pending';
+}
+
+function asRows(value: unknown): Record<string, any>[] {
+  if (Array.isArray(value)) return value as Record<string, any>[];
+  return value && typeof value === 'object' ? [value as Record<string, any>] : [];
+}
+
+async function hydrateModerationCases(
+  client: SupabaseClient,
+  caseRows: Record<string, any>[],
+): Promise<AiModerationCaseView[]> {
+  if (caseRows.length === 0) return [];
+
+  const postIds = [...new Set(caseRows.filter((row) => row.target_type === 'post').map((row) => row.target_id))];
+  const commentIds = [...new Set(caseRows.filter((row) => row.target_type === 'comment').map((row) => row.target_id))];
+  const ownerIds = [...new Set(caseRows.map((row) => row.owner_id))];
+  const [posts, comments, profiles, images] = await Promise.all([
+    postIds.length
+      ? client.from('posts').select('id, title, content, author_id').in('id', postIds).range(0, 9999)
+      : Promise.resolve({ data: [], error: null }),
+    commentIds.length
+      ? client.from('comments').select('id, content, author_id').in('id', commentIds).range(0, 9999)
+      : Promise.resolve({ data: [], error: null }),
+    client.from('profiles').select('id, name, email').in('id', ownerIds).range(0, 9999),
+    postIds.length
+      ? client.from('post_images').select('post_id, public_url, storage_path, position').in('post_id', postIds).order('position', { ascending: true }).range(0, 9999)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  assertQuerySucceeded(posts.error);
+  assertQuerySucceeded(comments.error);
+  assertQuerySucceeded(profiles.error);
+  assertQuerySucceeded(images.error);
+
+  const postMap = new Map(asRows(posts.data).map((row) => [String(row.id), row]));
+  const commentMap = new Map(asRows(comments.data).map((row) => [String(row.id), row]));
+  const profileMap = new Map(asRows(profiles.data).map((row) => [String(row.id), row]));
+  const imageMap = new Map<string, string[]>();
+  for (const row of asRows(images.data)) {
+    const url = typeof row.public_url === 'string'
+      ? row.public_url
+      : typeof row.storage_path === 'string'
+        ? client.storage.from('images').getPublicUrl(row.storage_path).data.publicUrl
+        : null;
+    if (url) imageMap.set(String(row.post_id), [...(imageMap.get(String(row.post_id)) ?? []), url]);
+  }
+
+  return caseRows.map((row) => {
+    const target = row.target_type === 'post'
+      ? postMap.get(String(row.target_id))
+      : commentMap.get(String(row.target_id));
+    const profile = profileMap.get(String(row.owner_id));
+    return {
+      id: String(row.id),
+      targetType: row.target_type,
+      targetId: String(row.target_id),
+      moderationRevision: Number(row.moderation_revision),
+      authorName: String(profile?.name ?? 'Unknown user'),
+      authorEmail: String(profile?.email ?? ''),
+      submittedAt: String(row.created_at),
+      title: row.target_type === 'post' && typeof target?.title === 'string' ? target.title : null,
+      content: String(target?.content ?? ''),
+      imageUrls: imageMap.get(String(row.target_id)) ?? [],
+      riskScore: Number(row.overall_risk_score ?? 0),
+      categoryScores: row.category_scores && typeof row.category_scores === 'object' ? row.category_scores : {},
+      evidence: Array.isArray(row.evidence) ? row.evidence.filter((item: unknown): item is string => typeof item === 'string') : [],
+      userReason: String(row.user_reason ?? ''),
+      model: String(row.model ?? ''),
+      status: moderationStatusFromState(String(row.state)),
+      decisionReason: typeof row.decision_reason === 'string' ? row.decision_reason : null,
+      decidedAt: typeof row.completed_at === 'string' ? row.completed_at : null,
+    };
+  });
 }
 
 export function createAdminRepository(
@@ -1009,6 +1089,52 @@ export function createAdminRepository(
     decideAppeal: async (appealId, input) => {
       const { error } = await client.rpc('decide_post_appeal', {
         p_appeal_id: appealId,
+        p_decision: input.decision,
+        p_reason: input.reason,
+      });
+      throwRpcError(error);
+    },
+    listModerationCases: async (query: AiModerationListQuery) => {
+      const databaseState = query.status === 'pending' ? 'admin_review' : query.status;
+      const result = await client
+        .from('content_moderation_cases')
+        .select('*', { count: 'exact' })
+        .eq('state', databaseState)
+        .order('created_at', { ascending: false })
+        .range(0, 9999);
+      assertQuerySucceeded(result.error);
+      const search = query.search.trim().toLowerCase();
+      const filteredRows = asRows(result.data).filter((row) =>
+        query.targetType ? row.target_type === query.targetType : true,
+      );
+      const hydrated = (await hydrateModerationCases(client, filteredRows)).filter((item) =>
+        search
+          ? [item.authorName, item.authorEmail, item.title, item.content, item.userReason]
+              .some((value) => value?.toLowerCase().includes(search))
+          : true,
+      );
+      const from = (query.page - 1) * query.pageSize;
+      return {
+        items: hydrated.slice(from, from + query.pageSize),
+        page: query.page,
+        pageSize: query.pageSize,
+        total: search || query.targetType ? hydrated.length : result.count ?? hydrated.length,
+      };
+    },
+    getModerationCase: async (caseId: string) => {
+      const result = await client
+        .from('content_moderation_cases')
+        .select('*')
+        .eq('id', caseId)
+        .maybeSingle();
+      assertQuerySucceeded(result.error);
+      if (!result.data) return null;
+      const hydrated = await hydrateModerationCases(client, [result.data]);
+      return hydrated[0] ?? null;
+    },
+    decideModerationCase: async (caseId, input) => {
+      const { error } = await client.rpc('decide_content_moderation_case', {
+        p_case_id: caseId,
         p_decision: input.decision,
         p_reason: input.reason,
       });
