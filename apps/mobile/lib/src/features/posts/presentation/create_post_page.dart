@@ -8,22 +8,27 @@ import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../data/feed_post.dart';
 import '../data/posts_repository.dart';
+import '../domain/content_moderation.dart';
+import '../domain/post_submission_repository.dart';
 import '../data/tag_catalog.dart';
 import '../data/tags_repository.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
 import 'filter_page.dart';
 import 'create_post_validation.dart';
 import 'post_submission_error.dart';
+import 'content_moderation_scope.dart';
 
 class CreatePostPage extends StatefulWidget {
   const CreatePostPage({
     required this.onPostCreated,
     this.editPost,
+    this.repository,
     super.key,
   });
 
   final VoidCallback onPostCreated;
   final FeedPost? editPost;
+  final PostSubmissionRepository? repository;
 
   @override
   State<CreatePostPage> createState() => _CreatePostPageState();
@@ -34,7 +39,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
 
-  late final PostsRepository _repository;
+  late final PostSubmissionRepository _repository;
   late final TagsRepository _tagsRepository;
   late Future<List<TagCategory>> _tagsFuture;
 
@@ -46,7 +51,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
   @override
   void initState() {
     super.initState();
-    _repository = PostsRepository(Supabase.instance.client);
+    _repository =
+        widget.repository ?? PostsRepository(Supabase.instance.client);
     _tagsRepository = TagsRepository(Supabase.instance.client);
     _tagsFuture = _tagsRepository.fetchCatalog();
     final post = widget.editPost;
@@ -210,7 +216,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
           .toList();
 
       if (_isEditing) {
-        await _repository.updatePost(
+        final postId = await _repository.updatePost(
           widget.editPost!.id,
           UpdatePostInput(
             title: _titleController.text,
@@ -228,8 +234,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
             newImages: pickedImages,
           ),
         );
+        await _moderatePost(postId);
       } else {
-        await _repository.createPost(
+        final postId = await _repository.createPost(
           CreatePostInput(
             title: _titleController.text,
             content: _contentController.text,
@@ -237,6 +244,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
             images: pickedImages,
           ),
         );
+        await _moderatePost(postId);
       }
 
       _titleController.clear();
@@ -250,41 +258,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
         _images.clear();
         _selectedTags.clear();
       });
-
-      // Show SnackBar like "Post sent." in post_detail_page.dart
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.white,
-            elevation: 8,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded,
-                    color: Color(0xFF10B981), size: 20),
-                const SizedBox(width: 12),
-                Text(
-                  _isEditing ? 'Post updated for review' : 'Posted for review',
-                  style: const TextStyle(
-                    color: Color(0xFF1E293B),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-
-      widget.onPostCreated();
-      if (_isEditing && mounted) {
-        Navigator.of(context).pop(true);
-      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -295,6 +268,67 @@ class _CreatePostPageState extends State<CreatePostPage> {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  Future<void> _moderatePost(String postId) async {
+    if (!mounted) return;
+    try {
+      final result =
+          await ContentModerationScope.of(context).moderatePost(postId);
+      if (!mounted) return;
+      switch (result.state) {
+        case ContentModerationState.approved:
+          _showModerationMessage('Post published');
+          widget.onPostCreated();
+          if (_isEditing && mounted) Navigator.of(context).pop(true);
+        case ContentModerationState.adminReview:
+          _showModerationMessage('Sent for administrator review');
+          widget.onPostCreated();
+          if (_isEditing && mounted) Navigator.of(context).pop(true);
+        case ContentModerationState.processing:
+          _showModerationMessage('Moderation is still processing.');
+          widget.onPostCreated();
+          if (_isEditing && mounted) Navigator.of(context).pop(true);
+        case ContentModerationState.rejected:
+          _showModerationMessage(
+            result.reason?.trim().isNotEmpty == true
+                ? 'Post was not published: ${result.reason}'
+                : 'Post was not published.',
+          );
+        case ContentModerationState.superseded:
+          _showModerationMessage(
+              'This post changed. Submit the latest version again.');
+        case ContentModerationState.failed:
+          _showModerationRetry(postId);
+      }
+    } on ContentModerationFailure catch (error) {
+      if (!mounted) return;
+      if (error.retryAllowed) {
+        _showModerationRetry(postId);
+      } else {
+        _showSubmissionError(error.message);
+      }
+    }
+  }
+
+  void _showModerationMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showModerationRetry(String postId) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Moderation could not complete.'),
+          action: SnackBarAction(
+            label: 'Retry moderation',
+            onPressed: () => _moderatePost(postId),
+          ),
+        ),
+      );
   }
 
   void _showSubmissionError(String message) {

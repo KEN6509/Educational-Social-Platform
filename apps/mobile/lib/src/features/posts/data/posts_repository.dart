@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'feed_post.dart';
 import 'post_comment.dart';
+import '../domain/post_submission_repository.dart';
 
 class PickedPostImage {
   const PickedPostImage({
@@ -57,7 +58,7 @@ class UpdatePostInput {
   final List<PickedPostImage> newImages;
 }
 
-class PostsRepository {
+class PostsRepository implements PostSubmissionRepository {
   PostsRepository(this._client);
 
   static const feedSelectColumns =
@@ -412,7 +413,8 @@ class PostsRepository {
     }
   }
 
-  Future<void> createComment(
+  @override
+  Future<String> createComment(
     String postId,
     String content, {
     String? parentCommentId,
@@ -424,14 +426,19 @@ class PostsRepository {
       throw const AuthException('You need to log in to comment.');
     }
 
-    await _client.from('comments').insert({
-      'post_id': postId,
-      'author_id': userId,
-      'content': content.trim(),
-      if (parentCommentId != null) 'parent_comment_id': parentCommentId,
-      if (taggedUserId != null) 'tagged_user_id': taggedUserId,
-      if (taggedUserName != null) 'tagged_user_name': taggedUserName,
-    });
+    final row = await _client
+        .from('comments')
+        .insert({
+          'post_id': postId,
+          'author_id': userId,
+          'content': content.trim(),
+          if (parentCommentId != null) 'parent_comment_id': parentCommentId,
+          if (taggedUserId != null) 'tagged_user_id': taggedUserId,
+          if (taggedUserName != null) 'tagged_user_name': taggedUserName,
+        })
+        .select('id')
+        .single();
+    return row['id'] as String;
   }
 
   Future<void> deleteComment(String commentId) async {
@@ -467,7 +474,8 @@ class PostsRepository {
     });
   }
 
-  Future<void> createPost(CreatePostInput input) async {
+  @override
+  Future<String> createPost(CreatePostInput input) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
       throw const AuthException('You need to log in before posting.');
@@ -495,9 +503,11 @@ class PostsRepository {
     if (imageRows.isNotEmpty) {
       await _client.from('post_images').insert(imageRows);
     }
+    return postId;
   }
 
-  Future<void> updatePost(String postId, UpdatePostInput input) async {
+  @override
+  Future<String> updatePost(String postId, UpdatePostInput input) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
       throw const AuthException('You need to log in before editing posts.');
@@ -552,10 +562,6 @@ class PostsRepository {
           'title': input.title.trim(),
           'content': input.content.trim(),
           'tags': input.tags,
-          'moderation_status': 'pending',
-          'moderation_reason': null,
-          'reviewed_by': null,
-          'reviewed_at': null,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', postId)
@@ -564,6 +570,7 @@ class PostsRepository {
     if (removedStoragePaths.isNotEmpty) {
       await _client.storage.from('images').remove(removedStoragePaths);
     }
+    return postId;
   }
 
   Future<List<Map<String, dynamic>>> _uploadPostImages({
@@ -594,6 +601,7 @@ class PostsRepository {
         'post_id': postId,
         'storage_path': storagePath,
         'public_url': _client.storage.from('images').getPublicUrl(storagePath),
+        'mime_type': image.contentType,
         'position': position,
       });
     }
