@@ -88,8 +88,8 @@ selected.
 4. The API verifies the authenticated user owns the post and claims its current
    moderation revision.
 5. The API reads the title, body, tags, and ordered image records from Supabase,
-   downloads the images through the trusted storage client, and sends the text
-   and images to Gemini.
+   reconstructs trusted public Storage URLs from their storage paths, and sends
+   the text and remote image inputs to Gemini.
 6. The API validates and stores the result, applies the CyanZone threshold, and
    returns the final state to mobile.
 7. Mobile reports one of: published, awaiting administrator review, rejected,
@@ -168,6 +168,14 @@ Posts and comments gain a monotonically increasing `moderation_revision`.
 Database triggers increment it and reset AI decision fields whenever moderated
 content changes. Post image insertion, replacement, reordering, or removal also
 invalidates the current post moderation result.
+
+`post_images` gains a supported image MIME type recorded by mobile at upload
+time. For an older row without that value, the API may infer PNG, JPEG, WEBP,
+HEIC, or HEIF from its trusted storage-path extension. The API never accepts an
+arbitrary image URL from a moderation request. It reconstructs the URL from the
+configured Supabase project, public `images` bucket, and database-owned storage
+path, preventing the moderation endpoint from becoming a server-side request
+forgery proxy.
 
 ### Moderation cases
 
@@ -279,8 +287,8 @@ Completed tabs are read-only.
   then keep unpublished and offer user retry.
 - Invalid structured response: treat as provider failure; never infer approval.
 - Explicit Gemini input safety block: record the safety evidence and reject.
-- Image download, type, or size failure: keep unpublished and report a
-  recoverable moderation failure.
+- Missing image, unsupported MIME type, or provider failure to read a trusted
+  Storage URL: keep unpublished and report a recoverable moderation failure.
 - Duplicate request for a processing revision: return the current processing
   case rather than starting a second Gemini call.
 - Duplicate request for a completed revision: return its stored result.
