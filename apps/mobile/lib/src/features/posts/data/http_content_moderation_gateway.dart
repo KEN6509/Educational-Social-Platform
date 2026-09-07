@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -11,11 +13,13 @@ final class HttpContentModerationGateway implements ContentModerationGateway {
     required this.baseUrl,
     required this.accessToken,
     http.Client? client,
+    this.timeout = const Duration(seconds: 20),
   }) : _client = client ?? http.Client();
 
   final Uri baseUrl;
   final AccessTokenReader accessToken;
   final http.Client _client;
+  final Duration timeout;
 
   @override
   Future<ContentModerationResult> moderatePost(String postId) {
@@ -34,14 +38,23 @@ final class HttpContentModerationGateway implements ContentModerationGateway {
           'Please sign in before moderating content.');
     }
 
-    final response = await _client.post(
-      baseUrl.resolve(path),
-      headers: {
-        'authorization': 'Bearer ${token.trim()}',
-        'accept': 'application/json',
-        'content-type': 'application/json',
-      },
-    );
+    late final http.Response response;
+    try {
+      response = await _client.post(
+        baseUrl.resolve(path),
+        headers: {
+          'authorization': 'Bearer ${token.trim()}',
+          'accept': 'application/json',
+          'content-type': 'application/json',
+        },
+      ).timeout(timeout);
+    } on SocketException catch (_) {
+      throw _transportFailure();
+    } on http.ClientException catch (_) {
+      throw _transportFailure();
+    } on TimeoutException catch (_) {
+      throw _transportFailure();
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _mapFailure(response);
@@ -64,6 +77,13 @@ final class HttpContentModerationGateway implements ContentModerationGateway {
       throw const ContentModerationFailure(
           'CyanZone returned an invalid moderation response.');
     }
+  }
+
+  ContentModerationFailure _transportFailure() {
+    return const ContentModerationFailure(
+      'Unable to reach CyanZone moderation. Please try again.',
+      retryAllowed: true,
+    );
   }
 
   ContentModerationFailure _mapFailure(http.Response response) {

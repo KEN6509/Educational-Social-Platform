@@ -10,7 +10,10 @@ void main() {
       'test-anon-key',
     );
 
-    final dependencies = AppDependencies.production(client);
+    final dependencies = AppDependencies.production(
+      client,
+      apiBaseUrl: Uri.parse('https://api.cyanzone.test'),
+    );
 
     expect(dependencies.authGateway, isA<SupabaseAuthGateway>());
   });

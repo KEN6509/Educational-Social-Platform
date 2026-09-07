@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -101,4 +103,31 @@ void main() {
     await expectLater(malformed.moderatePost('post-1'),
         throwsA(isA<ContentModerationFailure>()));
   });
+
+  for (final transportError in <Object>[
+    const SocketException('Failed host lookup'),
+    http.ClientException('Connection closed'),
+    TimeoutException('Request timed out'),
+  ]) {
+    test('maps ${transportError.runtimeType} to a retryable failure', () async {
+      final gateway = HttpContentModerationGateway(
+        baseUrl: Uri.parse('https://api.cyanzone.test'),
+        accessToken: () async => 'token',
+        client: MockClient((request) async => throw transportError),
+      );
+
+      await expectLater(
+        gateway.moderatePost('post-1'),
+        throwsA(
+          isA<ContentModerationFailure>()
+              .having((error) => error.retryAllowed, 'retryAllowed', true)
+              .having(
+                (error) => error.message,
+                'message',
+                'Unable to reach CyanZone moderation. Please try again.',
+              ),
+        ),
+      );
+    });
+  }
 }
