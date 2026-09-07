@@ -30,7 +30,7 @@ export type GeminiInteractionRequest = {
   input: GeminiInteractionInputPart[];
   system_instruction: string;
   generation_config: {
-    thinking_level: 'minimal';
+    thinking_level: 'low';
     max_output_tokens: number;
   };
   response_format: {
@@ -46,6 +46,7 @@ export type GeminiInteractionResponse = {
   text?: string;
   safety_blocked?: boolean;
   safety_ratings?: unknown;
+  evidence_source?: 'text' | 'image' | 'both';
 };
 
 export type GeminiInteractionClient = {
@@ -88,7 +89,7 @@ export class GeminiModerationGateway implements ModerationProvider {
       model: this.model,
       system_instruction: SYSTEM_INSTRUCTION,
       generation_config: {
-        thinking_level: 'minimal',
+        thinking_level: 'low',
         max_output_tokens: 700,
       },
       response_format: {
@@ -117,7 +118,10 @@ export class GeminiModerationGateway implements ModerationProvider {
     }
 
     if (response.safety_blocked) {
-      throw new GeminiInputSafetyError(response.safety_ratings);
+      throw new GeminiInputSafetyError(
+        response.safety_ratings,
+        response.evidence_source,
+      );
     }
 
     const output = response.output_text ?? response.outputText ?? response.text;
@@ -181,22 +185,87 @@ function buildModerationPrompt(target: ModerationTarget): string {
 function normalizeGeminiError(error: unknown): ModerationProviderError {
   if (error instanceof ModerationProviderError) return error;
 
-  const details = error as {
-    message?: unknown;
-    status?: unknown;
-    safetyRatings?: unknown;
-    safety_ratings?: unknown;
-  };
-  const message = typeof details?.message === 'string' ? details.message : String(error);
-  if (
-    /safety|blocked|harm[_ -]?category|recitation/i.test(message) ||
-    details?.status === 400
-  ) {
-    return new GeminiInputSafetyError(details.safetyRatings ?? details.safety_ratings);
+  const safety = findExplicitSafetySignal(error);
+  if (safety) {
+    return new GeminiInputSafetyError(safety.ratings, safety.evidenceSource);
   }
 
   return new ModerationProviderError('Gemini moderation request failed', {
-    retryable: true,
+    retryable: isRetryableProviderError(error),
     cause: error,
   });
+}
+
+type UnknownRecord = Record<string, unknown>;
+
+function findExplicitSafetySignal(
+  value: unknown,
+  depth = 0,
+): { ratings: unknown; evidenceSource?: 'text' | 'image' | 'both' } | null {
+  if (depth > 3 || value == null || typeof value !== 'object') return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const nested = findExplicitSafetySignal(item, depth + 1);
+      if (nested) return nested;
+    }
+    return null;
+  }
+
+  const record = value as UnknownRecord;
+  const ratings = record.safetyRatings ?? record.safety_ratings;
+  const reason = record.blockReason ?? record.blockedReason ?? record.block_reason;
+  const normalizedReason = typeof reason === 'string' ? reason.toUpperCase() : '';
+  const explicitReason = [
+    'SAFETY',
+    'IMAGE_SAFETY',
+    'PROHIBITED_CONTENT',
+    'BLOCKLIST',
+  ].includes(normalizedReason);
+  const blockedRating = Array.isArray(ratings) && ratings.some((rating) => {
+    return rating != null &&
+      typeof rating === 'object' &&
+      (rating as UnknownRecord).blocked === true;
+  });
+
+  if (explicitReason || blockedRating || record.safety_blocked === true) {
+    return {
+      ratings,
+      evidenceSource: parseEvidenceSource(
+        record.evidenceSource ?? record.evidence_source,
+      ),
+    };
+  }
+
+  for (const key of ['error', 'details', 'response', 'cause']) {
+    const nested = findExplicitSafetySignal(record[key], depth + 1);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function parseEvidenceSource(
+  value: unknown,
+): 'text' | 'image' | 'both' | undefined {
+  return value === 'text' || value === 'image' || value === 'both'
+    ? value
+    : undefined;
+}
+
+function isRetryableProviderError(error: unknown): boolean {
+  const status = findHttpStatus(error);
+  if (status == null) return true;
+  if (status === 408 || status === 409 || status === 429) return true;
+  return status >= 500;
+}
+
+function findHttpStatus(value: unknown, depth = 0): number | null {
+  if (depth > 2 || value == null || typeof value !== 'object') return null;
+  const record = value as UnknownRecord;
+  const status = record.status ?? record.statusCode;
+  if (typeof status === 'number' && Number.isInteger(status)) return status;
+  for (const key of ['error', 'response', 'cause']) {
+    const nested = findHttpStatus(record[key], depth + 1);
+    if (nested != null) return nested;
+  }
+  return null;
 }

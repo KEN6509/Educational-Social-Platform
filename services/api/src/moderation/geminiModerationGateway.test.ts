@@ -55,6 +55,7 @@ test('sends text and every trusted image URI to Gemini and parses structured out
   });
 
   assert.equal(request?.model, 'gemini-3.8-flash');
+  assert.equal(request?.generation_config.thinking_level, 'low');
   assert.equal(request?.response_format?.mime_type, 'application/json');
   assert.equal(request?.input.filter((part) => part.type === 'image').length, 2);
   assert.deepEqual(
@@ -106,6 +107,45 @@ test('preserves explicit Gemini input safety blocks for fail-closed handling', a
     (error: unknown) =>
       error instanceof GeminiInputSafetyError &&
       error.retryable === false &&
+      Array.isArray(error.ratings),
+  );
+});
+
+test('treats a generic 400 request error as permanent provider failure, not a safety block', async () => {
+  const gateway = createGateway(async () => {
+    throw { status: 400, message: 'Invalid response schema field.' };
+  });
+
+  await assert.rejects(
+    gateway.moderate({ targetType: 'comment', content: 'hello', tags: [], images: [] }),
+    (error: unknown) =>
+      error instanceof ModerationProviderError &&
+      !(error instanceof GeminiInputSafetyError) &&
+      error.retryable === false,
+  );
+});
+
+test('recognizes explicit blocked safety metadata without relying on message text', async () => {
+  const gateway = createGateway(async () => {
+    throw {
+      status: 400,
+      blockReason: 'SAFETY',
+      safetyRatings: [
+        {
+          category: 'HARM_CATEGORY_HATE_SPEECH',
+          probability: 'HIGH',
+          blocked: true,
+        },
+      ],
+      evidenceSource: 'image',
+    };
+  });
+
+  await assert.rejects(
+    gateway.moderate({ targetType: 'post', content: 'blocked', tags: [], images: [] }),
+    (error: unknown) =>
+      error instanceof GeminiInputSafetyError &&
+      error.evidenceSource === 'image' &&
       Array.isArray(error.ratings),
   );
 });

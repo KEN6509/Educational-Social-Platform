@@ -133,12 +133,17 @@ export class ModerationProviderError extends Error {
 
 export class GeminiInputSafetyError extends ModerationProviderError {
   readonly ratings: unknown;
+  readonly evidenceSource?: ModerationEvidenceSource;
 
-  constructor(ratings: unknown = undefined) {
+  constructor(
+    ratings: unknown = undefined,
+    evidenceSource?: ModerationEvidenceSource,
+  ) {
     super('Gemini blocked the moderation input for safety reasons', {
       retryable: false,
     });
     this.name = 'GeminiInputSafetyError';
     this.ratings = ratings;
+    this.evidenceSource = evidenceSource;
   }
 }

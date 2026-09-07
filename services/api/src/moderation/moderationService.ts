@@ -3,10 +3,13 @@ import {
   MODERATION_CATEGORIES,
   decideModeration,
   ModerationProviderError,
+  type ModerationCategory,
   type ModerationCase,
+  type ModerationEvidenceSource,
   type ModerationProvider,
   type ModerationProviderResult,
   type ModerationRepository,
+  type ModerationTarget,
   type ModerationTargetType,
   type PersistedModerationResult,
 } from './moderationTypes.js';
@@ -120,7 +123,7 @@ export function createModerationService(
           );
         } catch (error) {
           if (error instanceof GeminiInputSafetyError) {
-            const safetyResult = createSafetyResult();
+            const safetyResult = createSafetyResult(error, target.target);
             return await applyResult(
               repository,
               moderationCase,
@@ -181,18 +184,76 @@ async function applyResult(
   }
 }
 
-function createSafetyResult(): ModerationProviderResult {
+function createSafetyResult(
+  error: GeminiInputSafetyError,
+  target: ModerationTarget,
+): ModerationProviderResult {
+  const categoryScores = Object.fromEntries(
+    MODERATION_CATEGORIES.map((category) => [category, 0]),
+  ) as Record<ModerationCategory, number>;
+  const blockedCategories: ModerationCategory[] = [];
+
+  if (Array.isArray(error.ratings)) {
+    for (const rating of error.ratings) {
+      if (rating == null || typeof rating !== 'object') continue;
+      const details = rating as Record<string, unknown>;
+      const category = mapGeminiSafetyCategory(details.category);
+      if (!category) continue;
+      const score = safetyRatingScore(details);
+      categoryScores[category] = Math.max(categoryScores[category], score);
+      if (details.blocked === true) blockedCategories.push(category);
+    }
+  }
+
+  const evidenceSource: ModerationEvidenceSource = error.evidenceSource ??
+    (target.images.length > 0 ? 'both' : 'text');
+  const categoryLabel = blockedCategories.length > 0
+    ? ` (${[...new Set(blockedCategories)].join(', ')})`
+    : '';
   return {
     overallRiskScore: 100,
-    categoryScores: Object.fromEntries(
-      MODERATION_CATEGORIES.map((category) => [category, 100]),
-    ) as Record<(typeof MODERATION_CATEGORIES)[number], number>,
-    evidence: ['Gemini blocked the input under its safety policy.'],
+    categoryScores,
+    evidence: [`Gemini blocked the input under its safety policy${categoryLabel}.`],
     userReason: 'This content could not be cleared by automated safety checks.',
-    evidenceSource: 'text' as const,
+    evidenceSource,
     model: 'gemini-safety-policy',
     promptVersion: 'cyanzone-moderation-v1',
   };
+}
+
+function mapGeminiSafetyCategory(value: unknown): ModerationCategory | null {
+  if (typeof value !== 'string') return null;
+  const category = value.toUpperCase();
+  if (category.includes('HARASSMENT') || category.includes('BULLY')) {
+    return 'harassmentBullying';
+  }
+  if (category.includes('HATE')) return 'hate';
+  if (category.includes('SEXUAL')) return 'sexual';
+  if (category.includes('DANGEROUS') || category.includes('VIOLENCE')) {
+    return 'violenceDanger';
+  }
+  if (category.includes('SELF_HARM') || category.includes('SELF-HARM')) {
+    return 'selfHarm';
+  }
+  return null;
+}
+
+function safetyRatingScore(rating: Record<string, unknown>): number {
+  if (rating.blocked === true) return 100;
+  if (typeof rating.probabilityScore === 'number') {
+    const raw = rating.probabilityScore;
+    return Math.max(0, Math.min(100, raw <= 1 ? raw * 100 : raw));
+  }
+  const probability = typeof rating.probability === 'string'
+    ? rating.probability.toUpperCase()
+    : '';
+  return ({
+    NEGLIGIBLE: 0,
+    LOW: 25,
+    MEDIUM: 50,
+    HIGH: 75,
+    VERY_HIGH: 100,
+  } as Record<string, number>)[probability] ?? 0;
 }
 
 function toResponse(moderationCase: ModerationCase): ModerationResponse {
