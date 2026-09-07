@@ -100,6 +100,7 @@ final class HttpContentModerationGateway implements ContentModerationGateway {
       // Keep the safe fallback message.
     }
     if (response.statusCode == 429) {
+      retryAllowed = true;
       message = 'Please wait before retrying moderation.';
     }
     if (response.statusCode == 503) {

@@ -86,6 +86,30 @@ void main() {
     );
   });
 
+  test('keeps a cooldown response retryable for the persistent queue', () async {
+    final gateway = HttpContentModerationGateway(
+      baseUrl: Uri.parse('https://api.cyanzone.test'),
+      accessToken: () async => 'token',
+      client: MockClient((request) async => http.Response(
+            jsonEncode({'error': 'cooldown'}),
+            429,
+          )),
+    );
+
+    await expectLater(
+      gateway.moderatePost('post-1'),
+      throwsA(
+        isA<ContentModerationFailure>()
+            .having((error) => error.retryAllowed, 'retryAllowed', true)
+            .having(
+              (error) => error.message,
+              'message',
+              'Please wait before retrying moderation.',
+            ),
+      ),
+    );
+  });
+
   test('requires a session and rejects malformed responses', () async {
     final missingSession = HttpContentModerationGateway(
       baseUrl: Uri.parse('https://api.cyanzone.test'),

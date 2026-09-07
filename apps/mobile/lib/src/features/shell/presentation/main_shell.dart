@@ -9,6 +9,7 @@ import '../../chat/data/chat_repository.dart';
 import '../../chat/presentation/chat_page.dart';
 import '../../chat/presentation/chat_widgets.dart';
 import '../../posts/data/aspect_ratio_cache.dart';
+import '../../posts/application/moderation_submission_coordinator.dart';
 import '../../posts/data/feed_mode.dart';
 import '../../posts/data/feed_post.dart';
 import '../../posts/data/post_interaction_sync.dart';
@@ -22,6 +23,8 @@ import '../../posts/presentation/filter_page.dart';
 import '../../posts/presentation/post_card_ratio_preloader.dart';
 import '../../posts/presentation/post_card_skeleton.dart';
 import '../../posts/presentation/post_waterfall_layout.dart';
+import '../../posts/presentation/content_moderation_scope.dart';
+import '../../posts/presentation/pending_moderation_retry_banner.dart';
 import '../../profile/data/user_profile.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/content_creator_badge.dart';
@@ -218,6 +221,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final moderationGateway = ContentModerationScope.of(context);
     final pages = [
       HomeFeedPage(
         key: _homeKey,
@@ -272,6 +276,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               onUnselect: _unselectTag,
               onOpenFilter: _openFilterPage,
             ),
+          if (_index == 0 &&
+              moderationGateway is ModerationSubmissionCoordinator)
+            PendingModerationRetryBanner(controller: moderationGateway),
           Expanded(
             child: IndexedStack(
               index: _index,
