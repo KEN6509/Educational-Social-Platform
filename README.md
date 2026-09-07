@@ -36,8 +36,9 @@ docs/
 5. Run `supabase/schema.sql` in the Supabase SQL editor to create database tables.
 6. Run `supabase/auth.sql` in the Supabase SQL editor to enable profile auto-create.
 7. Apply the incremental SQL required by current modules, especially
-   `follow.sql`, `comment_mentions.sql`, `chat.sql`, `admin_portal.sql`, and
-   `ai_moderation.sql`; see `docs/setup.md`.
+   `follow.sql`, `comment_mentions.sql`, `chat.sql`, `parent_supervision.sql`,
+   `registration_consent_otp.sql`, `admin_portal.sql`, and
+   `ai_moderation.sql`; see `docs/setup.md` for the complete order.
 8. Install dependencies for each app when local tooling is available.
 
 ## Applications
@@ -64,7 +65,8 @@ npm run dev
 ```
 
 The moderation routes require `GEMINI_API_KEY` in the Express API environment.
-`GEMINI_MODEL` and `GEMINI_TIMEOUT_MS` are optional overrides. Keep all Gemini
+The current stable default is `gemini-3.8-flash`; `GEMINI_MODEL` and
+`GEMINI_TIMEOUT_MS` are optional overrides. Keep all Gemini
 credentials server-side; never put them in Flutter, React, Supabase client
 configuration, or source control. Health and admin-bootstrap routes do not
 call Gemini.
@@ -76,7 +78,7 @@ If you changed `ADMIN_BOOTSTRAP_SECRET` in `.env`, restart the API first so the 
 ```powershell
 cd services/api
 npm run build
-node dist/server.js
+node dist/src/server.js
 ```
 
 Then open another PowerShell window and run:
@@ -114,8 +116,10 @@ CyanZone prioritizes a polished prototype over broad unfinished scope:
 - Supabase-backed in-app chat notifications and badges are implemented.
 - External Android/iOS push delivery is not implemented yet.
 - Gemini text/image moderation is connected through the privileged API and the
-  mobile/Admin clients. Live Supabase migration, Vercel environment setup, and
-  final acceptance evidence are still required.
+  mobile/Admin clients. Failed requests are retained for same-record retry,
+  and administrator cases preserve the submitted content revision. Live
+  Supabase migration, Gemini key/Vercel environment setup, and final acceptance
+  evidence are still required.
 - Chat is intentionally excluded from AI moderation.
 - Parent-child linking and supervision flows remain incomplete and are a next
   implementation priority.

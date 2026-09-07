@@ -50,9 +50,11 @@ by the current mobile app. At minimum, the live project should include:
 6. `supabase/comment_moderation.sql`
 7. `supabase/comment_mentions.sql`
 8. `supabase/chat.sql`
-9. `supabase/admin_portal.sql`
-10. `supabase/ai_moderation.sql`
-11. `supabase/report_flow_simplification.sql` for an existing database only
+9. `supabase/parent_supervision.sql`
+10. `supabase/registration_consent_otp.sql`
+11. `supabase/admin_portal.sql`
+12. `supabase/report_flow_simplification.sql` for an existing database only
+13. `supabase/ai_moderation.sql`
 
 The latest `chat.sql` is required for group-chat mentions and current System
 notifications. Run it manually in the Supabase SQL Editor after updating the
@@ -94,7 +96,8 @@ do not backfill old Activity/New Followers rows.
 - External FCM/APNs push delivery is deferred to the next notification phase.
 - Chat messages are not sent to Gemini moderation.
 - `GEMINI_API_KEY` is required by the API moderation routes and must remain
-  server-side. `GEMINI_MODEL` and `GEMINI_TIMEOUT_MS` are optional API overrides.
+  server-side. `gemini-3.8-flash` is the current stable default;
+  `GEMINI_MODEL` and `GEMINI_TIMEOUT_MS` are optional API overrides.
 
 ## Local Tooling
 
@@ -127,6 +130,7 @@ REPORT_REVIEW_THRESHOLD=1
 GEMINI_API_KEY=your-gemini-api-key
 GEMINI_MODEL=gemini-3.8-flash
 GEMINI_TIMEOUT_MS=8500
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
 `REPORT_REVIEW_THRESHOLD` counts unique reporters per post/comment target.
@@ -177,17 +181,33 @@ Deploy the Express API and Admin Portal only after the local checks pass:
 2. Create an API project with root directory `services/api`. Vercel should use
    the Express entry point; no static output directory is needed.
 3. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_BOOTSTRAP_SECRET`,
-   `REPORT_REVIEW_THRESHOLD`, `GEMINI_API_KEY`, `GEMINI_MODEL`, and
-   `GEMINI_TIMEOUT_MS` to the Preview and Production environments.
+   `REPORT_REVIEW_THRESHOLD`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
+   `GEMINI_TIMEOUT_MS`, and `CORS_ALLOWED_ORIGINS` to the Preview and Production
+   environments. Set `CORS_ALLOWED_ORIGINS` to a comma-separated exact list,
+   for example `https://<admin-domain>,http://localhost:5173,http://127.0.0.1:5173`.
 4. Deploy and verify `https://<api-domain>/health` returns a healthy response.
-5. Set the Admin `VITE_API_BASE_URL` to the API domain and rebuild/redeploy the
-   Admin Portal.
-6. Set the mobile `API_BASE_URL` to the API domain before the release build.
+5. Create the Admin project with root directory `apps/admin`. Set
+   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_API_BASE_URL` to the
+   deployed API origin, then build/redeploy it.
+6. Set `API_BASE_URL=https://<api-domain>` in `apps/mobile/.env` before the
+   release build. Do not add a trailing route such as `/moderation`.
 
 Never put the service-role key or Gemini key in Admin/mobile variables. After
 deployment, verify one approved, one administrator-review, one rejected, and
 one retry/failure moderation path with test content; also verify that the
 Supabase moderation rows and Admin decision remain linked.
+
+For the real-provider smoke test, create four new records rather than reusing
+old IDs: one clearly safe post, one borderline post expected to enter Admin
+review, one clearly disallowed test post, and one public comment. Confirm that:
+
+- the API responds within the configured client budget;
+- safe content becomes published, borderline content appears under
+  AI-Flagged Content, and rejected content stays unpublished;
+- a temporary network/provider failure leaves the same target available for
+  Retry after an app restart instead of creating a second post/comment; and
+- the Admin detail still shows the submitted snapshot after the target is
+  edited to a later revision.
 
 ## Live SQL and deployment verification
 

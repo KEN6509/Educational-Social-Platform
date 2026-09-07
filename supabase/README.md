@@ -445,7 +445,8 @@ Expected results:
 
 Run `ai_moderation.sql` after `admin_portal.sql` for an existing project. The
 complete migration creates `content_moderation_cases`, revisioned moderation
-results, RLS policies, and the service-role RPCs used by the Express API:
+results, immutable target snapshots, RLS policies, owner-scoped shared-image
+writes, and the service-role RPCs used by the Express API:
 
 - `prepare_content_moderation`
 - `apply_ai_moderation_result`
@@ -476,10 +477,16 @@ order by routine_name;
 select relname, relrowsecurity
 from pg_class
 where oid = 'public.content_moderation_cases'::regclass;
+
+select column_name, data_type
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'content_moderation_cases'
+  and column_name = 'target_snapshot';
 ```
 
 Expected results are one `content_moderation_cases` table, four routine rows,
-and `relrowsecurity = true`. This is live SQL verification: it checks the
+`relrowsecurity = true`, and one `target_snapshot` JSONB column. This is live SQL verification: it checks the
 deployed database objects, RLS, and API prerequisites. It is unrelated to chat
 history consistency.
 
