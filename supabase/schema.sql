@@ -482,7 +482,16 @@ drop policy if exists "Users can create own posts" on public.posts;
 create policy "Users can create own posts"
 on public.posts for insert
 to authenticated
-with check (author_id = auth.uid());
+with check (
+  author_id = auth.uid()
+  and moderation_status = 'pending'
+  and moderation_revision = 1
+  and ai_toxicity_score is null
+  and moderation_reason is null
+  and reviewed_by is null
+  and reviewed_at is null
+  and published_at is null
+);
 
 drop policy if exists "Authors can update own non-removed posts" on public.posts;
 create policy "Authors can update own non-removed posts"
@@ -533,7 +542,13 @@ drop policy if exists "Users can create own comments" on public.comments;
 create policy "Users can create own comments"
 on public.comments for insert
 to authenticated
-with check (author_id = auth.uid());
+with check (
+  author_id = auth.uid()
+  and moderation_status = 'pending'
+  and moderation_revision = 1
+  and ai_toxicity_score is null
+  and moderation_reason is null
+);
 
 drop policy if exists "Users can update own comments" on public.comments;
 create policy "Users can update own comments"

@@ -68,6 +68,63 @@ using (public.is_current_user_admin());
 revoke all on table public.content_moderation_cases from anon, authenticated;
 grant select on table public.content_moderation_cases to authenticated;
 
+create or replace function public.initialize_post_moderation_fields()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_trusted boolean := coalesce(
+    current_setting('cyanzone.trusted_moderation_update', true),
+    'off'
+  ) = 'on';
+begin
+  if not v_trusted and auth.role() = 'authenticated' then
+    new.moderation_status := 'pending';
+    new.moderation_revision := 1;
+    new.ai_toxicity_score := null;
+    new.moderation_reason := null;
+    new.reviewed_by := null;
+    new.reviewed_at := null;
+    new.published_at := null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists initialize_post_moderation on public.posts;
+create trigger initialize_post_moderation
+before insert on public.posts
+for each row execute function public.initialize_post_moderation_fields();
+
+create or replace function public.initialize_comment_moderation_fields()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_trusted boolean := coalesce(
+    current_setting('cyanzone.trusted_moderation_update', true),
+    'off'
+  ) = 'on';
+begin
+  if not v_trusted and auth.role() = 'authenticated' then
+    new.moderation_status := 'pending';
+    new.moderation_revision := 1;
+    new.ai_toxicity_score := null;
+    new.moderation_reason := null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists initialize_comment_moderation on public.comments;
+create trigger initialize_comment_moderation
+before insert on public.comments
+for each row execute function public.initialize_comment_moderation_fields();
+
 create or replace function public.set_moderation_target_pending(
   p_target_type text,
   p_target_id uuid,
@@ -652,3 +709,18 @@ revoke all on function public.decide_content_moderation_case(uuid, text, text)
 from public, anon;
 grant execute on function public.decide_content_moderation_case(uuid, text, text)
 to authenticated;
+
+revoke all on function public.set_moderation_target_pending(text, uuid, integer)
+from public, anon, authenticated;
+revoke all on function public.invalidate_moderation_cases(text, uuid, integer)
+from public, anon, authenticated;
+revoke all on function public.initialize_post_moderation_fields()
+from public, anon, authenticated;
+revoke all on function public.initialize_comment_moderation_fields()
+from public, anon, authenticated;
+revoke all on function public.protect_post_moderation_fields()
+from public, anon, authenticated;
+revoke all on function public.protect_comment_moderation_fields()
+from public, anon, authenticated;
+revoke all on function public.invalidate_post_image_moderation()
+from public, anon, authenticated;

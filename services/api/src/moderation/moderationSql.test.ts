@@ -48,3 +48,46 @@ test('new content is no longer auto-approved', () => {
   );
   assert.match(schema, /moderation_status[^\n]+default 'pending'/i);
 });
+
+test('authenticated inserts cannot supply moderation authority fields', () => {
+  assert.match(
+    migration,
+    /create trigger initialize_post_moderation[\s\S]*before insert on public\.posts/i,
+  );
+  assert.match(
+    migration,
+    /create trigger initialize_comment_moderation[\s\S]*before insert on public\.comments/i,
+  );
+  assert.match(
+    migration,
+    /new\.moderation_status := 'pending'[\s\S]*new\.moderation_revision := 1/i,
+  );
+  assert.match(
+    schema,
+    /create policy "Users can create own posts"[\s\S]*moderation_status = 'pending'[\s\S]*moderation_revision = 1[\s\S]*ai_toxicity_score is null[\s\S]*published_at is null/i,
+  );
+  assert.match(
+    schema,
+    /create policy "Users can create own comments"[\s\S]*moderation_status = 'pending'[\s\S]*moderation_revision = 1[\s\S]*ai_toxicity_score is null/i,
+  );
+});
+
+test('internal moderation helpers are not executable by clients', () => {
+  for (const signature of [
+    'set_moderation_target_pending\\(text, uuid, integer\\)',
+    'invalidate_moderation_cases\\(text, uuid, integer\\)',
+    'initialize_post_moderation_fields\\(\\)',
+    'initialize_comment_moderation_fields\\(\\)',
+    'protect_post_moderation_fields\\(\\)',
+    'protect_comment_moderation_fields\\(\\)',
+    'invalidate_post_image_moderation\\(\\)',
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(
+        `revoke all on function public\\.${signature}[\\s\\S]*?from public, anon, authenticated`,
+        'i',
+      ),
+    );
+  }
+});
