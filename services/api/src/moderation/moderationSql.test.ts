@@ -10,6 +10,10 @@ const schema = readFileSync(
   new URL('../../../../supabase/schema.sql', import.meta.url),
   'utf8',
 );
+const storageMigration = readFileSync(
+  new URL('../../../../supabase/storage.sql', import.meta.url),
+  'utf8',
+);
 
 test('upgrade SQL defines the complete moderation authority', () => {
   assert.match(
@@ -90,4 +94,36 @@ test('internal moderation helpers are not executable by clients', () => {
       ),
     );
   }
+});
+
+test('shared image storage writes are owner-scoped and objects are immutable', () => {
+  for (const sql of [storageMigration, migration, schema]) {
+    assert.match(
+      sql,
+      /bucket_id = 'images'[\s\S]*storage\.foldername\(name\)\)\[1\][\s\S]*auth\.uid\(\)/i,
+    );
+    assert.match(
+      sql,
+      /storage\.foldername\(name\)\)\[1\][\s\S]*= 'chat'[\s\S]*storage\.foldername\(name\)\)\[2\][\s\S]*auth\.uid\(\)/i,
+    );
+    assert.match(
+      sql,
+      /drop policy if exists "Authenticated users can update images" on storage\.objects/i,
+    );
+    assert.doesNotMatch(
+      sql,
+      /create policy "Authenticated users can update images"/i,
+    );
+  }
+});
+
+test('avatar storage migration scopes writes to the first owner folder', () => {
+  assert.match(
+    storageMigration,
+    /create policy "Authenticated users can upload avatars"[\s\S]*bucket_id = 'avatars'[\s\S]*storage\.foldername\(name\)\)\[1\][\s\S]*auth\.uid\(\)/i,
+  );
+  assert.match(
+    storageMigration,
+    /create policy "Authenticated users can update avatars"[\s\S]*using[\s\S]*storage\.foldername\(name\)\)\[1\][\s\S]*auth\.uid\(\)/i,
+  );
 });
