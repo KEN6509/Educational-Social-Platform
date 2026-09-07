@@ -247,10 +247,13 @@ active administrator. Administrator decisions require a 10-500 character
 reason. Administrator bootstrap rejects passwords that do not meet the same
 12-character uppercase/lowercase/number/symbol policy used by the mobile app.
 
-`GEMINI_API_KEY` is read only by the privileged Express API. `GEMINI_MODEL` and
-`GEMINI_TIMEOUT_MS` control the configured model and bounded request timeout.
-The current stable default is `gemini-3.8-flash`, with low thinking configured
-for the bounded moderation request.
+`GEMINI_API_KEY` is read only by the privileged Express API. `GEMINI_MODEL`,
+`GEMINI_FALLBACK_MODEL`, and `GEMINI_TIMEOUT_MS` control the moderation model
+chain and bounded request timeout. The default chain uses
+`gemini-3.5-flash-lite` first, then one `gemini-3.8-flash` fallback for HTTP
+429/503. Other retryable failures retry the primary once; safety and permanent
+failures stop immediately. Each moderation request makes at most two provider
+calls, with an 8500 ms timeout per call.
 The API validates structured Gemini output, sends trusted post images as
 multimodal inputs, retries transient provider failures once, and records the
 revisioned moderation result before publication. The key must never be placed
@@ -609,7 +612,7 @@ Not covered by this verification:
 
 - Start by reading this file; it is the canonical project and SRS-delivery handover. Use `docs/superpowers/plans/2026-08-02-realtime-system-notifications-and-appeals.md` for the detailed history of the completed notification/admin revisions.
 - Parent Supervision now includes foreground-only 10-second live SOS tracking, latest-point storage, multi-parent acknowledgement events, the live SOS timeline, per-parent Acknowledge-to-Resolve actions, resolve confirmation, and reusable OpenStreetMap views for SOS and Check-In details. The repository implementation is on `feature/AI-Moderation`; rerun the complete updated `supabase/parent_supervision.sql` before live testing.
-- The Gemini moderation implementation has been hardened: database inserts cannot self-approve, shared image writes are owner-scoped, provider safety blocks are separated from ordinary errors, CORS/Vercel entry configuration is explicit, mobile retains same-record retries across restarts, and Admin cases show immutable submitted snapshots. `gemini-3.8-flash` is the current stable default and remains configurable. Live rollout is still required.
+- The Gemini moderation implementation has been hardened: database inserts cannot self-approve, shared image writes are owner-scoped, provider safety blocks are separated from ordinary errors, CORS/Vercel entry configuration is explicit, mobile retains same-record retries across restarts, and Admin cases show immutable submitted snapshots. The API now uses `gemini-3.5-flash-lite` as primary with one bounded `gemini-3.8-flash` fallback for HTTP 429/503. Live rollout is still required.
 - The user reports that the previous `supabase/parent_supervision.sql`, `supabase/chat.sql`, and `supabase/admin_portal.sql` were applied. Before live acceptance, rerun the newly updated complete `supabase/parent_supervision.sql` and `supabase/chat.sql`; repository files and local tests alone do not update or verify Supabase.
 - Message requests are now hidden/dormant. The Messages screen does not load or show them, and active profile/search/follower actions use `open_direct_conversation`, which requires a follow row in either direction. Existing accepted chat history remains readable after both users unfollow, while the Messages preview and chat-room composer become follow-required and `send_chat_message` rejects new direct messages.
 - The creator-application UI still says 10,000 followers and does not enforce the threshold. The approved MVP/UAT target is 2 followers; update the mobile copy and authoritative submission enforcement in a later implementation slice, align the source SRS when it is available, then revisit the production threshold after UAT.
@@ -684,6 +687,7 @@ ADMIN_BOOTSTRAP_SECRET
 REPORT_REVIEW_THRESHOLD
 GEMINI_API_KEY
 GEMINI_MODEL
+GEMINI_FALLBACK_MODEL
 GEMINI_TIMEOUT_MS
 CORS_ALLOWED_ORIGINS
 ```

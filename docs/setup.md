@@ -96,8 +96,11 @@ do not backfill old Activity/New Followers rows.
 - External FCM/APNs push delivery is deferred to the next notification phase.
 - Chat messages are not sent to Gemini moderation.
 - `GEMINI_API_KEY` is required by the API moderation routes and must remain
-  server-side. `gemini-3.8-flash` is the current stable default;
-  `GEMINI_MODEL` and `GEMINI_TIMEOUT_MS` are optional API overrides.
+  server-side. The default chain uses `gemini-3.5-flash-lite` first and
+  `gemini-3.8-flash` as one fallback after HTTP 429/503. Other retryable
+  failures retry the primary once; each moderation request makes at most two
+  provider calls with an 8500 ms timeout per call. `GEMINI_MODEL`,
+  `GEMINI_FALLBACK_MODEL`, and `GEMINI_TIMEOUT_MS` are optional API overrides.
 
 ## Local Tooling
 
@@ -128,7 +131,8 @@ SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 ADMIN_BOOTSTRAP_SECRET=replace-with-long-random-secret
 REPORT_REVIEW_THRESHOLD=1
 GEMINI_API_KEY=your-gemini-api-key
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_FALLBACK_MODEL=gemini-3.8-flash
 GEMINI_TIMEOUT_MS=8500
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
@@ -182,7 +186,8 @@ Deploy the Express API and Admin Portal only after the local checks pass:
    the Express entry point; no static output directory is needed.
 3. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_BOOTSTRAP_SECRET`,
    `REPORT_REVIEW_THRESHOLD`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
-   `GEMINI_TIMEOUT_MS`, and `CORS_ALLOWED_ORIGINS` to the Preview and Production
+   `GEMINI_FALLBACK_MODEL`, `GEMINI_TIMEOUT_MS`, and `CORS_ALLOWED_ORIGINS` to
+   the Preview and Production
    environments. Set `CORS_ALLOWED_ORIGINS` to a comma-separated exact list,
    for example `https://<admin-domain>,http://localhost:5173,http://127.0.0.1:5173`.
 4. Deploy and verify `https://<api-domain>/health` returns a healthy response.

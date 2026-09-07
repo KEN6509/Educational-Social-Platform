@@ -65,11 +65,14 @@ npm run dev
 ```
 
 The moderation routes require `GEMINI_API_KEY` in the Express API environment.
-The current stable default is `gemini-3.8-flash`; `GEMINI_MODEL` and
-`GEMINI_TIMEOUT_MS` are optional overrides. Keep all Gemini
-credentials server-side; never put them in Flutter, React, Supabase client
-configuration, or source control. Health and admin-bootstrap routes do not
-call Gemini.
+The default moderation chain uses `gemini-3.5-flash-lite` first and makes one
+`gemini-3.8-flash` fallback call after an HTTP 429 or 503. Other retryable
+transport failures retry the primary model once; safety and permanent failures
+stop immediately. Each moderation request makes at most two provider calls,
+with an 8500 ms timeout per call. `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, and
+`GEMINI_TIMEOUT_MS` are optional overrides. Keep all Gemini credentials
+server-side; never put them in Flutter, React, Supabase client configuration,
+or source control. Health and admin-bootstrap routes do not call Gemini.
 
 Create the first admin after running `supabase/auth.sql`.
 
