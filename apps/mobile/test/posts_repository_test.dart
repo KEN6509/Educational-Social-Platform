@@ -33,7 +33,7 @@ void main() {
     final source = File('lib/src/features/posts/data/posts_repository.dart')
         .readAsStringSync();
     final start = source.indexOf('Future<void> createReport');
-    final end = source.indexOf('Future<void> createPost');
+    final end = source.indexOf('Future<String> createPost');
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
 
