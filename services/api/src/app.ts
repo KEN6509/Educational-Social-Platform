@@ -10,6 +10,7 @@ import {
 import { healthRouter } from './routes/health.js';
 
 export type AppDependencies = {
+  allowedOrigins?: readonly string[];
   bootstrapSecret: string;
   countAdministrators: () => Promise<number>;
   createAdministrator: (
@@ -25,9 +26,14 @@ export type AppDependencies = {
 
 export function createApp(dependencies: AppDependencies) {
   const app = express();
+  const allowedOrigins = new Set(dependencies.allowedOrigins ?? []);
 
   app.use(helmet());
-  app.use(cors());
+  app.use(cors({
+    origin: (origin, callback) => {
+      callback(null, origin == null || allowedOrigins.has(origin));
+    },
+  }));
   app.use(express.json({ limit: '2mb' }));
 
   app.use('/admin', createAdminRouter(dependencies));

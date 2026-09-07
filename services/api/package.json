@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "test": "tsx --test src/all.test.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

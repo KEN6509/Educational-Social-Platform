@@ -107,6 +107,7 @@ const moderationRouter = createModerationRouter({
 });
 
 const app = createApp({
+  allowedOrigins: env.CORS_ALLOWED_ORIGINS,
   bootstrapSecret: env.ADMIN_BOOTSTRAP_SECRET,
   countAdministrators: async () => {
     const { count, error } = await supabaseAdmin

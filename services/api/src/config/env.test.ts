@@ -42,3 +42,22 @@ test('Gemini timeout cannot consume the complete 20 second budget', () => {
     parseEnv({ ...requiredEnv, GEMINI_TIMEOUT_MS: '10000' }),
   );
 });
+
+test('CORS origins default to local admin development origins', () => {
+  assert.deepEqual(parseEnv(requiredEnv).CORS_ALLOWED_ORIGINS, [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ]);
+});
+
+test('CORS origins are trimmed, deduplicated, and parsed for deployment', () => {
+  const env = parseEnv({
+    ...requiredEnv,
+    CORS_ALLOWED_ORIGINS:
+      ' https://admin.cyanzone.com, http://localhost:5173,https://admin.cyanzone.com ',
+  });
+  assert.deepEqual(env.CORS_ALLOWED_ORIGINS, [
+    'https://admin.cyanzone.com',
+    'http://localhost:5173',
+  ]);
+});

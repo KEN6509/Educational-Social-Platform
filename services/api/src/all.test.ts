@@ -13,4 +13,6 @@ import './index.test.js';
 import './admin/adminSql.test.js';
 import './moderation/moderationSql.test.js';
 import './config/env.test.js';
+import './app.test.js';
+import './vercelEntry.test.js';
 import './lib/passwordPolicy.test.js';
