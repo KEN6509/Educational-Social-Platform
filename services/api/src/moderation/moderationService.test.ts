@@ -189,6 +189,22 @@ test('safety-blocked input is fail-closed as a score-100 rejection', async () =>
   assert.equal(harness.applied?.state, 'rejected');
 });
 
+test('persists the exact attempt count when the second provider call is safety-blocked', async () => {
+  const harness = createHarness();
+  harness.provider.moderate = async () => {
+    throw new GeminiInputSafetyError(
+      [{ category: 'HARM_CATEGORY_HATE_SPEECH', blocked: true }],
+      'text',
+      2,
+    );
+  };
+
+  await harness.service.moderate('post', 'post-1', member);
+
+  assert.equal(harness.persistedResult?.attemptCount, 2);
+  assert.equal(harness.persistedResult?.providerAttempts, 2);
+});
+
 test('safety-blocked input maps only supplied categories and preserves evidence source', async () => {
   const harness = createHarness();
   harness.provider.moderate = async () => {

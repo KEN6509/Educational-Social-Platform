@@ -92,10 +92,11 @@ Automated tests must prove:
 - existing moderation thresholds, immutable snapshots, Admin review, and
   same-record mobile retry tests remain green.
 
-A manual smoke test will use the configured API key to confirm one safe text
-request through the primary model. Fallback behavior will be proven
-deterministically with automated fake-provider tests instead of intentionally
-exhausting live quota.
+A live smoke test on September 7, 2026 used the configured API key and the
+production gateway path. One safe text request completed through
+`gemini-3.5-flash-lite` with risk score `0`, text evidence, and provider attempt
+count `1`. Fallback behavior is proven deterministically with automated tests
+instead of intentionally exhausting live quota.
 
 ## Deployment Boundary
 

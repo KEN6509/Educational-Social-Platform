@@ -7,6 +7,7 @@ import {
 } from './moderationTypes.js';
 import {
   GeminiModerationGateway,
+  type GeminiInteractionClient,
   type GeminiInteractionRequest,
 } from './geminiModerationGateway.js';
 
@@ -34,7 +35,7 @@ const commentTarget: ModerationTarget = {
 };
 
 function createGateway(
-  createInteraction: (request: GeminiInteractionRequest) => Promise<{ output_text?: string }>,
+  createInteraction: GeminiInteractionClient['create'],
 ) {
   return new GeminiModerationGateway({
     apiKey: 'test-key',
@@ -44,6 +45,24 @@ function createGateway(
     createInteraction,
   });
 }
+
+test('applies the timeout and disables SDK retries on every provider call', async () => {
+  const requestOptions: Array<{ timeout: number; maxRetries: number }> = [];
+  const gateway = createGateway(async (_request, options) => {
+    requestOptions.push(options);
+    if (requestOptions.length === 1) {
+      throw { status: 429, message: 'quota' };
+    }
+    return { output_text: JSON.stringify(safeResponse) };
+  });
+
+  await gateway.moderate(commentTarget);
+
+  assert.deepEqual(requestOptions, [
+    { timeout: 8500, maxRetries: 0 },
+    { timeout: 8500, maxRetries: 0 },
+  ]);
+});
 
 test('sends text and every trusted image URI to Gemini and parses structured output', async () => {
   let request: GeminiInteractionRequest | undefined;
@@ -130,7 +149,9 @@ test('preserves explicit Gemini input safety blocks for fail-closed handling', a
 });
 
 test('treats a generic 400 request error as permanent provider failure, not a safety block', async () => {
+  let calls = 0;
   const gateway = createGateway(async () => {
+    calls += 1;
     throw { status: 400, message: 'Invalid response schema field.' };
   });
 
@@ -141,6 +162,7 @@ test('treats a generic 400 request error as permanent provider failure, not a sa
       !(error instanceof GeminiInputSafetyError) &&
       error.retryable === false,
   );
+  assert.equal(calls, 1);
 });
 
 test('recognizes explicit blocked safety metadata without relying on message text', async () => {
@@ -221,5 +243,40 @@ test('never makes a third provider call', async () => {
   });
 
   await assert.rejects(gateway.moderate(commentTarget));
+  assert.equal(calls, 2);
+});
+
+test('preserves the second provider failure status and attempt count', async () => {
+  const gateway = createGateway(async () => {
+    throw { status: 503, message: 'unavailable' };
+  });
+
+  await assert.rejects(
+    gateway.moderate(commentTarget),
+    (error: unknown) =>
+      error instanceof ModerationProviderError &&
+      error.statusCode === 503 &&
+      error.providerAttempts === 2,
+  );
+});
+
+test('preserves a safety block raised on the second provider call', async () => {
+  let calls = 0;
+  const gateway = createGateway(async () => {
+    calls += 1;
+    if (calls === 1) throw new Error('request timed out');
+    throw new GeminiInputSafetyError(
+      [{ category: 'HARM_CATEGORY_HATE_SPEECH', blocked: true }],
+      'text',
+    );
+  });
+
+  await assert.rejects(
+    gateway.moderate(commentTarget),
+    (error: unknown) =>
+      error instanceof GeminiInputSafetyError &&
+      error.providerAttempts === 2 &&
+      error.evidenceSource === 'text',
+  );
   assert.equal(calls, 2);
 });

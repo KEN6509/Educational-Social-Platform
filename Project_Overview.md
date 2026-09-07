@@ -583,7 +583,7 @@ flutter analyze
 
 Observed:
 
-- Express API tests pass (98), with typecheck/build and a zero-vulnerability
+- Express API tests pass (107), with typecheck/build and a zero-vulnerability
   production dependency audit.
 - Admin Portal tests pass (51), with a zero-vulnerability production dependency
   audit, clean typecheck, and successful production build. Vite reports only
@@ -612,7 +612,7 @@ Not covered by this verification:
 
 - Start by reading this file; it is the canonical project and SRS-delivery handover. Use `docs/superpowers/plans/2026-08-02-realtime-system-notifications-and-appeals.md` for the detailed history of the completed notification/admin revisions.
 - Parent Supervision now includes foreground-only 10-second live SOS tracking, latest-point storage, multi-parent acknowledgement events, the live SOS timeline, per-parent Acknowledge-to-Resolve actions, resolve confirmation, and reusable OpenStreetMap views for SOS and Check-In details. The repository implementation is on `feature/AI-Moderation`; rerun the complete updated `supabase/parent_supervision.sql` before live testing.
-- The Gemini moderation implementation has been hardened: database inserts cannot self-approve, shared image writes are owner-scoped, provider safety blocks are separated from ordinary errors, CORS/Vercel entry configuration is explicit, mobile retains same-record retries across restarts, and Admin cases show immutable submitted snapshots. The API now uses `gemini-3.5-flash-lite` as primary with one bounded `gemini-3.8-flash` fallback for HTTP 429/503. Live rollout is still required.
+- The Gemini moderation implementation has been hardened: database inserts cannot self-approve, shared image writes are owner-scoped, provider safety blocks are separated from ordinary errors, CORS/Vercel entry configuration is explicit, mobile retains same-record retries across restarts, and Admin cases show immutable submitted snapshots. The API now uses `gemini-3.5-flash-lite` as primary with one bounded `gemini-3.8-flash` fallback for HTTP 429/503. Request-level SDK retries are disabled, the 8500 ms timeout is applied to each permitted call, and a live primary-model smoke test passed on September 7, 2026. Vercel deployment is still required.
 - The user reports that the previous `supabase/parent_supervision.sql`, `supabase/chat.sql`, and `supabase/admin_portal.sql` were applied. Before live acceptance, rerun the newly updated complete `supabase/parent_supervision.sql` and `supabase/chat.sql`; repository files and local tests alone do not update or verify Supabase.
 - Message requests are now hidden/dormant. The Messages screen does not load or show them, and active profile/search/follower actions use `open_direct_conversation`, which requires a follow row in either direction. Existing accepted chat history remains readable after both users unfollow, while the Messages preview and chat-room composer become follow-required and `send_chat_message` rejects new direct messages.
 - The creator-application UI still says 10,000 followers and does not enforce the threshold. The approved MVP/UAT target is 2 followers; update the mobile copy and authoritative submission enforcement in a later implementation slice, align the source SRS when it is available, then revisit the production threshold after UAT.

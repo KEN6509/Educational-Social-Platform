@@ -49,8 +49,16 @@ export type GeminiInteractionResponse = {
   evidence_source?: 'text' | 'image' | 'both';
 };
 
+export type GeminiInteractionRequestOptions = {
+  timeout: number;
+  maxRetries: 0;
+};
+
 export type GeminiInteractionClient = {
-  create(request: GeminiInteractionRequest): Promise<GeminiInteractionResponse>;
+  create(
+    request: GeminiInteractionRequest,
+    options: GeminiInteractionRequestOptions,
+  ): Promise<GeminiInteractionResponse>;
 };
 
 export type GeminiModerationGatewayOptions = {
@@ -74,17 +82,16 @@ const SYSTEM_INSTRUCTION = [
 export class GeminiModerationGateway implements ModerationProvider {
   private readonly primaryModel: string;
   private readonly fallbackModel: string;
+  private readonly timeoutMs: number;
   private readonly createInteraction: GeminiInteractionClient['create'];
 
   constructor(options: GeminiModerationGatewayOptions) {
     this.primaryModel = options.primaryModel;
     this.fallbackModel = options.fallbackModel;
+    this.timeoutMs = options.timeoutMs;
     this.createInteraction =
       options.createInteraction ??
-      createGoogleInteraction({
-        apiKey: options.apiKey,
-        timeoutMs: options.timeoutMs,
-      });
+      createGoogleInteraction({ apiKey: options.apiKey });
   }
 
   async moderate(target: ModerationTarget): Promise<ModerationProviderResult> {
@@ -139,7 +146,10 @@ export class GeminiModerationGateway implements ModerationProvider {
 
     let response: GeminiInteractionResponse;
     try {
-      response = await this.createInteraction(request);
+      response = await this.createInteraction(request, {
+        timeout: this.timeoutMs,
+        maxRetries: 0,
+      });
     } catch (error) {
       throw error;
     }
@@ -184,17 +194,12 @@ export class GeminiModerationGateway implements ModerationProvider {
 
 function createGoogleInteraction(options: {
   apiKey: string;
-  timeoutMs: number;
 }): GeminiInteractionClient['create'] {
-  const client = new GoogleGenAI({
-    apiKey: options.apiKey,
-    httpOptions: {
-      timeout: options.timeoutMs,
-      retryOptions: { attempts: 1 },
-    },
-  }) as unknown as { interactions: GeminiInteractionClient };
+  const client = new GoogleGenAI({ apiKey: options.apiKey }) as unknown as {
+    interactions: GeminiInteractionClient;
+  };
 
-  return (request) => client.interactions.create(request);
+  return client.interactions.create.bind(client.interactions);
 }
 
 function buildModerationPrompt(target: ModerationTarget): string {
