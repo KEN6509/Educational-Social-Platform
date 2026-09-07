@@ -109,51 +109,46 @@ export function createModerationService(
         return toResponse(moderationCase);
       }
 
-      let lastProviderError: ModerationProviderError | undefined;
-      for (let attempt = 1; attempt <= 2; attempt += 1) {
-        try {
-          const providerResult = await provider.moderate(target.target);
-          const state = decideModeration(providerResult.overallRiskScore);
+      try {
+        const providerResult = await provider.moderate(target.target);
+        const state = decideModeration(providerResult.overallRiskScore);
+        return await applyResult(
+          repository,
+          moderationCase,
+          state,
+          providerResult,
+          providerResult.providerAttempts ?? 1,
+        );
+      } catch (error) {
+        if (error instanceof GeminiInputSafetyError) {
+          const safetyResult = createSafetyResult(error, target.target);
           return await applyResult(
             repository,
             moderationCase,
-            state,
-            providerResult,
-            attempt,
+            'rejected',
+            safetyResult,
+            error.providerAttempts,
           );
-        } catch (error) {
-          if (error instanceof GeminiInputSafetyError) {
-            const safetyResult = createSafetyResult(error, target.target);
-            return await applyResult(
-              repository,
-              moderationCase,
-              'rejected',
-              safetyResult,
-              attempt,
-            );
-          }
-          if (!(error instanceof ModerationProviderError)) throw error;
-          lastProviderError = error;
-          if (!error.retryable || attempt === 2) break;
         }
-      }
+        if (!(error instanceof ModerationProviderError)) throw error;
 
-      try {
-        await repository.markFailed(moderationCase.id, moderationCase.revision, {
-          claimToken: moderationCase.claimToken ?? '',
-          code: lastProviderError?.retryable ? 'provider_unavailable' : 'provider_rejected',
-          message: 'Gemini moderation did not complete.',
-          attemptCount: lastProviderError?.retryable ? 2 : 1,
-        });
-      } catch (error) {
-        if (isStaleError(error)) throw new ModerationStaleError();
-        throw error;
-      }
+        try {
+          await repository.markFailed(moderationCase.id, moderationCase.revision, {
+            claimToken: moderationCase.claimToken ?? '',
+            code: error.retryable ? 'provider_unavailable' : 'provider_rejected',
+            message: 'Gemini moderation did not complete.',
+            attemptCount: error.providerAttempts,
+          });
+        } catch (markFailedError) {
+          if (isStaleError(markFailedError)) throw new ModerationStaleError();
+          throw markFailedError;
+        }
 
-      throw new ModerationProviderFailureError(
-        'Moderation is temporarily unavailable. Please try again.',
-        lastProviderError?.retryable ?? true,
-      );
+        throw new ModerationProviderFailureError(
+          'Moderation is temporarily unavailable. Please try again.',
+          error.retryable,
+        );
+      }
     },
   };
 }
@@ -218,6 +213,7 @@ function createSafetyResult(
     evidenceSource,
     model: 'gemini-safety-policy',
     promptVersion: 'cyanzone-moderation-v1',
+    providerAttempts: error.providerAttempts,
   };
 }
 

@@ -8,6 +8,8 @@ import {
   type ModerationTargetRecord,
   type ModerationProvider,
   type ModerationProviderResult,
+  type PersistedModerationFailure,
+  type PersistedModerationResult,
 } from './moderationTypes.js';
 import {
   createModerationService,
@@ -71,7 +73,8 @@ function createHarness() {
   let applied: ModerationCase | undefined;
   let failed = false;
   let providerCalls = 0;
-  let persistedResult: ModerationProviderResult | undefined;
+  let persistedResult: PersistedModerationResult | undefined;
+  let persistedFailure: PersistedModerationFailure | undefined;
   const provider: ModerationProvider = {
     moderate: async () => {
       providerCalls += 1;
@@ -92,8 +95,9 @@ function createHarness() {
       };
       return applied;
     },
-    markFailed: async () => {
+    markFailed: async (_caseId, _revision, failure) => {
       failed = true;
+      persistedFailure = failure;
       return { ...prepared, state: 'failed', shouldProcess: false };
     },
   };
@@ -115,6 +119,9 @@ function createHarness() {
     },
     get persistedResult() {
       return persistedResult;
+    },
+    get persistedFailure() {
+      return persistedFailure;
     },
   };
 }
@@ -147,21 +154,26 @@ test('returns a live processing case without invoking Gemini twice', async () =>
   assert.equal(harness.providerCalls, 0);
 });
 
-test('retries one transient failure and persists one case', async () => {
+test('invokes the provider once and persists its exact attempt count', async () => {
   const harness = createHarness();
   let calls = 0;
   harness.provider.moderate = async () => {
     calls += 1;
-    if (calls === 1) throw new ModerationProviderError('timeout');
-    return providerResult(10);
+    return {
+      ...providerResult(10),
+      model: 'gemini-3.8-flash',
+      providerAttempts: 2,
+    };
   };
 
   const response = await harness.service.moderate('post', 'post-1', member);
 
   assert.equal(response.status, 'approved');
-  assert.equal(calls, 2);
+  assert.equal(calls, 1);
   assert.equal(harness.failed, false);
   assert.equal(harness.applied?.state, 'approved');
+  assert.equal(harness.persistedResult?.attemptCount, 2);
+  assert.equal(harness.persistedResult?.model, 'gemini-3.8-flash');
 });
 
 test('safety-blocked input is fail-closed as a score-100 rejection', async () => {
@@ -203,7 +215,7 @@ test('safety-blocked input maps only supplied categories and preserves evidence 
 test('final provider failure marks the case and exposes retryable 503 semantics', async () => {
   const harness = createHarness();
   harness.provider.moderate = async () => {
-    throw new ModerationProviderError('timeout');
+    throw new ModerationProviderError('timeout', { providerAttempts: 2 });
   };
 
   await assert.rejects(
@@ -213,8 +225,8 @@ test('final provider failure marks the case and exposes retryable 503 semantics'
       error.status === 503 &&
       error.retryAllowed === true,
   );
-  assert.equal(harness.providerCalls, 0);
   assert.equal(harness.failed, true);
+  assert.equal(harness.persistedFailure?.attemptCount, 2);
 });
 
 test('rejects a member attempting to moderate another member\'s target', async () => {

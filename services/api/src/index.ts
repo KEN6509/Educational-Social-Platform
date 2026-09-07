@@ -85,7 +85,8 @@ const memberAuthSource: MemberAuthSource = {
 const moderationProvider = env.GEMINI_API_KEY
   ? new GeminiModerationGateway({
       apiKey: env.GEMINI_API_KEY,
-      model: env.GEMINI_MODEL,
+      primaryModel: env.GEMINI_MODEL,
+      fallbackModel: env.GEMINI_FALLBACK_MODEL,
       timeoutMs: env.GEMINI_TIMEOUT_MS,
     })
   : {
