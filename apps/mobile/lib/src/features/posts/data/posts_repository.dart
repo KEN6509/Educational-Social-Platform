@@ -85,6 +85,19 @@ class PostsRepository implements PostSubmissionRepository {
   static const savedPostsSelectColumns = 'posts!inner($feedSelectColumns)';
   static const likedPostsSelectColumns = 'posts!inner($feedSelectColumns)';
 
+  static Map<String, String> buildReportPayload({
+    required String reporterId,
+    required String targetType,
+    required String targetId,
+    required String reason,
+  }) =>
+      {
+        'reporter_id': reporterId,
+        'target_type': targetType,
+        'target_id': targetId,
+        'reason': reason,
+      };
+
   final SupabaseClient _client;
 
   Future<List<FeedPost>> fetchFeed({List<String>? tagFilters}) async {
@@ -466,12 +479,14 @@ class PostsRepository implements PostSubmissionRepository {
       throw const AuthException('You need to log in to report content.');
     }
 
-    await _client.from('reports').insert({
-      'reporter_id': userId,
-      'target_type': targetType,
-      'target_id': targetId,
-      'reason': reason,
-    });
+    await _client.from('reports').insert(
+          buildReportPayload(
+            reporterId: userId,
+            targetType: targetType,
+            targetId: targetId,
+            reason: reason,
+          ),
+        );
   }
 
   @override

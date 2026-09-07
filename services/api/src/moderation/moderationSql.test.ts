@@ -44,7 +44,7 @@ test('moderation cases preserve the exact target revision submitted for review',
   }
   assert.match(
     migration,
-    /jsonb_build_object\([\s\S]*?'title'[\s\S]*?'content'[\s\S]*?'images'[\s\S]*?into v_owner_id, v_revision, v_target_snapshot/i,
+    /jsonb_build_object\([\s\S]*?'title'[\s\S]*?'content'[\s\S]*?'tags'[\s\S]*?'images'[\s\S]*?into v_owner_id, v_revision, v_target_snapshot/i,
   );
   assert.match(
     migration,

@@ -408,6 +408,7 @@ begin
       jsonb_build_object(
         'title', post.title,
         'content', post.content,
+        'tags', to_jsonb(post.tags),
         'images', coalesce(
           (
             select jsonb_agg(

@@ -29,18 +29,21 @@ void main() {
     expect(PostsRepository.reportReasons.length, greaterThanOrEqualTo(7));
   });
 
-  test('createReport inserts a reason-only report', () {
-    final source = File('lib/src/features/posts/data/posts_repository.dart')
-        .readAsStringSync();
-    final start = source.indexOf('Future<void> createReport');
-    final end = source.indexOf('Future<String> createPost');
-    expect(start, greaterThanOrEqualTo(0));
-    expect(end, greaterThan(start));
+  test('report payload contains only the current reason-based contract', () {
+    final payload = PostsRepository.buildReportPayload(
+      reporterId: 'member-1',
+      targetType: 'post',
+      targetId: 'post-1',
+      reason: 'Spam',
+    );
 
-    final createReportSource = source.substring(start, end);
-    expect(createReportSource, contains(".from('reports').insert"));
-    expect(createReportSource, contains("'reason': reason"));
-    expect(createReportSource, isNot(contains('description')));
+    expect(payload, {
+      'reporter_id': 'member-1',
+      'target_type': 'post',
+      'target_id': 'post-1',
+      'reason': 'Spam',
+    });
+    expect(payload, isNot(contains('description')));
   });
 
   test('saved and liked profile queries embed posts through inner joins', () {
@@ -62,14 +65,16 @@ void main() {
     expect(source, isNot(contains(".storage.from('post-images')")));
   });
 
-  test('submission writes return IDs and leave moderation authority to SQL', () {
+  test('submission writes return IDs and leave moderation authority to SQL',
+      () {
     final source = File('lib/src/features/posts/data/posts_repository.dart')
         .readAsStringSync();
     final postStart = source.indexOf('Future<String> createPost');
     final commentStart = source.indexOf('Future<String> createComment');
     expect(postStart, greaterThanOrEqualTo(0));
     expect(commentStart, greaterThanOrEqualTo(0));
-    expect(source.substring(commentStart, postStart), contains(".select('id')"));
+    expect(
+        source.substring(commentStart, postStart), contains(".select('id')"));
     expect(source.substring(commentStart, postStart), contains('.single()'));
     expect(source, contains("'mime_type': image.contentType"));
     expect(source, isNot(contains("'moderation_status': 'pending'")));
