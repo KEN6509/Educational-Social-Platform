@@ -23,18 +23,33 @@ test('report review threshold accepts the deployment value', () => {
 
 test('Gemini moderation configuration has bounded defaults', () => {
   const env = parseEnv(requiredEnv);
-  assert.equal(env.GEMINI_MODEL, 'gemini-3.8-flash');
+  assert.equal(env.GEMINI_MODEL, 'gemini-3.5-flash-lite');
+  assert.equal(env.GEMINI_FALLBACK_MODEL, 'gemini-3.8-flash');
   assert.equal(env.GEMINI_TIMEOUT_MS, 8500);
 });
 
 test('Gemini moderation configuration accepts deployment overrides', () => {
   const env = parseEnv({
     ...requiredEnv,
-    GEMINI_MODEL: 'gemini-3.7-flash',
+    GEMINI_MODEL: 'gemini-3.6-flash',
+    GEMINI_FALLBACK_MODEL: 'gemini-3.8-flash',
     GEMINI_TIMEOUT_MS: '7000',
   });
-  assert.equal(env.GEMINI_MODEL, 'gemini-3.7-flash');
+  assert.equal(env.GEMINI_MODEL, 'gemini-3.6-flash');
+  assert.equal(env.GEMINI_FALLBACK_MODEL, 'gemini-3.8-flash');
   assert.equal(env.GEMINI_TIMEOUT_MS, 7000);
+});
+
+test('Gemini primary and fallback models must differ', () => {
+  assert.throws(
+    () =>
+      parseEnv({
+        ...requiredEnv,
+        GEMINI_MODEL: 'gemini-3.8-flash',
+        GEMINI_FALLBACK_MODEL: 'gemini-3.8-flash',
+      }),
+    /fallback/i,
+  );
 });
 
 test('Gemini timeout cannot consume the complete 20 second budget', () => {
