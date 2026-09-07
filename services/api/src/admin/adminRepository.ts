@@ -188,6 +188,28 @@ function asRows(value: unknown): Record<string, any>[] {
   return value && typeof value === 'object' ? [value as Record<string, any>] : [];
 }
 
+function asRecord(value: unknown): Record<string, any> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, any>
+    : null;
+}
+
+function snapshotImageUrls(
+  client: SupabaseClient,
+  snapshot: Record<string, any> | null,
+): string[] | null {
+  if (!snapshot || !Array.isArray(snapshot.images)) return null;
+
+  return snapshot.images.flatMap((value: unknown) => {
+    const image = asRecord(value);
+    if (typeof image?.public_url === 'string') return [image.public_url];
+    if (typeof image?.storage_path === 'string') {
+      return [client.storage.from('images').getPublicUrl(image.storage_path).data.publicUrl];
+    }
+    return [];
+  });
+}
+
 async function hydrateModerationCases(
   client: SupabaseClient,
   caseRows: Record<string, any>[],
@@ -232,6 +254,8 @@ async function hydrateModerationCases(
       ? postMap.get(String(row.target_id))
       : commentMap.get(String(row.target_id));
     const profile = profileMap.get(String(row.owner_id));
+    const snapshot = asRecord(row.target_snapshot);
+    const snapshotImages = snapshotImageUrls(client, snapshot);
     return {
       id: String(row.id),
       targetType: row.target_type,
@@ -240,9 +264,17 @@ async function hydrateModerationCases(
       authorName: String(profile?.name ?? 'Unknown user'),
       authorEmail: String(profile?.email ?? ''),
       submittedAt: String(row.created_at),
-      title: row.target_type === 'post' && typeof target?.title === 'string' ? target.title : null,
-      content: String(target?.content ?? ''),
-      imageUrls: imageMap.get(String(row.target_id)) ?? [],
+      title: row.target_type === 'post'
+        ? typeof snapshot?.title === 'string'
+          ? snapshot.title
+          : typeof target?.title === 'string'
+            ? target.title
+            : null
+        : null,
+      content: typeof snapshot?.content === 'string'
+        ? snapshot.content
+        : String(target?.content ?? ''),
+      imageUrls: snapshotImages ?? imageMap.get(String(row.target_id)) ?? [],
       riskScore: Number(row.overall_risk_score ?? 0),
       categoryScores: row.category_scores && typeof row.category_scores === 'object' ? row.category_scores : {},
       evidence: Array.isArray(row.evidence) ? row.evidence.filter((item: unknown): item is string => typeof item === 'string') : [],

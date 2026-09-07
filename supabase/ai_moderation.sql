@@ -7,6 +7,7 @@ create table if not exists public.content_moderation_cases (
   target_id uuid not null,
   owner_id uuid not null references public.profiles(id) on delete cascade,
   moderation_revision integer not null check (moderation_revision > 0),
+  target_snapshot jsonb not null default '{}'::jsonb,
   state text not null check (
     state in ('processing', 'admin_review', 'approved', 'rejected', 'failed', 'superseded')
   ),
@@ -32,6 +33,9 @@ create table if not exists public.content_moderation_cases (
   updated_at timestamptz not null default now(),
   unique (target_type, target_id, moderation_revision)
 );
+
+alter table public.content_moderation_cases
+  add column if not exists target_snapshot jsonb not null default '{}'::jsonb;
 
 alter table public.posts
   add column if not exists moderation_revision integer not null default 1;
@@ -393,20 +397,45 @@ as $$
 declare
   v_owner_id uuid;
   v_revision integer;
+  v_target_snapshot jsonb;
   v_case public.content_moderation_cases%rowtype;
   v_token uuid := gen_random_uuid();
 begin
   if p_target_type = 'post' then
-    select author_id, moderation_revision
-    into v_owner_id, v_revision
-    from public.posts
-    where id = p_target_id
+    select
+      post.author_id,
+      post.moderation_revision,
+      jsonb_build_object(
+        'title', post.title,
+        'content', post.content,
+        'images', coalesce(
+          (
+            select jsonb_agg(
+              jsonb_build_object(
+                'public_url', image.public_url,
+                'storage_path', image.storage_path,
+                'mime_type', image.mime_type,
+                'position', image.position
+              ) order by image.position
+            )
+            from public.post_images image
+            where image.post_id = post.id
+          ),
+          '[]'::jsonb
+        )
+      )
+    into v_owner_id, v_revision, v_target_snapshot
+    from public.posts post
+    where post.id = p_target_id
     for update;
   elsif p_target_type = 'comment' then
-    select author_id, moderation_revision
-    into v_owner_id, v_revision
-    from public.comments
-    where id = p_target_id
+    select
+      comment.author_id,
+      comment.moderation_revision,
+      jsonb_build_object('content', comment.content)
+    into v_owner_id, v_revision, v_target_snapshot
+    from public.comments comment
+    where comment.id = p_target_id
     for update;
   else
     raise exception using errcode = '22023', message = 'Unsupported moderation target';
@@ -447,6 +476,10 @@ begin
 
     update public.content_moderation_cases
     set state = 'processing',
+        target_snapshot = case
+          when target_snapshot = '{}'::jsonb then v_target_snapshot
+          else target_snapshot
+        end,
         claim_token = v_token,
         lease_expires_at = now() + interval '30 seconds',
         started_at = now(),
@@ -459,6 +492,7 @@ begin
       target_id,
       owner_id,
       moderation_revision,
+      target_snapshot,
       state,
       claim_token,
       lease_expires_at,
@@ -468,6 +502,7 @@ begin
       p_target_id,
       p_owner_id,
       v_revision,
+      v_target_snapshot,
       'processing',
       v_token,
       now() + interval '30 seconds',

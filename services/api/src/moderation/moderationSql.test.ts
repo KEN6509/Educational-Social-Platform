@@ -38,6 +38,20 @@ test('fresh schema contains the moderation base tables and revision fields', () 
   assert.match(schema, /mime_type text/i);
 });
 
+test('moderation cases preserve the exact target revision submitted for review', () => {
+  for (const sql of [migration, schema]) {
+    assert.match(sql, /target_snapshot jsonb not null default '\{\}'::jsonb/i);
+  }
+  assert.match(
+    migration,
+    /jsonb_build_object\([\s\S]*?'title'[\s\S]*?'content'[\s\S]*?'images'[\s\S]*?into v_owner_id, v_revision, v_target_snapshot/i,
+  );
+  assert.match(
+    migration,
+    /insert into public\.content_moderation_cases[\s\S]*?target_snapshot[\s\S]*?v_target_snapshot/i,
+  );
+});
+
 test('upgrade SQL adds the audited administrator decision boundary', () => {
   assert.match(migration, /decide_content_moderation_case/i);
   assert.match(migration, /admin_action_audit/i);

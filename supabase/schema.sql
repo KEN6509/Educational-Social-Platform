@@ -128,6 +128,7 @@ create table if not exists public.content_moderation_cases (
   target_id uuid not null,
   owner_id uuid not null references public.profiles(id) on delete cascade,
   moderation_revision integer not null check (moderation_revision > 0),
+  target_snapshot jsonb not null default '{}'::jsonb,
   state text not null check (
     state in ('processing', 'admin_review', 'approved', 'rejected', 'failed', 'superseded')
   ),

@@ -107,12 +107,23 @@ test('repository lists moderation cases and invokes the decision RPC', async () 
           evidence: ['test evidence'],
           user_reason: 'Needs review',
           model: 'gemini-3.8-flash',
+          target_snapshot: {
+            title: 'Submitted title',
+            content: 'Submitted content',
+            images: [
+              {
+                public_url: 'https://project.supabase.co/images/submitted.jpg',
+                storage_path: 'member-1/submitted.jpg',
+                position: 1,
+              },
+            ],
+          },
           decision_reason: null,
           completed_at: null,
           created_at: '2026-09-06T12:00:00.000Z',
         });
       }
-      if (table === 'posts') return queryBuilder({ id: 'post-1', title: 'A post', content: 'Post content', author_id: 'member-1' });
+      if (table === 'posts') return queryBuilder({ id: 'post-1', title: 'Edited title', content: 'Edited content', author_id: 'member-1' });
       if (table === 'profiles') return queryBuilder({ id: 'member-1', name: 'Member', email: 'member@cyanzone.test' });
       if (table === 'post_images') return queryBuilder([{ post_id: 'post-1', public_url: 'https://project.supabase.co/images/a.jpg', position: 1 }]);
       return queryBuilder(null);
@@ -129,6 +140,11 @@ test('repository lists moderation cases and invokes the decision RPC', async () 
 
   assert.equal(listed.items[0]?.riskScore, 50);
   assert.equal(listed.items[0]?.status, 'pending');
+  assert.equal(listed.items[0]?.title, 'Submitted title');
+  assert.equal(listed.items[0]?.content, 'Submitted content');
+  assert.deepEqual(listed.items[0]?.imageUrls, [
+    'https://project.supabase.co/images/submitted.jpg',
+  ]);
   assert.equal(rpcCalls[0]?.name, 'decide_content_moderation_case');
   assert.equal(rpcCalls[0]?.args.p_case_id, 'case-1');
 });
