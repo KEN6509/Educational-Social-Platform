@@ -55,7 +55,8 @@ export type GeminiInteractionClient = {
 
 export type GeminiModerationGatewayOptions = {
   apiKey: string;
-  model: string;
+  primaryModel: string;
+  fallbackModel: string;
   timeoutMs: number;
   createInteraction?: GeminiInteractionClient['create'];
 };
@@ -71,11 +72,13 @@ const SYSTEM_INSTRUCTION = [
 ].join(' ');
 
 export class GeminiModerationGateway implements ModerationProvider {
-  private readonly model: string;
+  private readonly primaryModel: string;
+  private readonly fallbackModel: string;
   private readonly createInteraction: GeminiInteractionClient['create'];
 
   constructor(options: GeminiModerationGatewayOptions) {
-    this.model = options.model;
+    this.primaryModel = options.primaryModel;
+    this.fallbackModel = options.fallbackModel;
     this.createInteraction =
       options.createInteraction ??
       createGoogleInteraction({
@@ -85,8 +88,32 @@ export class GeminiModerationGateway implements ModerationProvider {
   }
 
   async moderate(target: ModerationTarget): Promise<ModerationProviderResult> {
+    try {
+      return await this.moderateWithModel(target, this.primaryModel, 1);
+    } catch (error) {
+      const primaryError = withProviderAttempts(normalizeGeminiError(error), 1);
+      if (!primaryError.retryable) throw primaryError;
+
+      const secondModel = primaryError.statusCode === 429 ||
+          primaryError.statusCode === 503
+        ? this.fallbackModel
+        : this.primaryModel;
+
+      try {
+        return await this.moderateWithModel(target, secondModel, 2);
+      } catch (secondError) {
+        throw withProviderAttempts(normalizeGeminiError(secondError), 2);
+      }
+    }
+  }
+
+  private async moderateWithModel(
+    target: ModerationTarget,
+    model: string,
+    providerAttempts: number,
+  ): Promise<ModerationProviderResult> {
     const request: GeminiInteractionRequest = {
-      model: this.model,
+      model,
       system_instruction: SYSTEM_INSTRUCTION,
       generation_config: {
         thinking_level: 'low',
@@ -114,7 +141,7 @@ export class GeminiModerationGateway implements ModerationProvider {
     try {
       response = await this.createInteraction(request);
     } catch (error) {
-      throw normalizeGeminiError(error);
+      throw error;
     }
 
     if (response.safety_blocked) {
@@ -142,7 +169,10 @@ export class GeminiModerationGateway implements ModerationProvider {
     }
 
     try {
-      return parseModerationResult(parsed, this.model, MODERATION_PROMPT_VERSION);
+      return {
+        ...parseModerationResult(parsed, model, MODERATION_PROMPT_VERSION),
+        providerAttempts,
+      };
     } catch (error) {
       throw new ModerationProviderError('Gemini returned schema-invalid moderation output', {
         retryable: false,
@@ -193,6 +223,26 @@ function normalizeGeminiError(error: unknown): ModerationProviderError {
   return new ModerationProviderError('Gemini moderation request failed', {
     retryable: isRetryableProviderError(error),
     cause: error,
+    statusCode: findHttpStatus(error) ?? undefined,
+  });
+}
+
+function withProviderAttempts(
+  error: ModerationProviderError,
+  providerAttempts: number,
+): ModerationProviderError {
+  if (error instanceof GeminiInputSafetyError) {
+    return new GeminiInputSafetyError(
+      error.ratings,
+      error.evidenceSource,
+      providerAttempts,
+    );
+  }
+  return new ModerationProviderError(error.message, {
+    retryable: error.retryable,
+    cause: error.cause,
+    statusCode: error.statusCode,
+    providerAttempts,
   });
 }
 

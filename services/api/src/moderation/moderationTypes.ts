@@ -41,6 +41,7 @@ export type ModerationProviderResult = {
   evidenceSource: ModerationEvidenceSource;
   model: string;
   promptVersion: string;
+  providerAttempts?: number;
 };
 
 export type ModerationCaseState =
@@ -122,12 +123,24 @@ export interface ModerationProvider {
 export class ModerationProviderError extends Error {
   readonly retryable: boolean;
   readonly cause?: unknown;
+  readonly statusCode?: number;
+  readonly providerAttempts: number;
 
-  constructor(message: string, options: { retryable?: boolean; cause?: unknown } = {}) {
+  constructor(
+    message: string,
+    options: {
+      retryable?: boolean;
+      cause?: unknown;
+      statusCode?: number;
+      providerAttempts?: number;
+    } = {},
+  ) {
     super(message);
     this.name = 'ModerationProviderError';
     this.retryable = options.retryable ?? true;
     this.cause = options.cause;
+    this.statusCode = options.statusCode;
+    this.providerAttempts = options.providerAttempts ?? 1;
   }
 }
 
@@ -138,9 +151,11 @@ export class GeminiInputSafetyError extends ModerationProviderError {
   constructor(
     ratings: unknown = undefined,
     evidenceSource?: ModerationEvidenceSource,
+    providerAttempts?: number,
   ) {
     super('Gemini blocked the moderation input for safety reasons', {
       retryable: false,
+      providerAttempts,
     });
     this.name = 'GeminiInputSafetyError';
     this.ratings = ratings;
