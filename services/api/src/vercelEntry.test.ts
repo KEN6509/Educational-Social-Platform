@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import request from 'supertest';
 
@@ -9,6 +9,18 @@ test('Vercel entry exports the composed Express application', async () => {
   const response = await request(vercelApp).get('/health');
   assert.equal(response.status, 200);
   assert.equal(response.body.ok, true);
+});
+
+test('only the composed server uses a Vercel Express entry-point filename', () => {
+  assert.equal(
+    existsSync(new URL('./app.ts', import.meta.url)),
+    false,
+    'src/app.ts is auto-detected by Vercel and must not contain only an app factory',
+  );
+  assert.equal(
+    existsSync(new URL('./createApp.ts', import.meta.url)),
+    true,
+  );
 });
 
 test('Vercel rewrites every public route to the API function', () => {
@@ -22,7 +34,7 @@ test('Vercel rewrites every public route to the API function', () => {
 
 test('Vercel Express compilation normalizes the Helmet module type', () => {
   const appSource = readFileSync(
-    new URL('./app.ts', import.meta.url),
+    new URL('./createApp.ts', import.meta.url),
     'utf8',
   );
 

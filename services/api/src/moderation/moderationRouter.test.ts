@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Router } from 'express';
 import request from 'supertest';
-import { createApp, type AppDependencies } from '../app.js';
+import { createApp, type AppDependencies } from '../createApp.js';
 import { createModerationRouter } from './moderationRouter.js';
 import {
   ModerationNotFoundError,

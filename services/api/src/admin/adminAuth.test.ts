@@ -4,7 +4,7 @@ import test from 'node:test';
 import { Router } from 'express';
 import request from 'supertest';
 
-import { createApp, type AppDependencies } from '../app.js';
+import { createApp, type AppDependencies } from '../createApp.js';
 import {
   AdminAuthorizationError,
   createVerifyAdmin,

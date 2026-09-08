@@ -3,7 +3,7 @@ import test from 'node:test';
 import express from 'express';
 import request from 'supertest';
 
-import { createApp, type AppDependencies } from './app.js';
+import { createApp, type AppDependencies } from './createApp.js';
 
 function dependencies(): AppDependencies {
   return {
