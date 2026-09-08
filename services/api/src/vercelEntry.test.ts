@@ -20,12 +20,16 @@ test('Vercel rewrites every public route to the API function', () => {
   ]);
 });
 
-test('Vercel Express compilation uses the portable Helmet module export', () => {
+test('Vercel Express compilation normalizes the Helmet module type', () => {
   const appSource = readFileSync(
     new URL('./app.ts', import.meta.url),
     'utf8',
   );
 
-  assert.match(appSource, /^import \* as helmetModule from 'helmet';$/m);
-  assert.match(appSource, /app\.use\(helmetModule\.default\(\)\);/);
+  assert.match(appSource, /^import helmetModule from 'helmet';$/m);
+  assert.match(
+    appSource,
+    /const createHelmetMiddleware = helmetModule as unknown as \(\) => express\.RequestHandler;/,
+  );
+  assert.match(appSource, /app\.use\(createHelmetMiddleware\(\)\);/);
 });
