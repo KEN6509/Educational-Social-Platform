@@ -8,31 +8,47 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
 import '../../posts/presentation/post_detail_page.dart';
+import '../../profile/presentation/profile_page.dart';
 import '../data/chat_models.dart';
+import '../data/chat_mention.dart';
 import '../data/chat_repository.dart';
 import 'chat_details_page.dart';
 import 'chat_widgets.dart';
+import 'chat_mention_controller.dart';
 
 typedef MessageLoader = Future<List<ChatMessage>> Function();
 typedef MessageSender = Future<void> Function(
     String conversationId, String body);
+typedef SendPermissionLoader = Future<bool> Function(String conversationId);
 typedef ConversationAction = Future<void> Function(String conversationId);
+typedef MentionVisitAction = Future<void> Function(String messageId);
 
 class ChatRoomPage extends StatefulWidget {
   const ChatRoomPage({
     super.key,
     required this.conversation,
     this.loadMessages,
+    this.loadSendPermission,
     this.sendMessage,
     this.markRead,
+    this.mentionParticipants,
+    this.canMentionAll = false,
+    this.initialUnvisitedMentionMessageIds = const [],
+    this.markMentionVisited,
   });
 
   final ChatConversation conversation;
   final MessageLoader? loadMessages;
+  final SendPermissionLoader? loadSendPermission;
   final MessageSender? sendMessage;
   final ConversationAction? markRead;
+  final List<ChatParticipant>? mentionParticipants;
+  final bool canMentionAll;
+  final List<String> initialUnvisitedMentionMessageIds;
+  final MentionVisitAction? markMentionVisited;
 
   @override
   State<ChatRoomPage> createState() => _ChatRoomPageState();
@@ -41,6 +57,8 @@ class ChatRoomPage extends StatefulWidget {
 class _ChatRoomPageState extends State<ChatRoomPage>
     with WidgetsBindingObserver {
   static const _messageCachePrefix = 'chat.cached_messages.v1.';
+  static const _followRequiredMessage =
+      'Follow this user to continue chatting.';
   static final Map<String, List<ChatMessage>> _cachedMessages =
       <String, List<ChatMessage>>{};
 
@@ -49,15 +67,24 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   late Future<List<ChatMessage>> _messagesFuture;
   late ChatConversation _conversation = widget.conversation;
   final _controller = TextEditingController();
+  final _mentionController = ChatMentionController();
   final _messageScrollController = ScrollController();
   final _inputFocusNode = FocusNode();
   final List<Timer> _scrollTimers = <Timer>[];
   final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
   final GlobalKey _unreadDividerKey = GlobalKey();
+  final GlobalKey _composerKey = GlobalKey();
   bool _isSending = false;
   bool _isPickingImage = false;
   bool _initialScrollDone = false;
   bool _showJumpToBottom = false;
+  List<ChatParticipant> _mentionParticipants = const [];
+  List<String> _unvisitedMentionMessageIds = const [];
+  String? _mentionQuery;
+  String _previousComposerText = '';
+  bool _canMentionAll = false;
+  bool? _canSendMessages;
+  double _composerHeight = 76;
   final Set<String> _selectedMessageIds = <String>{};
   final Map<String, ChatMessage> _selectedMessagesById =
       <String, ChatMessage>{};
@@ -72,6 +99,22 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     _messageScrollController.addListener(_handleMessageScrollChanged);
     _inputFocusNode.addListener(_handleInputFocusChanged);
     _messagesFuture = _load();
+    _canSendMessages = _conversation.isGroup
+        ? true
+        : widget.loadSendPermission != null || widget.loadMessages == null
+            ? null
+            : _conversation.canSendMessages;
+    _mentionParticipants = widget.mentionParticipants ?? const [];
+    _canMentionAll = widget.canMentionAll;
+    _unvisitedMentionMessageIds = widget.initialUnvisitedMentionMessageIds;
+    if (_conversation.isGroup &&
+        widget.loadMessages == null &&
+        widget.mentionParticipants == null) {
+      _loadMentionParticipants();
+    }
+    if (!_conversation.isGroup && _canSendMessages == null) {
+      unawaited(_refreshSendPermission());
+    }
     (widget.markRead ?? _repo.markConversationRead)(_conversation.id);
     if (widget.loadMessages == null) {
       _channel = _repo.subscribeToChatChanges(
@@ -109,6 +152,32 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   @override
   void didChangeMetrics() {
     _pinToBottomAfterLayout();
+    _scheduleComposerMeasurement();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_conversation.isGroup) {
+      unawaited(_refreshSendPermission());
+    }
+  }
+
+  Future<void> _refreshSendPermission() async {
+    if (_conversation.isGroup) return;
+    try {
+      final canSend = await (widget.loadSendPermission ?? _repo.canSendMessage)(
+        _conversation.id,
+      );
+      if (!mounted) return;
+      setState(() => _canSendMessages = canSend);
+    } catch (error) {
+      assert(() {
+        debugPrint('Chat send permission refresh failed: $error');
+        return true;
+      }());
+      if (!mounted) return;
+      setState(() => _canSendMessages = _conversation.canSendMessages);
+    }
   }
 
   void _handleInputFocusChanged() {
@@ -156,6 +225,10 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     _initialScrollDone = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (_unvisitedMentionMessageIds.isNotEmpty) {
+        _visitNextMention();
+        return;
+      }
       _scrollToUnreadDividerOrLatest(messages);
     });
   }
@@ -239,6 +312,21 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     try {
       final messages = await (widget.loadMessages?.call() ??
           _repo.fetchMessages(_conversation.id));
+      if (widget.loadMessages == null &&
+          widget.initialUnvisitedMentionMessageIds.isEmpty) {
+        final mentions = await _repo.fetchUnvisitedMentions(
+          conversationId: _conversation.id,
+        );
+        _unvisitedMentionMessageIds =
+            mentions.map((mention) => mention.messageId).toSet().toList();
+        final loadedIds = messages.map((message) => message.id).toSet();
+        final missingIds = _unvisitedMentionMessageIds
+            .where((messageId) => !loadedIds.contains(messageId))
+            .toList();
+        if (missingIds.isNotEmpty) {
+          messages.addAll(await _repo.fetchMessagesByIds(missingIds));
+        }
+      }
       messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
       _cachedMessages[_conversation.id] = messages.length <= 10
           ? messages
@@ -248,6 +336,75 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     } catch (_) {
       return _cachedMessages[_conversation.id] ?? const <ChatMessage>[];
     }
+  }
+
+  Future<void> _loadMentionParticipants() async {
+    try {
+      final participants =
+          await _repo.fetchConversationParticipants(_conversation.id);
+      final currentId = _currentUserId;
+      if (!mounted) return;
+      setState(() {
+        _canMentionAll = participants.any(
+          (person) => person.id == currentId && person.isAdmin,
+        );
+        _mentionParticipants =
+            participants.where((person) => person.id != currentId).toList();
+      });
+    } catch (_) {}
+  }
+
+  void _handleComposerChanged(String text) {
+    _scheduleComposerMeasurement();
+    _mentionController.reconcile(
+      previousText: _previousComposerText,
+      text: text,
+    );
+    _previousComposerText = text;
+    final query = _mentionController.queryFor(
+      text,
+      _controller.selection.baseOffset,
+    );
+    if (query != _mentionQuery && mounted) {
+      setState(() => _mentionQuery = query);
+    }
+  }
+
+  void _scheduleComposerMeasurement() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _composerKey.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) return;
+      final height = box.size.height;
+      if ((height - _composerHeight).abs() < 0.5) return;
+      setState(() => _composerHeight = height);
+    });
+  }
+
+  void _insertMention(ChatParticipant? participant, {bool all = false}) {
+    final result = _mentionController.insertMention(
+      text: _controller.text,
+      selectionOffset: _controller.selection.baseOffset,
+      userId: participant?.id ?? '',
+      displayName: participant?.name ?? 'all',
+      isAll: all,
+    );
+    _controller.value = TextEditingValue(
+      text: result.text,
+      selection: TextSelection.collapsed(offset: result.selectionOffset),
+    );
+    _previousComposerText = result.text;
+    setState(() => _mentionQuery = null);
+    _inputFocusNode.requestFocus();
+  }
+
+  List<ChatParticipant> get _filteredMentionParticipants {
+    final query = (_mentionQuery ?? '').trim().toLowerCase();
+    if (query == 'all') return const [];
+    return _mentionParticipants
+        .where((person) => person.name.toLowerCase().contains(query))
+        .take(6)
+        .toList();
   }
 
   List<ChatMessage> get _cachedRoomMessages =>
@@ -300,6 +457,11 @@ class _ChatRoomPageState extends State<ChatRoomPage>
               deletedAt: DateTime.tryParse('${map['deleted_at'] ?? ''}'),
               senderName: map['sender_name']?.toString(),
               senderAvatarUrl: map['sender_avatar_url']?.toString(),
+              mentions: (map['mentions'] as List?)
+                      ?.whereType<Map>()
+                      .map(ChatMention.fromMap)
+                      .toList() ??
+                  const [],
             );
           })
           .where((message) => !message.isDeleted)
@@ -321,21 +483,41 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       'is_mine': message.isMine,
       'sender_name': message.senderName,
       'sender_avatar_url': message.senderAvatarUrl,
+      'mentions': message.mentions.map((mention) => mention.toJson()).toList(),
     };
   }
 
   Future<void> _send() async {
     final body = _controller.text.trim();
-    if (body.isEmpty || _isSending) return;
+    if (body.isEmpty || _isSending || _canSendMessages != true) return;
 
     setState(() => _isSending = true);
     try {
       final action = widget.sendMessage ??
           (String id, String text) async {
-            await _repo.sendMessage(conversationId: id, body: text);
+            final leading =
+                _controller.text.length - _controller.text.trimLeft().length;
+            final mentions = _mentionController.mentions
+                .map((mention) => ChatMention(
+                      userId: mention.userId,
+                      displayText: mention.displayText,
+                      start: mention.start - leading,
+                      end: mention.end - leading,
+                      isAll: mention.isAll,
+                    ))
+                .where((mention) => mention.matches(text))
+                .toList();
+            await _repo.sendMessage(
+              conversationId: id,
+              body: text,
+              mentions: mentions,
+            );
           };
       await action(_conversation.id, body);
       _controller.clear();
+      _mentionController.clear();
+      _previousComposerText = '';
+      _mentionQuery = null;
       final nextMessages = _load();
       if (mounted) {
         setState(() {
@@ -350,13 +532,20 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       }());
       if (mounted) {
         final message = error.toString();
-        final text = message.contains('Pending message requests are limited')
-            ? 'You can only send 3 messages until they accept your request.'
-            : message.contains('Active conversation membership required')
-                ? 'You are not an active member of this chat yet.'
-                : message.contains('Conversation not found')
-                    ? 'This chat no longer exists.'
-                    : 'No internet connection';
+        final relationshipRequired =
+            message.contains('Follow relationship required');
+        if (relationshipRequired) {
+          setState(() => _canSendMessages = false);
+        }
+        final text = relationshipRequired
+            ? _followRequiredMessage
+            : message.contains('Pending message requests are limited')
+                ? 'You can only send 3 messages until they accept your request.'
+                : message.contains('Active conversation membership required')
+                    ? 'You are not an active member of this chat yet.'
+                    : message.contains('Conversation not found')
+                        ? 'This chat no longer exists.'
+                        : 'No internet connection';
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(text)));
       }
@@ -365,8 +554,43 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     }
   }
 
+  Future<void> _visitNextMention() async {
+    if (_unvisitedMentionMessageIds.isEmpty) return;
+    final messageId = _unvisitedMentionMessageIds.first;
+    final context = _messageKeys[messageId]?.currentContext;
+    if (context == null) return;
+    await Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      alignment: 0.2,
+    );
+    if (mounted) {
+      setState(() {
+        _unvisitedMentionMessageIds =
+            _unvisitedMentionMessageIds.skip(1).toList();
+      });
+    }
+    try {
+      await (widget.markMentionVisited ?? _repo.markMentionVisited)(messageId);
+    } catch (_) {}
+  }
+
+  void _openMentionProfile(String userId) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ProfilePage(userId: userId)),
+    );
+  }
+
+  void _dismissComposer() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (_mentionQuery != null && mounted) {
+      setState(() => _mentionQuery = null);
+    }
+  }
+
   Future<void> _sendImage() async {
-    if (_isSending || _isPickingImage) return;
+    if (_isSending || _isPickingImage || _canSendMessages != true) return;
     setState(() => _isPickingImage = true);
     try {
       final picked = await Navigator.of(context).push<List<XFile>>(
@@ -407,8 +631,19 @@ class _ChatRoomPageState extends State<ChatRoomPage>
         return true;
       }());
       if (mounted) {
+        final relationshipRequired =
+            error.toString().contains('Follow relationship required');
+        if (relationshipRequired) {
+          setState(() => _canSendMessages = false);
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
+          SnackBar(
+            content: Text(
+              relationshipRequired
+                  ? _followRequiredMessage
+                  : 'No internet connection',
+            ),
+          ),
         );
       }
     } finally {
@@ -653,51 +888,16 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     required String actionLabel,
     bool danger = false,
   }) {
-    return showDialog<bool>(
+    return showAppConfirmationDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 0),
-          contentPadding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
-          actionsPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          title: Text(
-            title,
-            style: const TextStyle(
-              color: chatNavy,
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.2,
-            ),
-          ),
-          content: Text(
-            body,
-            style: const TextStyle(
-              color: Color(0xFF64748B),
-              fontSize: 14,
-              height: 1.35,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: TextButton.styleFrom(
-                foregroundColor: danger ? chatDanger : chatCyan,
-              ),
-              child: Text(actionLabel),
-            ),
-          ],
-        );
-      },
+      icon: danger ? Icons.delete_forever_rounded : Icons.check_rounded,
+      iconColor: danger ? chatDanger : chatCyan,
+      iconBackgroundColor:
+          (danger ? chatDanger : chatCyan).withValues(alpha: 0.1),
+      title: title,
+      message: body,
+      primaryLabel: actionLabel,
+      primaryColor: danger ? chatDanger : chatCyan,
     );
   }
 
@@ -816,126 +1016,220 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                   const SizedBox(width: 6),
                 ],
               ),
-        body: Column(
-          children: [
-            Expanded(
-              child: FutureBuilder<List<ChatMessage>>(
-                future: _messagesFuture,
-                builder: (context, snapshot) {
-                  final messages = List<ChatMessage>.of(
-                    snapshot.data ?? _cachedRoomMessages,
-                  )..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-                  _scheduleInitialMessagePosition(messages);
-                  if (messages.isEmpty) {
-                    return _WhatsAppRoomBackground(
-                      child: _conversation.isGroup
-                          ? _MessageList(
-                              messages: const [],
-                              conversation: _conversation,
-                              currentUserId: _currentUserId,
-                              scrollController: _messageScrollController,
-                              selectedMessageIds: _selectedMessageIds,
-                              messageKeys: _messageKeys,
-                              unreadDividerKey: _unreadDividerKey,
-                              onMessageTap: _toggleSelectedMessage,
-                              onMessageLongPress: _selectMessage,
-                              onSharedPostTap: _openSharedPost,
-                            )
-                          : const Center(
-                              child: Text('Say hi with a kind message.'),
-                            ),
-                    );
-                  }
-
-                  return _WhatsAppRoomBackground(
-                    child: Stack(
-                      children: [
-                        _MessageList(
-                          messages: messages,
-                          conversation: _conversation,
-                          currentUserId: _currentUserId,
-                          scrollController: _messageScrollController,
-                          selectedMessageIds: _selectedMessageIds,
-                          messageKeys: _messageKeys,
-                          unreadDividerKey: _unreadDividerKey,
-                          onMessageTap: _toggleSelectedMessage,
-                          onMessageLongPress: _selectMessage,
-                          onSharedPostTap: _openSharedPost,
-                        ),
-                        if (_showJumpToBottom)
-                          Positioned(
-                            key: const ValueKey('jump-to-bottom-button'),
-                            right: 16,
-                            bottom: 14,
-                            child: _JumpToBottomButton(
-                              onTap: () => _scrollToLatest(jump: false),
-                            ),
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: _dismissComposer,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Column(
                   children: [
-                    SizedBox.square(
-                      dimension: 44,
-                      child: IconButton(
-                        onPressed: _isPickingImage ? null : _sendImage,
-                        icon: Icon(
-                          _isPickingImage
-                              ? Icons.hourglass_empty_rounded
-                              : Icons.image_outlined,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
                     Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        focusNode: _inputFocusNode,
-                        minLines: 1,
-                        maxLines: 4,
-                        decoration: InputDecoration(
-                          hintText: 'Message...',
-                          filled: true,
-                          fillColor: chatInput,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
+                      child: FutureBuilder<List<ChatMessage>>(
+                        future: _messagesFuture,
+                        builder: (context, snapshot) {
+                          final messages = List<ChatMessage>.of(
+                            snapshot.data ?? _cachedRoomMessages,
+                          )..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+                          _scheduleInitialMessagePosition(messages);
+                          if (messages.isEmpty) {
+                            return _WhatsAppRoomBackground(
+                              child: _conversation.isGroup
+                                  ? _MessageList(
+                                      messages: const [],
+                                      conversation: _conversation,
+                                      currentUserId: _currentUserId,
+                                      scrollController:
+                                          _messageScrollController,
+                                      selectedMessageIds: _selectedMessageIds,
+                                      messageKeys: _messageKeys,
+                                      unreadDividerKey: _unreadDividerKey,
+                                      onMessageTap: _toggleSelectedMessage,
+                                      onMessageLongPress: _selectMessage,
+                                      onSharedPostTap: _openSharedPost,
+                                      onMentionTap: _openMentionProfile,
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        _canSendMessages == false
+                                            ? _followRequiredMessage
+                                            : _canSendMessages == null
+                                                ? 'Checking message access...'
+                                                : 'Say hi with a kind message.',
+                                      ),
+                                    ),
+                            );
+                          }
+
+                          return _WhatsAppRoomBackground(
+                            child: Stack(
+                              children: [
+                                _MessageList(
+                                  messages: messages,
+                                  conversation: _conversation,
+                                  currentUserId: _currentUserId,
+                                  scrollController: _messageScrollController,
+                                  selectedMessageIds: _selectedMessageIds,
+                                  messageKeys: _messageKeys,
+                                  unreadDividerKey: _unreadDividerKey,
+                                  onMessageTap: _toggleSelectedMessage,
+                                  onMessageLongPress: _selectMessage,
+                                  onSharedPostTap: _openSharedPost,
+                                  onMentionTap: _openMentionProfile,
+                                ),
+                                if (_unvisitedMentionMessageIds.isNotEmpty)
+                                  Positioned(
+                                    key: const ValueKey(
+                                        'mention-navigation-button'),
+                                    right: 16,
+                                    bottom: _showJumpToBottom ? 66 : 14,
+                                    child: _MentionNavigationButton(
+                                      onTap: _visitNextMention,
+                                    ),
+                                  ),
+                                if (_showJumpToBottom)
+                                  Positioned(
+                                    key:
+                                        const ValueKey('jump-to-bottom-button'),
+                                    right: 16,
+                                    bottom: 14,
+                                    child: _JumpToBottomButton(
+                                      onTap: () => _scrollToLatest(jump: false),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    if (_canSendMessages == true)
+                      SafeArea(
+                        key: _composerKey,
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              SizedBox.square(
+                                dimension: 44,
+                                child: IconButton(
+                                  onPressed:
+                                      _isPickingImage ? null : _sendImage,
+                                  icon: Icon(
+                                    _isPickingImage
+                                        ? Icons.hourglass_empty_rounded
+                                        : Icons.image_outlined,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: _controller,
+                                  focusNode: _inputFocusNode,
+                                  minLines: 1,
+                                  maxLines: 4,
+                                  onChanged: _handleComposerChanged,
+                                  decoration: InputDecoration(
+                                    hintText: 'Message...',
+                                    filled: true,
+                                    fillColor: chatInput,
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(22),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox.square(
+                                dimension: 44,
+                                child: IconButton(
+                                  onPressed: _isSending ? null : _send,
+                                  color: const Color(0xFF128C7E),
+                                  icon: Icon(
+                                    _isSending
+                                        ? Icons.hourglass_empty_rounded
+                                        : Icons.send_rounded,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(22),
-                            borderSide: BorderSide.none,
+                        ),
+                      )
+                    else
+                      SafeArea(
+                        key: const ValueKey('chat-send-permission-state'),
+                        top: false,
+                        child: Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 13,
+                          ),
+                          decoration: BoxDecoration(
+                            color: chatInput,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (_canSendMessages == null) ...[
+                                const SizedBox.square(
+                                  dimension: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFF128C7E),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                              ],
+                              Flexible(
+                                child: Text(
+                                  _canSendMessages == null
+                                      ? 'Checking message access...'
+                                      : _followRequiredMessage,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: chatNavy,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox.square(
-                      dimension: 44,
-                      child: IconButton(
-                        onPressed: _isSending ? null : _send,
-                        color: const Color(0xFF128C7E),
-                        icon: Icon(
-                          _isSending
-                              ? Icons.hourglass_empty_rounded
-                              : Icons.send_rounded,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
-            ),
-          ],
+              if (_mentionQuery != null && _conversation.isGroup)
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: _composerHeight,
+                  child: _MentionSuggestionsPanel(
+                    participants: _filteredMentionParticipants,
+                    showAll: _canMentionAll &&
+                        ('all'.startsWith(
+                          (_mentionQuery ?? '').toLowerCase(),
+                        )),
+                    onMemberTap: _insertMention,
+                    onAllTap: () => _insertMention(null, all: true),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -954,6 +1248,7 @@ class _MessageList extends StatelessWidget {
     required this.onMessageTap,
     required this.onMessageLongPress,
     required this.onSharedPostTap,
+    required this.onMentionTap,
   });
 
   final List<ChatMessage> messages;
@@ -966,6 +1261,7 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<ChatMessage> onMessageTap;
   final ValueChanged<ChatMessage> onMessageLongPress;
   final ValueChanged<ChatSharedPost> onSharedPostTap;
+  final ValueChanged<String> onMentionTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1026,6 +1322,8 @@ class _MessageList extends StatelessWidget {
           onTap: () => onMessageTap(message),
           onLongPress: () => onMessageLongPress(message),
           onSharedPostTap: onSharedPostTap,
+          mentions: message.mentions,
+          onMentionTap: onMentionTap,
         ),
       );
     }
@@ -1080,6 +1378,189 @@ class _JumpToBottomButton extends StatelessWidget {
             Icons.keyboard_arrow_down_rounded,
             color: Color(0xFF128C7E),
             size: 28,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MentionNavigationButton extends StatelessWidget {
+  const _MentionNavigationButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 3,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox.square(
+          dimension: 42,
+          child: Center(
+            child: Transform.translate(
+              key: const ValueKey('mention-navigation-glyph'),
+              offset: const Offset(0, -2),
+              child: const Text(
+                '@',
+                style: TextStyle(
+                  color: chatMentionAccent,
+                  fontSize: 20,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MentionSuggestionsPanel extends StatelessWidget {
+  const _MentionSuggestionsPanel({
+    required this.participants,
+    required this.showAll,
+    required this.onMemberTap,
+    required this.onAllTap,
+  });
+
+  final List<ChatParticipant> participants;
+  final bool showAll;
+  final ValueChanged<ChatParticipant> onMemberTap;
+  final VoidCallback onAllTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!showAll && participants.isEmpty) return const SizedBox.shrink();
+    final rowCount = participants.length + (showAll ? 1 : 0);
+    final panelHeight = (rowCount > 4 ? 4 : rowCount) * 60.0;
+    return Container(
+      key: const ValueKey('mention-suggestions-panel'),
+      height: panelHeight,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: chatBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ListView.separated(
+        key: const ValueKey('mention-suggestions-list'),
+        padding: EdgeInsets.zero,
+        itemCount: rowCount,
+        separatorBuilder: (context, index) => Padding(
+          padding: const EdgeInsets.only(left: 64),
+          child: Divider(
+            key: ValueKey('mention-suggestion-divider-$index'),
+            height: 1,
+            thickness: 1,
+            color: const Color(0xFFF1F5F9),
+          ),
+        ),
+        itemBuilder: (context, index) {
+          if (showAll && index == 0) {
+            return _MentionSuggestionRow(
+              key: const ValueKey('mention-all-suggestion'),
+              avatar: const CircleAvatar(
+                radius: 20,
+                backgroundColor: chatMentionAccent,
+                child: Text(
+                  '@',
+                  style: TextStyle(
+                    color: Colors.white,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              title: '@all',
+              subtitle: 'Notify every group member',
+              onTap: onAllTap,
+            );
+          }
+          final person = participants[index - (showAll ? 1 : 0)];
+          return _MentionSuggestionRow(
+            key: ValueKey('mention-suggestion-${person.id}'),
+            avatar: ChatAvatar(
+              name: person.name,
+              avatarUrl: person.avatarUrl,
+              size: 40,
+            ),
+            title: person.name,
+            onTap: () => onMemberTap(person),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MentionSuggestionRow extends StatelessWidget {
+  const _MentionSuggestionRow({
+    super.key,
+    required this.avatar,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final Widget avatar;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        height: 59,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              SizedBox.square(dimension: 40, child: avatar),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: chatNavy,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (subtitle != null)
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -9,6 +9,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
+import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../../chat/data/chat_models.dart';
 import '../../chat/data/chat_repository.dart';
 import '../../chat/presentation/chat_widgets.dart' show ChatAvatar, GroupAvatar;
@@ -16,6 +17,8 @@ import '../data/feed_post.dart';
 import '../data/post_comment.dart';
 import '../data/post_image_disk_cache.dart';
 import '../data/posts_repository.dart';
+import '../domain/content_moderation.dart';
+import '../domain/post_submission_repository.dart';
 import '../data/aspect_ratio_cache.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/data/profile_avatar_cache.dart';
@@ -25,6 +28,7 @@ import 'create_post_page.dart';
 import 'comment_reply_visibility.dart';
 import 'post_feedback_snackbar.dart';
 import 'report_post_page.dart';
+import 'content_moderation_scope.dart';
 
 class PostDetailPage extends StatefulWidget {
   const PostDetailPage({
@@ -32,6 +36,7 @@ class PostDetailPage extends StatefulWidget {
     this.heroTag,
     this.initialAuthorAvatarBytes,
     this.initialCommentId,
+    this.repository,
     super.key,
   });
 
@@ -39,6 +44,7 @@ class PostDetailPage extends StatefulWidget {
   final String? heroTag;
   final Uint8List? initialAuthorAvatarBytes;
   final String? initialCommentId;
+  final PostSubmissionRepository? repository;
 
   @override
   State<PostDetailPage> createState() => _PostDetailPageState();
@@ -898,8 +904,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
             navigator.pop();
 
             try {
-              final repo = PostsRepository(Supabase.instance.client);
-              await repo.createComment(
+              final repo = widget.repository ??
+                  PostsRepository(Supabase.instance.client);
+              final commentId = await repo.createComment(
                 _post.id,
                 content,
                 parentCommentId: parentCommentId ?? replyTo?.id,
@@ -910,15 +917,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     ? replyTo!.authorName
                     : null,
               );
-              if (mounted) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Comment posted!'),
-                  ),
-                );
-                await _refreshPostState(updateCommentCount: false);
-                await _fetchComments();
-              }
+              await _moderateComment(commentId, messenger);
             } catch (e) {
               if (mounted) {
                 if (friendlyErrorTitle(e) == 'No internet connection') {
@@ -934,6 +933,69 @@ class _PostDetailPageState extends State<PostDetailPage> {
         },
       ),
     );
+  }
+
+  Future<void> _moderateComment(
+    String commentId,
+    ScaffoldMessengerState messenger,
+  ) async {
+    try {
+      final result =
+          await ContentModerationScope.of(context).moderateComment(commentId);
+      if (!mounted) return;
+      switch (result.state) {
+        case ContentModerationState.approved:
+          messenger
+              .showSnackBar(const SnackBar(content: Text('Comment posted!')));
+          await _refreshPostState(updateCommentCount: false);
+          await _fetchComments();
+        case ContentModerationState.adminReview:
+          messenger.showSnackBar(
+            const SnackBar(
+                content: Text('Comment sent for administrator review.')),
+          );
+        case ContentModerationState.processing:
+          messenger.showSnackBar(
+            const SnackBar(
+                content: Text('Comment moderation is still processing.')),
+          );
+        case ContentModerationState.rejected:
+          messenger.showSnackBar(
+            SnackBar(content: Text(result.reason ?? 'Comment was not posted.')),
+          );
+        case ContentModerationState.superseded:
+          messenger.showSnackBar(
+            const SnackBar(
+                content: Text('This comment changed. Please submit it again.')),
+          );
+        case ContentModerationState.failed:
+          _showCommentModerationRetry(commentId, messenger);
+      }
+    } on ContentModerationFailure catch (error) {
+      if (!mounted) return;
+      if (error.retryAllowed) {
+        _showCommentModerationRetry(commentId, messenger);
+      } else {
+        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
+  void _showCommentModerationRetry(
+    String commentId,
+    ScaffoldMessengerState messenger,
+  ) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Comment moderation could not complete.'),
+          action: SnackBarAction(
+            label: 'Retry moderation',
+            onPressed: () => _moderateComment(commentId, messenger),
+          ),
+        ),
+      );
   }
 
   Map<String, dynamic> _getUpdateResult() {
@@ -1153,104 +1215,15 @@ class _PostDetailPageState extends State<PostDetailPage> {
     required String primaryLabel,
     required Color primaryColor,
   }) {
-    return showDialog<bool>(
+    return showAppConfirmationDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.42),
-      builder: (context) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-          backgroundColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.14),
-                  blurRadius: 28,
-                  offset: const Offset(0, 14),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    color: iconBackgroundColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: iconColor, size: 30),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 14,
-                    height: 1.42,
-                  ),
-                ),
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(true),
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: primaryColor,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Text(
-                        primaryLabel,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  height: 42,
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(false),
-                    behavior: HitTestBehavior.opaque,
-                    child: const Center(
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: Color(0xFF475569),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      icon: icon,
+      iconColor: iconColor,
+      iconBackgroundColor: iconBackgroundColor,
+      title: title,
+      message: message,
+      primaryLabel: primaryLabel,
+      primaryColor: primaryColor,
     );
   }
 

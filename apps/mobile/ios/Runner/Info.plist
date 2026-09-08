@@ -53,6 +53,8 @@
 	<string>CyanZone needs photo library access so you can attach images to learning posts.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>CyanZone needs camera access so you can take photos for posts and your profile.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>CyanZone uses your location only when you choose to share a Safety Check-In or send an SOS.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

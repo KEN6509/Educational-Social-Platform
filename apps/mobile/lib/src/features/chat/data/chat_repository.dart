@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../posts/data/feed_post.dart';
 import '../../posts/data/posts_repository.dart';
 import 'chat_models.dart';
+import 'chat_mention.dart';
 
 enum NotificationActivityFilter {
   all('Activity'),
@@ -43,7 +44,9 @@ class ChatRepository {
   ChatRepository(this._client);
 
   static const createDirectConversationRpc = 'create_direct_conversation';
+  static const openDirectConversationRpc = 'open_direct_conversation';
   static const createGroupConversationRpc = 'create_group_conversation';
+  static const canSendChatMessageRpc = 'can_send_chat_message';
   static const sendChatMessageRpc = 'send_chat_message';
   static const acceptMessageRequestRpc = 'accept_message_request';
   static const clearChatRpc = 'clear_chat';
@@ -58,9 +61,15 @@ class ChatRepository {
   static const markNotificationReadRpc = 'mark_notification_read';
   static const markNotificationSectionReadRpc =
       'mark_notification_section_read';
+  static const fetchSystemNotificationReasonRpc =
+      'fetch_system_notification_reason';
+  static const submitPostAppealRpc = 'submit_post_appeal';
+  static const fetchUnvisitedChatMentionsRpc = 'fetch_unvisited_chat_mentions';
+  static const markChatMentionVisitedRpc = 'mark_chat_mention_visited';
 
   static const sendConversationIdParam = 'p_conversation_id';
   static const sendBodyParam = 'p_body';
+  static const sendMentionsParam = 'p_mentions';
   static const conversationIdParam = 'p_conversation_id';
   static const messageIdParam = 'p_message_id';
   static const memberIdParam = 'p_member_id';
@@ -81,10 +90,13 @@ class ChatRepository {
 
   static const _messageSelectColumns =
       'id, conversation_id, sender_id, body, created_at, deleted_at, deleted_for, '
-      'profiles!chat_messages_sender_id_fkey(name, avatar_url)';
+      'profiles!chat_messages_sender_id_fkey(name, avatar_url), '
+      'chat_message_mentions(mentioned_user_id, display_text, start_offset, '
+      'end_offset, is_all_source, visited_at)';
 
   static const _notificationSelectColumns =
-      'id, type, actor_id, post_id, comment_id, title, body, created_at, read_at, '
+      'id, type, actor_id, post_id, comment_id, title, body, action_type, '
+      'action_payload, created_at, read_at, '
       'profiles!notifications_actor_id_fkey(name, avatar_url), '
       'posts!notifications_post_id_fkey(author_id, '
       'profiles!posts_author_id_fkey(avatar_url), '
@@ -225,6 +237,22 @@ class ChatRepository {
     return _stringIdFromRpc(response);
   }
 
+  Future<String> openDirectConversation(String targetUserId) async {
+    final response = await _client.rpc<String>(
+      openDirectConversationRpc,
+      params: {'target_user_id': targetUserId},
+    );
+    return _stringIdFromRpc(response);
+  }
+
+  Future<bool> canSendMessage(String conversationId) async {
+    final response = await _client.rpc<bool>(
+      canSendChatMessageRpc,
+      params: {conversationIdParam: conversationId},
+    );
+    return response;
+  }
+
   Future<String> createGroupConversation({
     String? title,
     required List<String> memberIds,
@@ -242,13 +270,49 @@ class ChatRepository {
   Future<void> sendMessage({
     required String conversationId,
     required String body,
+    List<ChatMention> mentions = const [],
   }) async {
     await _client.rpc<Object?>(
       sendChatMessageRpc,
       params: {
         sendConversationIdParam: conversationId,
         sendBodyParam: body,
+        sendMentionsParam: mentions
+            .where((mention) => mention.matches(body))
+            .map((mention) => mention.toRpcMap(body))
+            .toList(),
       },
+    );
+  }
+
+  Future<List<UnvisitedChatMention>> fetchUnvisitedMentions({
+    String? conversationId,
+  }) async {
+    final response = await _client.rpc<List<dynamic>>(
+      fetchUnvisitedChatMentionsRpc,
+      params: {'p_conversation_id': conversationId},
+    );
+    return response
+        .whereType<Map>()
+        .map((row) => UnvisitedChatMention.fromMap(
+              Map<String, dynamic>.from(row),
+            ))
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
+  Future<List<UnvisitedChatMention>> _tryFetchUnvisitedMentions() async {
+    try {
+      return await fetchUnvisitedMentions();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> markMentionVisited(String messageId) async {
+    await _client.rpc<void>(
+      markChatMentionVisitedRpc,
+      params: {messageIdParam: messageId},
     );
   }
 
@@ -465,6 +529,47 @@ class ChatRepository {
     );
   }
 
+  Future<void> deleteNotification(String notificationId) async {
+    await _client.from('notifications').delete().eq('id', notificationId);
+  }
+
+  Future<bool> hasPostAppeal(String postId) async {
+    return await fetchPostAppealState(postId) != PostAppealState.none;
+  }
+
+  Future<PostAppealState> fetchPostAppealState(String postId) async {
+    final currentUserId = _requireCurrentUserId();
+    final response = await _client
+        .from('post_appeals')
+        .select('status')
+        .eq('post_id', postId)
+        .eq('user_id', currentUserId)
+        .maybeSingle();
+    return PostAppealState.fromValue(response?['status']);
+  }
+
+  Future<String?> fetchSystemNotificationReason(String notificationId) async {
+    final response = await _client.rpc<dynamic>(
+      fetchSystemNotificationReasonRpc,
+      params: {'p_notification_id': notificationId},
+    );
+    final reason = response?.toString().trim();
+    return reason == null || reason.isEmpty ? null : reason;
+  }
+
+  Future<void> submitPostAppeal({
+    required String postId,
+    required String reason,
+  }) async {
+    await _client.rpc<void>(
+      submitPostAppealRpc,
+      params: {
+        'p_post_id': postId,
+        'p_reason': reason.trim(),
+      },
+    );
+  }
+
   Future<List<ChatConversation>> fetchConversations() async {
     final response = await _client
         .from('chat_conversations')
@@ -494,6 +599,19 @@ class ChatRepository {
         .order('created_at', ascending: false)
         .limit(50);
 
+    return _mapListFromResponse(response)
+        .map((row) => ChatMessage.fromMap(row, currentUserId: currentUserId))
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
+  Future<List<ChatMessage>> fetchMessagesByIds(List<String> messageIds) async {
+    if (messageIds.isEmpty) return const [];
+    final currentUserId = _requireCurrentUserId();
+    final response = await _client
+        .from('chat_messages')
+        .select(_messageSelectColumns)
+        .inFilter('id', messageIds.toSet().toList());
     return _mapListFromResponse(response)
         .map((row) => ChatMessage.fromMap(row, currentUserId: currentUserId))
         .toList()
@@ -689,32 +807,6 @@ class ChatRepository {
           .map((row) => _string(row['following_id'])),
     }..removeWhere((id) => id.isEmpty || id == currentUserId);
 
-    final acceptedDirectRows = await _client
-        .from('chat_conversations')
-        .select('id')
-        .eq('type', ChatConversationType.direct.name)
-        .eq('request_status', ChatRequestStatus.accepted.name)
-        .limit(50);
-
-    final acceptedDirectIds = _mapListFromResponse(acceptedDirectRows)
-        .map((row) => _string(row['id']))
-        .where((id) => id.isNotEmpty)
-        .toList();
-
-    if (acceptedDirectIds.isNotEmpty) {
-      final memberRows = await _client
-          .from('chat_conversation_members')
-          .select('user_id,status')
-          .inFilter('conversation_id', acceptedDirectIds)
-          .eq('status', ChatMemberStatus.active.name);
-
-      suggestionIds.addAll(
-        _mapListFromResponse(memberRows)
-            .map((row) => _string(row['user_id']))
-            .where((id) => id.isNotEmpty && id != currentUserId),
-      );
-    }
-
     return _fetchParticipantsByIds(suggestionIds.toList());
   }
 
@@ -742,6 +834,21 @@ class ChatRepository {
           table: 'chat_messages',
           callback: onChange,
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          callback: onChange,
+        )
+        .subscribe();
+  }
+
+  RealtimeChannel subscribeToNotificationChanges({
+    required String channelName,
+    required void Function(PostgresChangePayload payload) onChange,
+  }) {
+    return _client
+        .channel(channelName)
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -811,6 +918,26 @@ class ChatRepository {
     }
     profileIds.removeWhere((id) => id.isEmpty);
 
+    final directOtherUserIds = conversationRows
+        .where(
+          (row) => _string(row['type']) == ChatConversationType.direct.name,
+        )
+        .map(
+          (row) => _resolveOtherUserId(
+            row,
+            membersByConversation[_string(row['id'])] ?? const [],
+            currentUserId,
+          ),
+        )
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final followRelationshipUserIds = currentUserId == null
+        ? const <String>{}
+        : await _fetchFollowRelationshipUserIds(
+            currentUserId,
+            directOtherUserIds,
+          );
+
     final profilesById = await _fetchProfilesById(profileIds.toList());
     final lastMessagesByConversation =
         await _fetchLastMessagesByConversation(conversationIds);
@@ -820,6 +947,9 @@ class ChatRepository {
             conversationIds,
             currentUserId,
           );
+    final mentionConversationIds = (await _tryFetchUnvisitedMentions())
+        .map((mention) => mention.conversationId)
+        .toSet();
 
     return conversationRows.map((row) {
       final conversationId = _string(row['id']);
@@ -837,6 +967,8 @@ class ChatRepository {
       );
       final enriched = Map<String, dynamic>.from(row)
         ..['unread_count'] = unreadCount
+        ..['has_unvisited_mention'] =
+            mentionConversationIds.contains(conversationId)
         ..['last_message_body'] =
             lastMessagesByConversation[conversationId]?['body']
         ..['last_message_at'] =
@@ -856,10 +988,38 @@ class ChatRepository {
           ..['other_user_id'] = otherUserId
           ..['other_user_name'] = otherProfile?['name']
           ..['other_user_avatar_url'] = otherProfile?['avatar_url'];
+        enriched['can_send_messages'] =
+            followRelationshipUserIds.contains(otherUserId);
       }
 
       return ChatConversation.fromMap(enriched);
     }).toList();
+  }
+
+  Future<Set<String>> _fetchFollowRelationshipUserIds(
+    String currentUserId,
+    Iterable<String> candidateUserIds,
+  ) async {
+    final candidateIds = candidateUserIds.toSet().toList();
+    if (candidateIds.isEmpty) return const {};
+
+    final followerRows = await _client
+        .from('follows')
+        .select('follower_id')
+        .eq('following_id', currentUserId)
+        .inFilter('follower_id', candidateIds);
+    final followingRows = await _client
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', currentUserId)
+        .inFilter('following_id', candidateIds);
+
+    return <String>{
+      ..._mapListFromResponse(followerRows)
+          .map((row) => _string(row['follower_id'])),
+      ..._mapListFromResponse(followingRows)
+          .map((row) => _string(row['following_id'])),
+    }..removeWhere((id) => id.isEmpty);
   }
 
   static List<ChatNotification> _notificationListFromResponse(

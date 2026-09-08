@@ -73,7 +73,7 @@ void main() {
     expect(find.byIcon(Icons.menu_book_rounded), findsNothing);
   });
 
-  testWidgets('pending badge overlays the text content surface',
+  testWidgets('pending text badge sits at the card top-left above the title',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     final post = FeedPost(
@@ -111,11 +111,14 @@ void main() {
     );
     await tester.pump();
 
-    final surfaceRect = tester.getRect(
-      find.byKey(const ValueKey('text_post_content_surface')),
-    );
-    final badgeRect = tester.getRect(find.text('Pending'));
-    expect(surfaceRect.contains(badgeRect.center), isTrue);
+    final cardRect = tester.getRect(find.byType(Card));
+    final badgeRect =
+        tester.getRect(find.byKey(const ValueKey('post_status_badge')));
+    final titleRect = tester.getRect(find.text('Pending title'));
+
+    expect(badgeRect.left - cardRect.left, closeTo(8, 0.1));
+    expect(badgeRect.top - cardRect.top, closeTo(8, 0.1));
+    expect(titleRect.top, greaterThanOrEqualTo(badgeRect.bottom + 8));
   });
 
   testWidgets('short text-only card shrinks content surface near poster info',

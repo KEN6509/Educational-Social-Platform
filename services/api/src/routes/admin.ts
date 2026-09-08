@@ -1,79 +1,92 @@
-import { Router } from 'express';
-import { z } from 'zod';
+import { Router, type Router as ExpressRouter } from 'express';
+import { type z } from 'zod';
 
-import { env } from '../config/env.js';
-import { supabaseAdmin } from '../lib/supabase.js';
+import {
+  requireAdministrator,
+  type VerifyAdmin,
+} from '../admin/adminAuth.js';
+import { bootstrapSchema } from './adminSchema.js';
 
-export const adminRouter = Router();
+export type CreateAdministratorInput = z.infer<typeof bootstrapSchema>;
 
-const bootstrapSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(2).max(80),
-});
+export type AdminRouterDependencies = {
+  bootstrapSecret: string;
+  countAdministrators: () => Promise<number>;
+  createAdministrator: (
+    input: CreateAdministratorInput,
+  ) => Promise<{ id: string }>;
+  upsertAdministratorProfile: (
+    input: CreateAdministratorInput & { id: string },
+  ) => Promise<void>;
+  protectedAdminRouter: ExpressRouter;
+  verifyAdmin: VerifyAdmin;
+};
 
-adminRouter.post('/bootstrap', async (req, res) => {
-  const providedSecret = req.header('x-bootstrap-secret');
-
-  if (providedSecret !== env.ADMIN_BOOTSTRAP_SECRET) {
-    return res.status(401).json({ error: 'Invalid bootstrap secret.' });
+export class AdminBootstrapError extends Error {
+  constructor(
+    public readonly status: 400 | 500,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'AdminBootstrapError';
   }
+}
 
-  const parsed = bootstrapSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({
-      error: 'Invalid request body.',
-      details: parsed.error.flatten().fieldErrors,
-    });
-  }
+export function createAdminRouter(dependencies: AdminRouterDependencies) {
+  const adminRouter = Router();
 
-  const { count, error: countError } = await supabaseAdmin
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
-    .eq('is_admin', true);
+  adminRouter.post('/bootstrap', async (req, res) => {
+    const providedSecret = req.header('x-bootstrap-secret');
 
-  if (countError) {
-    return res.status(500).json({ error: countError.message });
-  }
+    if (providedSecret !== dependencies.bootstrapSecret) {
+      return res.status(401).json({ error: 'Invalid bootstrap secret.' });
+    }
 
-  if ((count ?? 0) > 0) {
-    return res.status(409).json({
-      error: 'An admin user already exists. Bootstrap is disabled.',
-    });
-  }
+    const parsed = bootstrapSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Invalid request body.',
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
 
-  const { data: createdUser, error: createError } =
-    await supabaseAdmin.auth.admin.createUser({
-      email: parsed.data.email,
-      password: parsed.data.password,
-      email_confirm: true,
-      user_metadata: {
-        name: parsed.data.name,
-      },
-    });
+    try {
+      const administratorCount = await dependencies.countAdministrators();
 
-  if (createError || !createdUser.user) {
-    return res.status(400).json({
-      error: createError?.message ?? 'Unable to create admin user.',
-    });
-  }
+      if (administratorCount > 0) {
+        return res.status(409).json({
+          error: 'An admin user already exists. Bootstrap is disabled.',
+        });
+      }
 
-  const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
-    id: createdUser.user.id,
-    email: parsed.data.email,
-    name: parsed.data.name,
-    is_admin: true,
-    is_content_creator: false,
-    account_status: 'active',
+      const createdAdministrator =
+        await dependencies.createAdministrator(parsed.data);
+
+      await dependencies.upsertAdministratorProfile({
+        ...parsed.data,
+        id: createdAdministrator.id,
+      });
+
+      return res.status(201).json({
+        userId: createdAdministrator.id,
+        email: parsed.data.email,
+        isAdmin: true,
+      });
+    } catch (error) {
+      if (error instanceof AdminBootstrapError) {
+        return res.status(error.status).json({ error: error.message });
+      }
+
+      return res.status(500).json({
+        error: 'Unable to create admin user.',
+      });
+    }
   });
 
-  if (profileError) {
-    return res.status(500).json({ error: profileError.message });
-  }
+  adminRouter.use(
+    requireAdministrator(dependencies.verifyAdmin),
+    dependencies.protectedAdminRouter,
+  );
 
-  return res.status(201).json({
-    userId: createdUser.user.id,
-    email: parsed.data.email,
-    isAdmin: true,
-  });
-});
+  return adminRouter;
+}

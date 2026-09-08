@@ -12,8 +12,16 @@ void main() {
         'create_direct_conversation',
       );
       expect(
+        ChatRepository.openDirectConversationRpc,
+        'open_direct_conversation',
+      );
+      expect(
         ChatRepository.createGroupConversationRpc,
         'create_group_conversation',
+      );
+      expect(
+        ChatRepository.canSendChatMessageRpc,
+        'can_send_chat_message',
       );
       expect(ChatRepository.sendChatMessageRpc, 'send_chat_message');
       expect(
@@ -293,6 +301,39 @@ void main() {
       expect(source, contains('posts!notifications_post_id_fkey'));
       expect(source, contains('post_images(public_url, position)'));
       expect(source, contains('profiles!posts_author_id_fkey(avatar_url)'));
+      expect(source, contains('action_type'));
+      expect(source, contains('action_payload'));
+    });
+
+    test('repository exposes system notification and appeal actions', () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+
+      expect(source, contains('submitPostAppealRpc'));
+      expect(source, contains("'submit_post_appeal'"));
+      expect(source, contains('Future<void> deleteNotification'));
+      expect(source, contains(".from('notifications')"));
+      expect(source, contains('.delete()'));
+      expect(source, contains('Future<bool> hasPostAppeal'));
+      expect(source, contains(".from('post_appeals')"));
+      expect(source, contains('Future<PostAppealState> fetchPostAppealState'));
+      expect(source, contains(".select('status')"));
+      expect(source, contains('Future<void> submitPostAppeal'));
+      expect(source, contains("'p_post_id': postId"));
+      expect(source, contains("'p_reason': reason.trim()"));
+      expect(source, contains('fetchSystemNotificationReasonRpc'));
+      expect(source, contains("'fetch_system_notification_reason'"));
+      expect(
+        source,
+        contains('Future<String?> fetchSystemNotificationReason'),
+      );
+      expect(source, contains("'p_notification_id': notificationId"));
+
+      final detailSource = File(
+        'lib/src/features/chat/presentation/system_notification_detail_page.dart',
+      ).readAsStringSync();
+      expect(detailSource, contains('loadDecisionReason'));
+      expect(detailSource, contains('fetchSystemNotificationReason'));
     });
 
     test(
@@ -398,6 +439,36 @@ void main() {
           isNot(contains("onConflict: 'follower_id,following_id'")));
     });
 
+    test('group suggestions come only from follow rows', () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+      final start = source.indexOf(
+        'Future<List<ChatParticipant>> fetchSuggestedGroupMembers',
+      );
+      final end = source.indexOf(
+        'RealtimeChannel subscribeToChatChanges',
+        start,
+      );
+
+      expect(start, greaterThanOrEqualTo(0));
+      expect(end, greaterThan(start));
+      final methodSource = source.substring(start, end);
+      expect(methodSource, contains(".from('follows')"));
+      expect(methodSource, isNot(contains('acceptedDirectRows')));
+      expect(methodSource, isNot(contains(".from('chat_conversations')")));
+    });
+
+    test('conversation hydration derives direct sendability from follow rows',
+        () {
+      final source = File('lib/src/features/chat/data/chat_repository.dart')
+          .readAsStringSync();
+
+      expect(source, contains('_fetchFollowRelationshipUserIds'));
+      expect(source, contains(".inFilter('follower_id', candidateIds)"));
+      expect(source, contains(".inFilter('following_id', candidateIds)"));
+      expect(source, contains("enriched['can_send_messages']"));
+    });
+
     test('main shell uses total chat badge count instead of chat message only',
         () {
       final source = File('lib/src/features/shell/presentation/main_shell.dart')
@@ -405,6 +476,57 @@ void main() {
 
       expect(source, contains('fetchUnreadChatTabBadgeCount'));
       expect(source, isNot(contains('fetchUnreadChatCount();')));
+    });
+
+    test('main shell preserves the last known chat badge while refreshing', () {
+      final source = File('lib/src/features/shell/presentation/main_shell.dart')
+          .readAsStringSync();
+
+      final navigationStart = source.indexOf('onTap: (value)');
+      final navigationEnd =
+          source.indexOf('chatBadgeCount: _chatBadgeCount', navigationStart);
+      expect(navigationStart, greaterThanOrEqualTo(0));
+      expect(navigationEnd, greaterThan(navigationStart));
+      final navigationSource = source.substring(navigationStart, navigationEnd);
+      expect(navigationSource, isNot(contains('_chatBadgeCount = 0')));
+
+      final refreshStart = source.indexOf('Future<void> _refreshChatBadge()');
+      final refreshEnd =
+          source.indexOf('void _handleChatBadgeCountChanged', refreshStart);
+      expect(refreshStart, greaterThanOrEqualTo(0));
+      expect(refreshEnd, greaterThan(refreshStart));
+      final refreshSource = source.substring(refreshStart, refreshEnd);
+      expect(
+        refreshSource,
+        isNot(contains('setState(() => _chatBadgeCount = 0)')),
+      );
+    });
+
+    test('main shell owns foreground notification badge realtime lifecycle',
+        () {
+      final repositorySource =
+          File('lib/src/features/chat/data/chat_repository.dart')
+              .readAsStringSync();
+      final shellSource =
+          File('lib/src/features/shell/presentation/main_shell.dart')
+              .readAsStringSync();
+      final sectionSource = File(
+        'lib/src/features/chat/presentation/notification_sections_page.dart',
+      ).readAsStringSync();
+
+      expect(
+        repositorySource,
+        contains('RealtimeChannel subscribeToNotificationChanges'),
+      );
+      expect(shellSource, contains('with WidgetsBindingObserver'));
+      expect(shellSource,
+          contains("channelName: 'main-shell-notification-badge'"));
+      expect(shellSource, contains('AppLifecycleState.resumed'));
+      expect(shellSource, contains('_chatRepository.unsubscribe(channel)'));
+      expect(
+        sectionSource,
+        contains("channelName: 'notification-section-\${_section.name}'"),
+      );
     });
   });
 }

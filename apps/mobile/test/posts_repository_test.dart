@@ -29,6 +29,23 @@ void main() {
     expect(PostsRepository.reportReasons.length, greaterThanOrEqualTo(7));
   });
 
+  test('report payload contains only the current reason-based contract', () {
+    final payload = PostsRepository.buildReportPayload(
+      reporterId: 'member-1',
+      targetType: 'post',
+      targetId: 'post-1',
+      reason: 'Spam',
+    );
+
+    expect(payload, {
+      'reporter_id': 'member-1',
+      'target_type': 'post',
+      'target_id': 'post-1',
+      'reason': 'Spam',
+    });
+    expect(payload, isNot(contains('description')));
+  });
+
   test('saved and liked profile queries embed posts through inner joins', () {
     expect(
       PostsRepository.savedPostsSelectColumns,
@@ -46,6 +63,22 @@ void main() {
 
     expect(source, contains(".storage.from('images')"));
     expect(source, isNot(contains(".storage.from('post-images')")));
+  });
+
+  test('submission writes return IDs and leave moderation authority to SQL',
+      () {
+    final source = File('lib/src/features/posts/data/posts_repository.dart')
+        .readAsStringSync();
+    final postStart = source.indexOf('Future<String> createPost');
+    final commentStart = source.indexOf('Future<String> createComment');
+    expect(postStart, greaterThanOrEqualTo(0));
+    expect(commentStart, greaterThanOrEqualTo(0));
+    expect(
+        source.substring(commentStart, postStart), contains(".select('id')"));
+    expect(source.substring(commentStart, postStart), contains('.single()'));
+    expect(source, contains("'mime_type': image.contentType"));
+    expect(source, isNot(contains("'moderation_status': 'pending'")));
+    expect(source, isNot(contains("'reviewed_by': null")));
   });
 
   test('removePost deletes post image rows and storage objects', () {

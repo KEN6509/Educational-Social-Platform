@@ -62,6 +62,18 @@ check (char_length(btrim(body)) between 1 and 10000);
 
 alter table public.chat_messages add column if not exists deleted_for uuid[] not null default '{}'::uuid[];
 
+create table if not exists public.chat_message_mentions (
+  message_id uuid not null references public.chat_messages(id) on delete cascade,
+  mentioned_user_id uuid not null references public.profiles(id) on delete cascade,
+  display_text text not null,
+  start_offset integer not null check (start_offset >= 0),
+  end_offset integer not null check (end_offset > start_offset),
+  is_all_source boolean not null default false,
+  created_at timestamptz not null default now(),
+  visited_at timestamptz,
+  unique (message_id, mentioned_user_id, start_offset)
+);
+
 create table if not exists public.notification_preferences (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   in_app_enabled boolean not null default true,
@@ -99,6 +111,22 @@ create table if not exists public.notifications (
   action_payload jsonb not null default '{}'::jsonb,
   read_at timestamptz,
   created_at timestamptz not null default now()
+);
+
+create table if not exists public.post_appeals (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  reason text not null
+    check (char_length(btrim(reason)) between 20 and 500),
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'rejected')),
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  admin_note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (post_id, user_id)
 );
 
 alter table public.notification_preferences add column if not exists in_app_enabled boolean not null default true;
@@ -174,12 +202,22 @@ on public.chat_messages (conversation_id, created_at desc);
 create index if not exists chat_messages_deleted_for_gin_idx
 on public.chat_messages using gin (deleted_for);
 
+create index if not exists chat_message_mentions_recipient_unvisited_idx
+on public.chat_message_mentions (mentioned_user_id, created_at, message_id)
+where visited_at is null;
+
+create index if not exists chat_message_mentions_message_offset_idx
+on public.chat_message_mentions (message_id, start_offset);
+
 create index if not exists notifications_user_created_idx
 on public.notifications (user_id, created_at desc);
 
 create index if not exists notifications_user_unread_idx
 on public.notifications (user_id, created_at desc)
 where read_at is null;
+
+create index if not exists post_appeals_status_created_idx
+on public.post_appeals (status, created_at desc);
 
 create or replace function public.touch_updated_at()
 returns trigger
@@ -199,6 +237,11 @@ for each row execute function public.touch_updated_at();
 drop trigger if exists touch_notification_preferences_updated_at on public.notification_preferences;
 create trigger touch_notification_preferences_updated_at
 before update on public.notification_preferences
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists touch_post_appeals_updated_at on public.post_appeals;
+create trigger touch_post_appeals_updated_at
+before update on public.post_appeals
 for each row execute function public.touch_updated_at();
 
 create or replace function public.chat_users_have_relationship(left_user uuid, right_user uuid)
@@ -230,6 +273,24 @@ as $$
     );
 $$;
 
+create or replace function public.chat_users_have_follow_relationship(left_user uuid, right_user uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select left_user is not null
+    and right_user is not null
+    and left_user <> right_user
+    and exists (
+      select 1
+      from public.follows f
+      where (f.follower_id = left_user and f.following_id = right_user)
+         or (f.follower_id = right_user and f.following_id = left_user)
+    );
+$$;
+
 create or replace function public.chat_can_add_group_member(owner_id uuid, candidate_id uuid)
 returns boolean
 language sql
@@ -237,21 +298,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select public.chat_users_have_relationship(owner_id, candidate_id)
-    or exists (
-      select 1
-      from public.chat_conversations c
-      join public.chat_conversation_members owner_member
-        on owner_member.conversation_id = c.id
-       and owner_member.user_id = owner_id
-       and owner_member.status = 'active'
-      join public.chat_conversation_members candidate_member
-        on candidate_member.conversation_id = c.id
-       and candidate_member.user_id = candidate_id
-       and candidate_member.status = 'active'
-      where c.type = 'direct'
-        and c.request_status = 'accepted'
-    );
+  select public.chat_users_have_follow_relationship(owner_id, candidate_id);
 $$;
 
 create or replace function public.chat_is_conversation_member(p_conversation_id uuid, p_user_id uuid)
@@ -363,6 +410,50 @@ begin
 end;
 $$;
 
+create or replace function public.open_direct_conversation(target_user_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_current_user uuid := auth.uid();
+  v_conversation_id uuid;
+begin
+  if v_current_user is null then
+    raise exception 'Authentication required';
+  end if;
+
+  if target_user_id is null or target_user_id = v_current_user then
+    raise exception 'Target user is invalid';
+  end if;
+
+  if not public.chat_users_have_follow_relationship(
+    v_current_user,
+    target_user_id
+  ) then
+    raise exception 'Follow relationship required';
+  end if;
+
+  v_conversation_id := public.create_direct_conversation(target_user_id);
+
+  update public.chat_conversations c
+  set request_status = 'accepted',
+      updated_at = now()
+  where c.id = v_conversation_id
+    and c.type = 'direct'
+    and c.request_status = 'pending';
+
+  update public.chat_conversation_members cm
+  set status = 'active',
+      joined_at = coalesce(cm.joined_at, now())
+  where cm.conversation_id = v_conversation_id
+    and cm.status = 'pending';
+
+  return v_conversation_id;
+end;
+$$;
+
 create or replace function public.create_group_conversation(title text, member_ids uuid[])
 returns uuid
 language plpgsql
@@ -395,7 +486,7 @@ begin
   loop
     if v_member_id is not null and v_member_id <> v_current_user then
       if not public.chat_can_add_group_member(v_current_user, v_member_id) then
-        raise exception 'Cannot add group member % without relationship or accepted direct chat', v_member_id;
+        raise exception 'Cannot add group member % without a follow relationship', v_member_id;
       end if;
 
       insert into public.chat_conversation_members (conversation_id, user_id, role, status)
@@ -477,7 +568,7 @@ begin
   loop
     if v_member_id is not null and v_member_id <> v_current_user then
       if not public.chat_can_add_group_member(v_current_user, v_member_id) then
-        raise exception 'Cannot add group member % without relationship or accepted direct chat', v_member_id;
+        raise exception 'Cannot add group member % without a follow relationship', v_member_id;
       end if;
 
       insert into public.chat_conversation_members (conversation_id, user_id, role, status)
@@ -831,7 +922,47 @@ begin
 end;
 $$;
 
-create or replace function public.send_chat_message(p_conversation_id uuid, p_body text)
+drop function if exists public.send_chat_message(uuid, text);
+
+create or replace function public.can_send_chat_message(
+  p_conversation_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.chat_conversations c
+    join public.chat_conversation_members cm
+      on cm.conversation_id = c.id
+     and cm.user_id = auth.uid()
+     and cm.status = 'active'
+    where c.id = p_conversation_id
+      and (
+        c.type = 'group'
+        or exists (
+          select 1
+          from public.chat_conversation_members other_cm
+          where other_cm.conversation_id = c.id
+            and other_cm.user_id <> auth.uid()
+            and other_cm.status = 'active'
+            and public.chat_users_have_follow_relationship(
+              auth.uid(),
+              other_cm.user_id
+            )
+        )
+      )
+  );
+$$;
+
+create or replace function public.send_chat_message(
+  p_conversation_id uuid,
+  p_body text,
+  p_mentions jsonb default '[]'::jsonb
+)
 returns uuid
 language plpgsql
 security definer
@@ -843,6 +974,12 @@ declare
   v_conversation public.chat_conversations%rowtype;
   v_message_id uuid;
   v_pending_message_count int;
+  v_mention jsonb;
+  v_mentioned_user uuid;
+  v_display_text text;
+  v_start_offset int;
+  v_end_offset int;
+  v_is_all boolean;
 begin
   if v_current_user is null then
     raise exception 'Authentication required';
@@ -854,6 +991,12 @@ begin
 
   if p_conversation_id is null then
     raise exception 'Conversation id is required';
+  end if;
+
+  if jsonb_typeof(coalesce(p_mentions, '[]'::jsonb)) <> 'array'
+    or jsonb_array_length(coalesce(p_mentions, '[]'::jsonb)) > 100
+  then
+    raise exception 'Message mentions must be an array of at most 100 entries';
   end if;
 
   perform pg_advisory_xact_lock(hashtextextended(p_conversation_id::text, 0));
@@ -878,6 +1021,12 @@ begin
   end if;
 
   if v_conversation.type = 'direct'
+    and not public.can_send_chat_message(p_conversation_id)
+  then
+    raise exception 'Follow relationship required';
+  end if;
+
+  if v_conversation.type = 'direct'
     and v_conversation.request_status = 'pending'
     and v_conversation.requested_by = v_current_user
     and not public.chat_users_have_relationship(v_conversation.requested_by, v_conversation.requested_to)
@@ -896,6 +1045,79 @@ begin
   insert into public.chat_messages (conversation_id, sender_id, body)
   values (p_conversation_id, v_current_user, v_body)
   returning id into v_message_id;
+
+  for v_mention in
+    select value from jsonb_array_elements(coalesce(p_mentions, '[]'::jsonb))
+  loop
+    if v_conversation.type <> 'group' then
+      raise exception 'Mentions are only supported in group chats';
+    end if;
+
+    v_display_text := v_mention->>'display_text';
+    v_start_offset := (v_mention->>'start_offset')::int;
+    v_end_offset := (v_mention->>'end_offset')::int;
+    v_is_all := coalesce((v_mention->>'is_all')::boolean, false);
+
+    if v_display_text is null
+      or v_start_offset < 0
+      or v_end_offset <= v_start_offset
+      or v_end_offset > char_length(v_body)
+      or substring(v_body from v_start_offset + 1 for v_end_offset - v_start_offset) <> v_display_text
+    then
+      raise exception 'Invalid mention span';
+    end if;
+
+    if v_is_all then
+      if v_display_text <> '@all' or not exists (
+        select 1
+        from public.chat_conversation_members cm
+        where cm.conversation_id = p_conversation_id
+          and cm.user_id = v_current_user
+          and cm.status = 'active'
+          and cm.role = 'owner'
+      ) then
+        raise exception 'Only group admins can mention all members';
+      end if;
+
+      insert into public.chat_message_mentions (
+        message_id, mentioned_user_id, display_text,
+        start_offset, end_offset, is_all_source
+      )
+      select
+        v_message_id, cm.user_id, v_display_text,
+        v_start_offset, v_end_offset, true
+      from public.chat_conversation_members cm
+      where cm.conversation_id = p_conversation_id
+        and cm.status = 'active'
+        and cm.user_id <> v_current_user
+      on conflict (message_id, mentioned_user_id, start_offset) do nothing;
+    else
+      v_mentioned_user := nullif(v_mention->>'user_id', '')::uuid;
+      if v_mentioned_user is null
+        or v_mentioned_user = v_current_user
+        or not exists (
+          select 1
+          from public.chat_conversation_members cm
+          join public.profiles p on p.id = cm.user_id
+          where cm.conversation_id = p_conversation_id
+            and cm.user_id = v_mentioned_user
+            and cm.status = 'active'
+            and v_display_text = '@' || p.name
+        )
+      then
+        raise exception 'Mentioned user is not an active group member';
+      end if;
+
+      insert into public.chat_message_mentions (
+        message_id, mentioned_user_id, display_text,
+        start_offset, end_offset, is_all_source
+      ) values (
+        v_message_id, v_mentioned_user, v_display_text,
+        v_start_offset, v_end_offset, false
+      )
+      on conflict (message_id, mentioned_user_id, start_offset) do nothing;
+    end if;
+  end loop;
 
   update public.chat_conversations c
   set last_message_at = now()
@@ -942,6 +1164,53 @@ begin
   end;
 
   return v_message_id;
+end;
+$$;
+
+create or replace function public.fetch_unvisited_chat_mentions(
+  p_conversation_id uuid default null
+)
+returns table (
+  message_id uuid,
+  conversation_id uuid,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select distinct m.id, m.conversation_id, m.created_at
+  from public.chat_message_mentions mm
+  join public.chat_messages m on m.id = mm.message_id
+  join public.chat_conversation_members cm
+    on cm.conversation_id = m.conversation_id
+   and cm.user_id = auth.uid()
+  where mm.mentioned_user_id = auth.uid()
+    and mm.visited_at is null
+    and m.deleted_at is null
+    and not (auth.uid() = any(m.deleted_for))
+    and cm.status = 'active'
+    and (cm.cleared_at is null or m.created_at > cm.cleared_at)
+    and (p_conversation_id is null or m.conversation_id = p_conversation_id)
+  order by m.created_at, m.id;
+$$;
+
+create or replace function public.mark_chat_mention_visited(p_message_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  update public.chat_message_mentions mm
+  set visited_at = coalesce(mm.visited_at, now())
+  where mm.message_id = p_message_id
+    and mm.mentioned_user_id = auth.uid();
 end;
 $$;
 
@@ -1350,6 +1619,256 @@ begin
 end;
 $$;
 
+create or replace function public.submit_post_appeal(
+  p_post_id uuid,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_current_user uuid := auth.uid();
+  v_reason text := btrim(coalesce(p_reason, ''));
+begin
+  if v_current_user is null then
+    raise exception 'Authentication required';
+  end if;
+
+  if char_length(v_reason) not between 20 and 500 then
+    raise exception 'Appeal reason must be between 20 and 500 characters';
+  end if;
+
+  if not exists (
+    select 1
+    from public.posts p
+    where p.id = p_post_id
+      and p.author_id = v_current_user
+      and (
+        (
+          p.moderation_status = 'rejected'
+          and p.reviewed_by is not null
+        )
+        or p.moderation_status = 'removed'
+      )
+  ) then
+    raise exception 'Only the author can appeal a rejected or removed post';
+  end if;
+
+  if exists (
+    select 1
+    from public.post_appeals pa
+    where pa.post_id = p_post_id
+      and pa.user_id = v_current_user
+  ) then
+    raise exception 'An appeal has already been submitted for this post';
+  end if;
+
+  insert into public.post_appeals (post_id, user_id, reason)
+  values (p_post_id, v_current_user, v_reason);
+end;
+$$;
+
+create or replace function public.notify_content_creator_awarded()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.is_content_creator is distinct from true
+    and new.is_content_creator = true
+  then
+    insert into public.notifications (
+      user_id,
+      type,
+      title,
+      body,
+      action_type,
+      action_payload
+    )
+    select
+      new.id,
+      'system',
+      'Verification Application',
+      'Your account verification application has been reviewed.',
+      'none',
+      jsonb_build_object(
+        'template_type', 'creator_badge_awarded',
+        'brief', 'Your account verification application has been reviewed.',
+        'decision_label', 'Congratulations',
+        'decision_message',
+          'Your account is now verified as a CyanZone content creator.'
+      )
+    where coalesce((
+      select np.in_app_enabled and np.system_enabled
+      from public.notification_preferences np
+      where np.user_id = new.id
+    ), true)
+      and not exists (
+        select 1
+        from public.notifications existing
+        where existing.user_id = new.id
+          and existing.type = 'system'
+          and existing.action_payload->>'template_type' =
+              'creator_badge_awarded'
+      );
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace function public.notify_post_rejected()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_author_name text;
+  v_evidence text;
+  v_rejected_at timestamptz := coalesce(new.reviewed_at, now());
+  v_deletion_at timestamptz := v_rejected_at + interval '7 days';
+begin
+  if old.moderation_status is distinct from 'rejected'
+    and new.moderation_status = 'rejected'
+    and new.reviewed_by is not null
+  then
+    select p.name
+    into v_author_name
+    from public.profiles p
+    where p.id = new.author_id;
+
+    v_evidence := coalesce(
+      nullif(btrim(new.moderation_reason), ''),
+      case
+        when new.ai_toxicity_score is not null
+          then format(
+            'AI moderation score: %s',
+            new.ai_toxicity_score
+          )
+        else 'No additional moderation evidence was provided.'
+      end
+    );
+
+    insert into public.notifications (
+      user_id,
+      type,
+      post_id,
+      title,
+      body,
+      action_type,
+      action_payload
+    )
+    select
+      new.author_id,
+      'system',
+      new.id,
+      'Post has been rejected',
+      format(
+        E'Hi %s,\n\nAn administrator reviewed your flagged post “%s” and rejected it.\n\nReason:\n%s\n\nYour post will remain rejected for seven days and is scheduled for removal on %s. You may edit and resubmit the content, or send one appeal if you believe this decision is incorrect.',
+        coalesce(v_author_name, 'CyanZone creator'),
+        new.title,
+        v_evidence,
+        to_char(v_deletion_at, 'FMMonth DD, YYYY')
+      ),
+      'open_rejected_post',
+      jsonb_build_object(
+        'template_type', 'post_rejected',
+        'post_title', new.title,
+        'brief', 'An administrator reviewed your flagged post.',
+        'decision_label', 'Decision',
+        'decision_message', v_evidence,
+        'moderation_evidence', v_evidence,
+        'rejected_at', v_rejected_at,
+        'scheduled_deletion_at', v_deletion_at
+      )
+    where coalesce((
+      select np.in_app_enabled and np.system_enabled
+      from public.notification_preferences np
+      where np.user_id = new.author_id
+    ), true)
+      and not exists (
+        select 1
+        from public.notifications existing
+        where existing.user_id = new.author_id
+          and existing.type = 'system'
+          and existing.post_id = new.id
+          and existing.action_payload->>'template_type' = 'post_rejected'
+      );
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace function public.notify_post_approved()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_author_name text;
+begin
+  if old.moderation_status = 'pending'
+    and new.moderation_status = 'approved'
+  then
+    select p.name
+    into v_author_name
+    from public.profiles p
+    where p.id = new.author_id;
+
+    insert into public.notifications (
+      user_id,
+      type,
+      post_id,
+      title,
+      body,
+      action_type,
+      action_payload
+    )
+    select
+      new.author_id,
+      'system',
+      new.id,
+      'Your post was published successfully',
+      format(
+        E'Hi %s,\n\nYour post “%s” passed moderation and was published successfully.',
+        coalesce(v_author_name, 'CyanZone creator'),
+        new.title
+      ),
+      'post_detail',
+      jsonb_build_object(
+        'template_type', 'post_approved',
+        'post_title', new.title,
+        'brief', 'Your post has completed moderation review.',
+        'decision_message', format(
+          'Your post “%s” passed moderation and was published successfully.',
+          new.title
+        )
+      )
+    where coalesce((
+      select np.in_app_enabled and np.system_enabled
+      from public.notification_preferences np
+      where np.user_id = new.author_id
+    ), true)
+      and not exists (
+        select 1
+        from public.notifications existing
+        where existing.user_id = new.author_id
+          and existing.type = 'system'
+          and existing.post_id = new.id
+          and existing.action_payload->>'template_type' = 'post_approved'
+      );
+  end if;
+
+  return new;
+end;
+$$;
+
 drop trigger if exists notify_new_follower_on_insert on public.follows;
 create trigger notify_new_follower_on_insert
 after insert on public.follows
@@ -1375,11 +1894,29 @@ create trigger notify_comment_like_on_insert
 after insert on public.comment_likes
 for each row execute function public.notify_comment_like();
 
+drop trigger if exists notify_content_creator_awarded_on_update
+on public.profiles;
+create trigger notify_content_creator_awarded_on_update
+after update of is_content_creator on public.profiles
+for each row execute function public.notify_content_creator_awarded();
+
+drop trigger if exists notify_post_rejected_on_update on public.posts;
+create trigger notify_post_rejected_on_update
+after update of moderation_status on public.posts
+for each row execute function public.notify_post_rejected();
+
+drop trigger if exists notify_post_approved_on_update on public.posts;
+create trigger notify_post_approved_on_update
+after update of moderation_status on public.posts
+for each row execute function public.notify_post_approved();
+
 alter table public.chat_conversations enable row level security;
 alter table public.chat_conversation_members enable row level security;
 alter table public.chat_messages enable row level security;
+alter table public.chat_message_mentions enable row level security;
 alter table public.notification_preferences enable row level security;
 alter table public.notifications enable row level security;
+alter table public.post_appeals enable row level security;
 
 drop policy if exists "Conversations visible to members" on public.chat_conversations;
 create policy "Conversations visible to members"
@@ -1416,6 +1953,26 @@ to authenticated
   )
 );
 
+drop policy if exists "Mentions visible to conversation members" on public.chat_message_mentions;
+create policy "Mentions visible to conversation members"
+on public.chat_message_mentions for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.chat_messages m
+    where m.id = chat_message_mentions.message_id
+      and public.chat_is_conversation_member(m.conversation_id, auth.uid())
+      and exists (
+        select 1
+        from public.chat_conversation_members cm
+        where cm.conversation_id = m.conversation_id
+          and cm.user_id = auth.uid()
+          and cm.status = 'active'
+      )
+  )
+);
+
 drop policy if exists "Users manage own notification preferences" on public.notification_preferences;
 create policy "Users manage own notification preferences"
 on public.notification_preferences for all
@@ -1431,13 +1988,30 @@ using (user_id = auth.uid());
 
 drop policy if exists "Users update own notifications" on public.notifications;
 
+drop policy if exists "Users delete own notifications" on public.notifications;
+create policy "Users delete own notifications"
+on public.notifications for delete
+to authenticated
+using (user_id = auth.uid());
+
+drop policy if exists "Users view own post appeals" on public.post_appeals;
+create policy "Users view own post appeals"
+on public.post_appeals for select
+to authenticated
+using (user_id = auth.uid());
+
 revoke execute on function public.chat_users_have_relationship(uuid, uuid) from public, anon, authenticated;
+revoke execute on function public.chat_users_have_follow_relationship(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.chat_can_add_group_member(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.chat_is_conversation_member(uuid, uuid) from public, anon;
 
 revoke execute on function public.create_direct_conversation(uuid) from public, anon;
+revoke execute on function public.open_direct_conversation(uuid) from public, anon;
 revoke execute on function public.create_group_conversation(text, uuid[]) from public, anon;
-revoke execute on function public.send_chat_message(uuid, text) from public, anon;
+revoke execute on function public.can_send_chat_message(uuid) from public, anon;
+revoke execute on function public.send_chat_message(uuid, text, jsonb) from public, anon;
+revoke execute on function public.fetch_unvisited_chat_mentions(uuid) from public, anon;
+revoke execute on function public.mark_chat_mention_visited(uuid) from public, anon;
 revoke execute on function public.accept_message_request(uuid) from public, anon;
 revoke execute on function public.clear_chat(uuid) from public, anon;
 revoke execute on function public.rename_group_conversation(uuid, text) from public, anon;
@@ -1450,11 +2024,16 @@ revoke execute on function public.unsend_chat_message(uuid) from public, anon;
 revoke execute on function public.mark_conversation_read(uuid) from public, anon;
 revoke execute on function public.mark_notification_read(uuid) from public, anon;
 revoke execute on function public.mark_notification_section_read(text) from public, anon;
+revoke execute on function public.submit_post_appeal(uuid, text) from public, anon;
 
 grant execute on function public.chat_is_conversation_member(uuid, uuid) to authenticated;
 grant execute on function public.create_direct_conversation(uuid) to authenticated;
+grant execute on function public.open_direct_conversation(uuid) to authenticated;
 grant execute on function public.create_group_conversation(text, uuid[]) to authenticated;
-grant execute on function public.send_chat_message(uuid, text) to authenticated;
+grant execute on function public.can_send_chat_message(uuid) to authenticated;
+grant execute on function public.send_chat_message(uuid, text, jsonb) to authenticated;
+grant execute on function public.fetch_unvisited_chat_mentions(uuid) to authenticated;
+grant execute on function public.mark_chat_mention_visited(uuid) to authenticated;
 grant execute on function public.accept_message_request(uuid) to authenticated;
 grant execute on function public.clear_chat(uuid) to authenticated;
 grant execute on function public.rename_group_conversation(uuid, text) to authenticated;
@@ -1467,6 +2046,7 @@ grant execute on function public.unsend_chat_message(uuid) to authenticated;
 grant execute on function public.mark_conversation_read(uuid) to authenticated;
 grant execute on function public.mark_notification_read(uuid) to authenticated;
 grant execute on function public.mark_notification_section_read(text) to authenticated;
+grant execute on function public.submit_post_appeal(uuid, text) to authenticated;
 
 do $$
 begin

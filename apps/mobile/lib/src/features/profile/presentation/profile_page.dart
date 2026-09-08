@@ -8,9 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/widgets/shimmer_skeleton.dart';
-import '../../chat/data/chat_models.dart';
-import '../../chat/data/chat_repository.dart';
-import '../../chat/presentation/chat_room_page.dart';
 import '../../posts/data/feed_post.dart';
 import '../../posts/data/post_interaction_sync.dart';
 import '../../posts/data/post_image_disk_cache.dart';
@@ -24,6 +21,7 @@ import '../data/profile_avatar_cache.dart';
 import '../data/user_profile.dart';
 import 'content_creator_badge.dart';
 import 'follow_list_page.dart';
+import 'profile_message_action.dart';
 import 'settings_page.dart';
 import 'edit_profile_page.dart';
 
@@ -572,39 +570,10 @@ class _ProfileHeader extends StatelessWidget {
                   child: _ProfileActionButton(
                     label: 'Message',
                     filled: false,
-                    onTap: () async {
-                      try {
-                        final repository =
-                            ChatRepository(Supabase.instance.client);
-                        final conversationId = await repository
-                            .createDirectConversation(profile.id);
-                        if (!context.mounted) return;
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ChatRoomPage(
-                              conversation: ChatConversation.fromMap({
-                                'id': conversationId,
-                                'type': 'direct',
-                                'request_status': profile.isFollowing
-                                    ? 'accepted'
-                                    : 'pending',
-                                'unread_count': 0,
-                                'other_user_id': profile.id,
-                                'other_user_name': profile.name,
-                                'other_user_avatar_url': profile.avatarUrl,
-                              }),
-                            ),
-                          ),
-                        );
-                      } catch (error) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(friendlyErrorMessage(error)),
-                          ),
-                        );
-                      }
-                    },
+                    onTap: () => openProfileMessage(
+                      context: context,
+                      profile: profile,
+                    ),
                   ),
                 ),
               ],

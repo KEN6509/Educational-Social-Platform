@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 import '../data/chat_models.dart';
+import '../data/chat_mention.dart';
 
 const chatNavy = Color(0xFF0B1F3E);
 const chatCyan = Color(0xFF4490AD);
@@ -18,6 +19,7 @@ const chatMineBubble = Color(0xFFD9FDD3);
 const chatOtherBubble = Colors.white;
 const chatSoftGrey = Color(0xFFF8FAFC);
 const chatPreviewBackground = Color(0xFFF1F3F5);
+const chatMentionAccent = Color(0xFF128C7E);
 
 const chatAppBarTitleStyle = TextStyle(
   color: chatNavy,
@@ -207,6 +209,8 @@ class ChatMessageBubble extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.onSharedPostTap,
+    this.mentions = const [],
+    this.onMentionTap,
   });
 
   final String body;
@@ -221,6 +225,8 @@ class ChatMessageBubble extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final ValueChanged<ChatSharedPost>? onSharedPostTap;
+  final List<ChatMention> mentions;
+  final ValueChanged<String>? onMentionTap;
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +261,7 @@ class ChatMessageBubble extends StatelessWidget {
             onLongPress: onLongPress,
             behavior: HitTestBehavior.opaque,
             child: Container(
+              key: const ValueKey('chat-message-bubble'),
               margin: const EdgeInsets.symmetric(vertical: 3),
               padding: EdgeInsets.symmetric(
                 horizontal: hasRichContent ? 4 : 13,
@@ -288,7 +295,7 @@ class ChatMessageBubble extends StatelessWidget {
                       child: Text(
                         senderName!,
                         style: const TextStyle(
-                          color: Color(0xFF128C7E),
+                          color: chatMentionAccent,
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
@@ -307,6 +314,8 @@ class ChatMessageBubble extends StatelessWidget {
                       body: body,
                       time: time,
                       maxWidth: bubbleMaxWidth - 26,
+                      mentions: mentions,
+                      onMentionTap: isSelectionMode ? null : onMentionTap,
                     )
                   else
                     _ImageBubbleContent(
@@ -1293,11 +1302,15 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
     required this.body,
     required this.time,
     required this.maxWidth,
+    required this.mentions,
+    this.onMentionTap,
   });
 
   final String body;
   final String? time;
   final double maxWidth;
+  final List<ChatMention> mentions;
+  final ValueChanged<String>? onMentionTap;
 
   static const _bodyStyle = TextStyle(
     color: Color(0xFF1F2937),
@@ -1308,19 +1321,34 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mentionSpans = _mentionSpans();
+    final bodySpan = TextSpan(
+      text: mentionSpans == null ? body : null,
+      style: _bodyStyle,
+      children: mentionSpans,
+    );
     if (time == null) {
-      return Text(body, style: _bodyStyle);
+      return Text.rich(bodySpan);
     }
 
     final timeStyle = _bubbleTimestampStyle();
     final textDirection = Directionality.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    final measurementMentionSpans =
+        mentionSpans == null ? null : _mentionSpans(interactive: false);
     final bodyPainter = TextPainter(
-      text: TextSpan(text: body, style: _bodyStyle),
+      text: TextSpan(
+        text: measurementMentionSpans == null ? body : null,
+        style: _bodyStyle,
+        children: measurementMentionSpans,
+      ),
       textDirection: textDirection,
+      textScaler: textScaler,
     )..layout(maxWidth: maxWidth);
     final timePainter = TextPainter(
       text: TextSpan(text: time, style: timeStyle),
       textDirection: textDirection,
+      textScaler: textScaler,
     )..layout();
     final lines = bodyPainter.computeLineMetrics();
     final lastLineWidth = lines.isEmpty ? 0.0 : lines.last.width;
@@ -1341,7 +1369,7 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            Text(body, style: _bodyStyle),
+            Text.rich(bodySpan),
             Positioned(
               right: 0,
               bottom: 1,
@@ -1358,12 +1386,60 @@ class _InlineBubbleTextWithTime extends StatelessWidget {
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: Text(body, style: _bodyStyle),
+          child: Text.rich(bodySpan),
         ),
         const SizedBox(height: 1),
         Text(time!, style: timeStyle),
       ],
     );
+  }
+
+  List<InlineSpan>? _mentionSpans({bool interactive = true}) {
+    final valid = mentions.where((mention) => mention.matches(body)).toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+    final unique = <ChatMention>[];
+    final seen = <String>{};
+    for (final mention in valid) {
+      final key = '${mention.start}:${mention.end}:${mention.displayText}';
+      if (seen.add(key)) unique.add(mention);
+    }
+    if (unique.isEmpty) return null;
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final mention in unique) {
+      if (mention.start < cursor) continue;
+      if (mention.start > cursor) {
+        spans.add(TextSpan(text: body.substring(cursor, mention.start)));
+      }
+      final mentionStyle = _bodyStyle.copyWith(
+        color: chatMentionAccent,
+        fontWeight: FontWeight.w800,
+      );
+      if (!interactive) {
+        spans.add(TextSpan(text: mention.displayText, style: mentionStyle));
+        cursor = mention.end;
+        continue;
+      }
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: GestureDetector(
+          key: ValueKey(
+            'chat-mention-${mention.isAll ? 'all' : mention.userId}-${mention.start}',
+          ),
+          onTap: mention.isAll || onMentionTap == null
+              ? null
+              : () => onMentionTap!(mention.userId),
+          child: Text(
+            mention.displayText,
+            style: mentionStyle,
+          ),
+        ),
+      ));
+      cursor = mention.end;
+    }
+    if (cursor < body.length) spans.add(TextSpan(text: body.substring(cursor)));
+    return spans;
   }
 }
 
@@ -1490,8 +1566,12 @@ class _ConversationTileState extends State<ConversationTile> {
                       body: conversation.lastMessageBody,
                       fallback: conversation.isRequest
                           ? 'Message request'
-                          : 'Start chatting',
+                          : !conversation.isGroup &&
+                                  !conversation.canSendMessages
+                              ? 'Follow this user to continue chatting.'
+                              : 'Start chatting',
                       unreadCount: conversation.unreadCount,
+                      hasMention: conversation.hasUnvisitedMention,
                     ),
                   ],
                 ),
@@ -1509,11 +1589,13 @@ class _ConversationPreviewLine extends StatelessWidget {
     required this.body,
     required this.fallback,
     required this.unreadCount,
+    required this.hasMention,
   });
 
   final String? body;
   final String fallback;
   final int unreadCount;
+  final bool hasMention;
 
   @override
   Widget build(BuildContext context) {
@@ -1539,10 +1621,12 @@ class _ConversationPreviewLine extends StatelessWidget {
               style: textStyle,
             ),
           ),
-          if (unreadCount > 0) ...[
-            const SizedBox(width: 8),
-            UnreadBadge(count: unreadCount),
+          if (hasMention || unreadCount > 0) const SizedBox(width: 8),
+          if (hasMention) ...[
+            const _ConversationMentionIndicator(),
+            if (unreadCount > 0) const SizedBox(width: 6),
           ],
+          if (unreadCount > 0) UnreadBadge(count: unreadCount),
         ],
       );
     }
@@ -1563,11 +1647,45 @@ class _ConversationPreviewLine extends StatelessWidget {
             style: textStyle,
           ),
         ),
-        if (unreadCount > 0) ...[
-          const SizedBox(width: 8),
-          UnreadBadge(count: unreadCount),
+        if (hasMention || unreadCount > 0) const SizedBox(width: 8),
+        if (hasMention) ...[
+          const _ConversationMentionIndicator(),
+          if (unreadCount > 0) const SizedBox(width: 6),
         ],
+        if (unreadCount > 0) UnreadBadge(count: unreadCount),
       ],
+    );
+  }
+}
+
+class _ConversationMentionIndicator extends StatelessWidget {
+  const _ConversationMentionIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('conversation-mention-indicator'),
+      width: 20,
+      height: 20,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: chatMentionAccent,
+        shape: BoxShape.circle,
+      ),
+      child: Transform.translate(
+        key: const ValueKey('conversation-mention-glyph'),
+        offset: const Offset(0, -2),
+        child: const Text(
+          '@',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            height: 1,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
     );
   }
 }

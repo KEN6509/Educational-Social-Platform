@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../../posts/presentation/post_detail_page.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_page.dart';
@@ -8,6 +9,8 @@ import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
 import 'chat_room_page.dart';
 import 'chat_widgets.dart';
+import 'system_notification_widgets.dart';
+import 'system_notification_detail_page.dart';
 
 typedef NotificationLoader = Future<List<ChatNotification>> Function(
   NotificationSection section,
@@ -25,6 +28,12 @@ typedef ActivityPostOpener = Future<void> Function(
   ChatNotification notification,
 );
 
+typedef SystemNotificationOpener = Future<void> Function(
+  ChatNotification notification,
+);
+
+typedef NotificationDeleter = Future<void> Function(String notificationId);
+
 class NotificationSectionsPage extends StatefulWidget {
   const NotificationSectionsPage({
     super.key,
@@ -34,6 +43,8 @@ class NotificationSectionsPage extends StatefulWidget {
     this.markSectionRead,
     this.markNotificationRead,
     this.openActivityPost,
+    this.openSystemNotification,
+    this.deleteNotification,
   });
 
   final NotificationSection initialSection;
@@ -42,6 +53,8 @@ class NotificationSectionsPage extends StatefulWidget {
   final NotificationSectionReadMarker? markSectionRead;
   final NotificationReadMarker? markNotificationRead;
   final ActivityPostOpener? openActivityPost;
+  final SystemNotificationOpener? openSystemNotification;
+  final NotificationDeleter? deleteNotification;
 
   @override
   State<NotificationSectionsPage> createState() =>
@@ -52,6 +65,7 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     with WidgetsBindingObserver {
   late NotificationSection _section;
   ChatRepository? _repository;
+  RealtimeChannel? _notificationChannel;
   late Future<List<ChatNotification>> _future;
   NotificationActivityFilter _activityFilter = NotificationActivityFilter.all;
   bool _showActivityFilters = false;
@@ -70,11 +84,21 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     WidgetsBinding.instance.addObserver(this);
     _section = widget.initialSection;
     _future = _load();
+    if (widget.loadNotifications == null) {
+      _notificationChannel = _repo.subscribeToNotificationChanges(
+        channelName: 'notification-section-${_section.name}',
+        onChange: (_) => _refreshNotifications(),
+      );
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    final channel = _notificationChannel;
+    if (channel != null) {
+      _repo.unsubscribe(channel);
+    }
     super.dispose();
   }
 
@@ -218,6 +242,62 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     }
   }
 
+  Future<void> _openSystemNotification(
+    ChatNotification notification,
+  ) async {
+    await _markNotificationReadLocally(notification);
+    if (!mounted) return;
+    final opener = widget.openSystemNotification;
+    if (opener != null) {
+      await opener(notification);
+    } else {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SystemNotificationDetailPage(
+            notification: notification,
+          ),
+        ),
+      );
+    }
+    if (!mounted) return;
+    _refreshNotifications();
+  }
+
+  Future<void> _deleteSystemNotification(
+    ChatNotification notification,
+  ) async {
+    final confirmed = await showAppConfirmationDialog(
+      context: context,
+      icon: Icons.delete_outline_rounded,
+      iconColor: chatDanger,
+      iconBackgroundColor: chatDanger.withValues(alpha: 0.1),
+      title: 'Delete notification?',
+      message:
+          'This removes the notification only. Related posts and appeals are not deleted.',
+      primaryLabel: 'Delete',
+      primaryColor: chatDanger,
+      primaryKey: const ValueKey('confirm-delete-system-notification'),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final deleter = widget.deleteNotification;
+      if (deleter != null) {
+        await deleter(notification.id);
+      } else {
+        await _repo.deleteNotification(notification.id);
+      }
+      _refreshNotifications();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not delete this notification. Please retry.'),
+        ),
+      );
+    }
+  }
+
   ({String title, String subtitle, IconData icon}) get _emptyState {
     if (_section == NotificationSection.followers) {
       return (
@@ -252,7 +332,9 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
       },
       child: ChatNoSplash(
         child: Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: _section == NotificationSection.system
+              ? const Color(0xFFF4F6F8)
+              : Colors.white,
           appBar: AppBar(
             backgroundColor: Colors.white,
             elevation: 0,
@@ -305,13 +387,25 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
                   return ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                     itemCount: notifications.length,
-                    separatorBuilder: (_, __) => const Divider(
-                      height: 1,
-                      indent: 62,
-                      color: Color(0xFFE2E8F0),
-                    ),
+                    separatorBuilder: (_, __) =>
+                        _section == NotificationSection.system
+                            ? const SizedBox(height: 12)
+                            : const Divider(
+                                height: 1,
+                                indent: 62,
+                                color: Color(0xFFE2E8F0),
+                              ),
                     itemBuilder: (context, index) {
                       final notification = notifications[index];
+                      if (_section == NotificationSection.system) {
+                        return SystemNotificationCard(
+                          notification: notification,
+                          isUnread: _isNotificationUnread(notification),
+                          onOpen: () => _openSystemNotification(notification),
+                          onDelete: () =>
+                              _deleteSystemNotification(notification),
+                        );
+                      }
                       if (_section == NotificationSection.activity) {
                         return _ActivityNotificationTile(
                           notification: notification,
@@ -880,7 +974,7 @@ class _FollowerActionButtonState extends State<_FollowerActionButton> {
       try {
         await widget.onNotificationRead();
       } catch (_) {}
-      final conversationId = await _repo.createDirectConversation(actorId);
+      final conversationId = await _repo.openDirectConversation(actorId);
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
@@ -898,10 +992,13 @@ class _FollowerActionButtonState extends State<_FollowerActionButton> {
           ),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
+        final text = error.toString().contains('Follow relationship required')
+            ? 'Follow this user before sending a message.'
+            : 'No internet connection';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
+          SnackBar(content: Text(text)),
         );
       }
     } finally {

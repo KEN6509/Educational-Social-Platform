@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:cyanzone_mobile/src/features/chat/data/chat_models.dart';
+import 'package:cyanzone_mobile/src/features/chat/data/chat_mention.dart';
 import 'package:cyanzone_mobile/src/features/chat/data/chat_repository.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_details_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_page.dart';
@@ -13,8 +14,441 @@ import 'package:cyanzone_mobile/src/features/chat/presentation/chat_room_page.da
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_widgets.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/create_group_chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/notification_sections_page.dart';
+import 'package:cyanzone_mobile/src/features/chat/presentation/system_notification_detail_page.dart';
+import 'package:cyanzone_mobile/src/features/chat/presentation/system_notification_widgets.dart';
 
 void main() {
+  testWidgets('ChatMessageBubble renders tappable structured mentions',
+      (tester) async {
+    String? openedId;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ChatMessageBubble(
+          body: 'Hi @Ava and @Ava',
+          isMine: false,
+          mentions: const [
+            ChatMention(
+              userId: 'u1',
+              displayText: '@Ava',
+              start: 3,
+              end: 7,
+            ),
+            ChatMention(
+              userId: 'u1',
+              displayText: '@Ava',
+              start: 12,
+              end: 16,
+            ),
+          ],
+          onMentionTap: (id) => openedId = id,
+        ),
+      ),
+    ));
+
+    expect(find.text('@Ava'), findsNWidgets(2));
+    final mentionText = tester.widget<Text>(find.text('@Ava').first);
+    expect(mentionText.style?.color, const Color(0xFF128C7E));
+    await tester.tap(find.byKey(const ValueKey('chat-mention-u1-3')));
+    expect(openedId, 'u1');
+  });
+
+  testWidgets('conversation row shows chat mention indicator', (tester) async {
+    const conversation = ChatConversation(
+      id: 'group-mention',
+      type: ChatConversationType.group,
+      requestStatus: ChatRequestStatus.none,
+      unreadCount: 0,
+      title: 'Study Group',
+      hasUnvisitedMention: true,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ConversationTile(conversation: conversation, onTap: () {}),
+      ),
+    ));
+
+    expect(find.byKey(const ValueKey('conversation-mention-indicator')),
+        findsOneWidget);
+  });
+
+  testWidgets('empty disconnected direct chat shows follow-required preview',
+      (tester) async {
+    const conversation = ChatConversation(
+      id: 'blocked-direct-preview',
+      type: ChatConversationType.direct,
+      requestStatus: ChatRequestStatus.accepted,
+      unreadCount: 0,
+      otherUserName: 'Ava',
+      canSendMessages: false,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ConversationTile(conversation: conversation, onTap: () {}),
+      ),
+    ));
+
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsOneWidget,
+    );
+    expect(find.text('Start chatting'), findsNothing);
+  });
+
+  testWidgets('group composer shows admin @all before member suggestions',
+      (tester) async {
+    const conversation = ChatConversation(
+      id: 'group-autocomplete',
+      type: ChatConversationType.group,
+      requestStatus: ChatRequestStatus.none,
+      unreadCount: 0,
+      title: 'Study Group',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: ChatRoomPage(
+        conversation: conversation,
+        loadMessages: () async => const [],
+        markRead: (_) async {},
+        canMentionAll: true,
+        mentionParticipants: const [
+          ChatParticipant(id: 'u1', name: 'Ava'),
+        ],
+      ),
+    ));
+
+    await tester.enterText(find.byType(TextField), '@');
+    await tester.pump();
+
+    expect(
+        find.byKey(const ValueKey('mention-all-suggestion')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mention-suggestion-u1')), findsOneWidget);
+    final allTop = tester.getTopLeft(
+      find.byKey(const ValueKey('mention-all-suggestion')),
+    );
+    final memberTop = tester.getTopLeft(
+      find.byKey(const ValueKey('mention-suggestion-u1')),
+    );
+    expect(allTop.dy, lessThan(memberTop.dy));
+  });
+
+  testWidgets('mention suggestions overlay chat with four-row viewport',
+      (tester) async {
+    const conversation = ChatConversation(
+      id: 'group-overlay',
+      type: ChatConversationType.group,
+      requestStatus: ChatRequestStatus.none,
+      unreadCount: 0,
+      title: 'Study Group',
+    );
+    final participants = List.generate(
+      6,
+      (index) => ChatParticipant(id: 'u$index', name: 'Member $index'),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: ChatRoomPage(
+        conversation: conversation,
+        loadMessages: () async => const [],
+        markRead: (_) async {},
+        canMentionAll: true,
+        mentionParticipants: participants,
+      ),
+    ));
+    final field = find.byType(TextField);
+    final fieldTopBefore = tester.getTopLeft(field).dy;
+
+    await tester.enterText(field, '@');
+    await tester.pump();
+
+    expect(tester.getTopLeft(field).dy, fieldTopBefore);
+    final panel = find.byKey(const ValueKey('mention-suggestions-panel'));
+    expect(panel, findsOneWidget);
+    expect(tester.getSize(panel).height, lessThanOrEqualTo(240));
+    expect(find.byKey(const ValueKey('mention-suggestion-divider-0')),
+        findsOneWidget);
+    final dividerLeft = tester
+        .getTopLeft(find.byKey(const ValueKey('mention-suggestion-divider-0')))
+        .dx;
+    final nameLeft =
+        tester.getTopLeft(find.text('Member 0', skipOffstage: false)).dx;
+    expect(dividerLeft, nameLeft);
+    final allAvatar = tester.widget<CircleAvatar>(
+      find.descendant(
+        of: find.byKey(const ValueKey('mention-all-suggestion')),
+        matching: find.byType(CircleAvatar),
+      ),
+    );
+    expect(allAvatar.backgroundColor, const Color(0xFF128C7E));
+
+    await tester.drag(
+      find.byKey(const ValueKey('mention-suggestions-list')),
+      const Offset(0, -300),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Member 5'), findsOneWidget);
+    await tester.tap(find.text('Member 5'));
+    await tester.pump();
+    expect(tester.widget<TextField>(field).controller?.text, '@Member 5 ');
+
+    await tester.enterText(field, 'First line\nSecond line\nThird line\n@');
+    await tester.pumpAndSettle();
+    final resizedPanel =
+        find.byKey(const ValueKey('mention-suggestions-panel'));
+    expect(
+      tester.getBottomLeft(resizedPanel).dy,
+      lessThanOrEqualTo(tester.getTopLeft(field).dy),
+    );
+
+    expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasFocus,
+        isTrue);
+    await tester.tapAt(const Offset(20, 100));
+    await tester.pump();
+    expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasFocus,
+        isFalse);
+    expect(panel, findsNothing);
+  });
+
+  testWidgets('mention-only bubble shrink-wraps its text', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: ChatMessageBubble(
+          body: '@Ava',
+          isMine: false,
+          mentions: [
+            ChatMention(
+              userId: 'u1',
+              displayText: '@Ava',
+              start: 0,
+              end: 4,
+            ),
+          ],
+        ),
+      ),
+    ));
+
+    final bubble = find.byKey(const ValueKey('chat-message-bubble'));
+    expect(tester.getSize(bubble).width, lessThan(130));
+  });
+
+  testWidgets('mention-only timestamp shares the final text line',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ChatMessageBubble(
+          body: '@all',
+          isMine: false,
+          createdAt: DateTime(2026, 7, 13, 0, 37),
+          mentions: const [
+            ChatMention(
+              userId: '',
+              displayText: '@all',
+              start: 0,
+              end: 4,
+              isAll: true,
+            ),
+          ],
+        ),
+      ),
+    ));
+
+    final mentionTop = tester.getTopLeft(find.text('@all')).dy;
+    final timestampTop = tester.getTopLeft(find.text('12:37 AM')).dy;
+    expect((timestampTop - mentionTop).abs(), lessThan(8));
+  });
+
+  testWidgets('mixed mention text uses normal inline layout and stays tappable',
+      (tester) async {
+    String? openedId;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ChatMessageBubble(
+          body: 'Hello @Ava again',
+          isMine: false,
+          createdAt: DateTime(2026, 7, 13, 0, 38),
+          mentions: const [
+            ChatMention(
+              userId: 'u1',
+              displayText: '@Ava',
+              start: 6,
+              end: 10,
+            ),
+          ],
+          onMentionTap: (id) => openedId = id,
+        ),
+      ),
+    ));
+
+    final messageTop = tester.getTopLeft(find.text('@Ava')).dy;
+    final timestampTop = tester.getTopLeft(find.text('12:38 AM')).dy;
+    expect((timestampTop - messageTop).abs(), lessThan(8));
+    await tester.tap(find.byKey(const ValueKey('chat-mention-u1-6')));
+    expect(openedId, 'u1');
+  });
+
+  testWidgets('scaled repeated mentions never overlap the timestamp',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(
+          size: Size(280, 600),
+          textScaler: TextScaler.linear(2),
+        ),
+        child: Scaffold(
+          body: ChatMessageBubble(
+            body: '@Ava and @Ava',
+            isMine: false,
+            createdAt: DateTime(2026, 7, 13, 0, 39),
+            mentions: const [
+              ChatMention(
+                userId: 'u1',
+                displayText: '@Ava',
+                start: 0,
+                end: 4,
+              ),
+              ChatMention(
+                userId: 'u1',
+                displayText: '@Ava',
+                start: 9,
+                end: 13,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ));
+
+    final timestampRect = tester.getRect(find.text('12:39 AM'));
+    for (final mention in find.text('@Ava').evaluate()) {
+      expect(
+          tester
+              .getRect(find.byElementPredicate((item) => item == mention))
+              .overlaps(timestampRect),
+          isFalse);
+    }
+  });
+
+  testWidgets('conversation mention indicator uses centered theme treatment',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ConversationTile(
+          conversation: const ChatConversation(
+            id: 'styled-indicator',
+            type: ChatConversationType.group,
+            requestStatus: ChatRequestStatus.none,
+            unreadCount: 0,
+            hasUnvisitedMention: true,
+          ),
+          onTap: () {},
+        ),
+      ),
+    ));
+
+    final indicator =
+        find.byKey(const ValueKey('conversation-mention-indicator'));
+    expect(indicator, findsOneWidget);
+    final decorated = tester.widget<Container>(indicator);
+    final decoration = decorated.decoration! as BoxDecoration;
+    expect(decoration.color, const Color(0xFF128C7E));
+    expect(decoration.shape, BoxShape.circle);
+    final glyph = tester.widget<Transform>(
+      find.byKey(const ValueKey('conversation-mention-glyph')),
+    );
+    expect(glyph.transform.getTranslation().y, -2);
+    expect(
+      find.descendant(of: indicator, matching: find.text('@')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('room enters oldest mention then @ button visits the next',
+      (tester) async {
+    final visited = <String>[];
+    final messages = [
+      ChatMessage(
+        id: 'm1',
+        conversationId: 'c1',
+        senderId: 'u2',
+        body: 'first',
+        createdAt: DateTime(2026, 7, 12, 10),
+        isMine: false,
+      ),
+      ChatMessage(
+        id: 'm2',
+        conversationId: 'c1',
+        senderId: 'u2',
+        body: 'second',
+        createdAt: DateTime(2026, 7, 12, 11),
+        isMine: false,
+      ),
+    ];
+    await tester.pumpWidget(MaterialApp(
+      home: ChatRoomPage(
+        conversation: const ChatConversation(
+          id: 'c1',
+          type: ChatConversationType.group,
+          requestStatus: ChatRequestStatus.none,
+          unreadCount: 2,
+          title: 'Study Group',
+        ),
+        loadMessages: () async => messages,
+        markRead: (_) async {},
+        initialUnvisitedMentionMessageIds: const ['m1', 'm2'],
+        markMentionVisited: (id) async => visited.add(id),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(visited, ['m1']);
+    expect(find.byKey(const ValueKey('mention-navigation-button')),
+        findsOneWidget);
+    final navigationGlyph = tester.widget<Transform>(
+      find.byKey(const ValueKey('mention-navigation-glyph')),
+    );
+    expect(navigationGlyph.transform.getTranslation().y, -2);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('mention-navigation-button')),
+        matching: find.text('@'),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('mention-navigation-button')),
+    );
+    await tester.pumpAndSettle();
+    expect(visited, ['m1', 'm2']);
+  });
+
+  testWidgets('room never marks a mention visited when its message is absent',
+      (tester) async {
+    final visited = <String>[];
+    await tester.pumpWidget(MaterialApp(
+      home: ChatRoomPage(
+        conversation: const ChatConversation(
+          id: 'c-missing',
+          type: ChatConversationType.group,
+          requestStatus: ChatRequestStatus.none,
+          unreadCount: 0,
+        ),
+        loadMessages: () async => const [],
+        markRead: (_) async {},
+        initialUnvisitedMentionMessageIds: const ['missing-message'],
+        markMentionVisited: (id) async => visited.add(id),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(visited, isEmpty);
+  });
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
   });
@@ -507,13 +941,24 @@ void main() {
     expect(source, contains('CircleBorder'));
   });
 
+  test('group member errors use follow-only copy', () {
+    final source = File(
+      'lib/src/features/chat/presentation/create_group_chat_page.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains('Only followers or people you follow can be added.'),
+    );
+    expect(source, isNot(contains('accepted recent chats')));
+  });
+
   testWidgets('ChatPage renders title, search, and empty state',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: ChatPage(
           loadConversations: () async => const [],
-          loadRequests: () async => const [],
           loadCounts: () async => const {
             NotificationSection.activity: 0,
             NotificationSection.system: 0,
@@ -533,13 +978,12 @@ void main() {
     expect(find.text('No chats yet'), findsOneWidget);
   });
 
-  testWidgets('ChatPage message filters include unread between all and groups',
+  testWidgets('ChatPage exposes only All, Unread, and Groups filters',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: ChatPage(
           loadConversations: () async => const [],
-          loadRequests: () async => const [],
           loadCounts: () async => const {},
         ),
       ),
@@ -549,11 +993,11 @@ void main() {
     final allX = tester.getTopLeft(find.text('All')).dx;
     final unreadX = tester.getTopLeft(find.text('Unread')).dx;
     final groupsX = tester.getTopLeft(find.text('Groups')).dx;
-    final requestsX = tester.getTopLeft(find.text('Requests')).dx;
 
     expect(allX, lessThan(unreadX));
     expect(unreadX, lessThan(groupsX));
-    expect(groupsX, lessThan(requestsX));
+    expect(find.text('Requests'), findsNothing);
+    expect(find.text('No recent message requests'), findsNothing);
   });
 
   testWidgets('ChatPage filter chips show unread chat counts', (tester) async {
@@ -576,15 +1020,6 @@ void main() {
               'title': 'Study group',
             }),
           ],
-          loadRequests: () async => [
-            ChatConversation.fromMap({
-              'id': 'request-unread',
-              'type': 'direct',
-              'request_status': 'pending',
-              'unread_count': 1,
-              'other_user_name': 'Request user',
-            }),
-          ],
           loadCounts: () async => const {},
         ),
       ),
@@ -593,7 +1028,7 @@ void main() {
 
     expect(find.text('Unread'), findsOneWidget);
     expect(find.text('Groups'), findsOneWidget);
-    expect(find.text('Requests'), findsOneWidget);
+    expect(find.text('Requests'), findsNothing);
     expect(
       tester
           .widget<Text>(
@@ -610,14 +1045,6 @@ void main() {
           .data,
       '1',
     );
-    expect(
-      tester
-          .widget<Text>(
-            find.byKey(const ValueKey('message-filter-count-requests')),
-          )
-          .data,
-      '1',
-    );
   });
 
   testWidgets('ChatPage filter chips hide zero unread counts', (tester) async {
@@ -625,7 +1052,6 @@ void main() {
       MaterialApp(
         home: ChatPage(
           loadConversations: () async => const [],
-          loadRequests: () async => const [],
           loadCounts: () async => const {},
         ),
       ),
@@ -654,7 +1080,6 @@ void main() {
               'other_user_name': 'Alicia',
             }),
           ],
-          loadRequests: () async => const [],
           loadCounts: () async => const {},
         ),
       ),
@@ -675,26 +1100,25 @@ void main() {
     expect(find.text('Alicia'), findsOneWidget);
   });
 
-  testWidgets('Requests empty state keeps recent request helper copy',
-      (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ChatPage(
-          loadConversations: () async => const [],
-          loadRequests: () async => const [],
-          loadCounts: () async => const {},
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
+  test('ChatPage does not load or cache message requests', () {
+    final source = File(
+      'lib/src/features/chat/presentation/chat_page.dart',
+    ).readAsStringSync();
 
-    await tester.tap(find.text('Requests'));
-    await tester.pumpAndSettle();
+    expect(source, isNot(contains('loadRequests')));
+    expect(source, isNot(contains('fetchMessageRequests')));
+    expect(source, isNot(contains('_requestsCacheKey')));
+    expect(source, isNot(contains('_cachedRequests')));
+  });
 
-    expect(find.text('No recent message requests'), findsOneWidget);
+  test('ChatPage caches direct send permission with conversations', () {
+    final source = File(
+      'lib/src/features/chat/presentation/chat_page.dart',
+    ).readAsStringSync();
+
     expect(
-      find.text("Requests older than 30 days aren't shown."),
-      findsOneWidget,
+      source,
+      contains("'can_send_messages': conversation.canSendMessages"),
     );
   });
 
@@ -754,6 +1178,121 @@ void main() {
     expect(chatPageSource, contains('onBadgeCountChanged'));
     expect(shellSource, contains('ChatPage('));
     expect(shellSource, contains('onBadgeCountChanged'));
+  });
+
+  testWidgets('ChatRoomPage blocks disconnected direct chat but keeps history',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'blocked-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_name': 'Ming',
+      'can_send_messages': false,
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => [
+            ChatMessage.fromMap({
+              'id': 'old-message',
+              'conversation_id': 'blocked-room',
+              'sender_id': 'user-2',
+              'body': 'Existing history stays visible',
+              'created_at': '2026-09-02T12:00:00Z',
+            }, currentUserId: 'user-1'),
+          ],
+          loadSendPermission: (_) async => false,
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Existing history stays visible'), findsOneWidget);
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsOneWidget,
+    );
+    expect(find.byType(TextField), findsNothing);
+    expect(find.byIcon(Icons.image_outlined), findsNothing);
+    expect(find.byIcon(Icons.send_rounded), findsNothing);
+  });
+
+  testWidgets('ChatRoomPage uses follow-required copy for blocked empty room',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'blocked-empty-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_name': 'Ming',
+      'can_send_messages': false,
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => const [],
+          loadSendPermission: (_) async => false,
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsNWidgets(2),
+    );
+    expect(find.text('Say hi with a kind message.'), findsNothing);
+  });
+
+  testWidgets('ChatRoomPage blocks stale direct send and preserves draft',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'stale-direct-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_name': 'Ming',
+    });
+    var permissionChecks = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => const [],
+          loadSendPermission: (_) async {
+            permissionChecks += 1;
+            return true;
+          },
+          sendMessage: (_, __) async =>
+              throw Exception('Follow relationship required'),
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'draft');
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsWidgets,
+    );
+    expect(find.byIcon(Icons.send_rounded), findsNothing);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 2);
+    expect(find.text('draft'), findsOneWidget);
   });
 
   testWidgets('ChatRoomPage keeps text when send fails', (tester) async {
@@ -1080,6 +1619,570 @@ void main() {
       find.text('New updates will appear here when something happens.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+      'system notification card shows email preview and opens from whole card',
+      (tester) async {
+    ChatNotification? opened;
+    final marked = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSectionsPage(
+          initialSection: NotificationSection.system,
+          markNotificationRead: (id) async => marked.add(id),
+          openSystemNotification: (notification) async {
+            opened = notification;
+          },
+          loadNotifications: (_) async => [
+            ChatNotification.fromMap({
+              'id': 'system-card-1',
+              'type': 'system',
+              'title': 'Your post was not approved',
+              'body':
+                  'This is a longer notification message that should only be previewed on the card before opening the complete email-like page.',
+              'created_at': '2026-07-13T01:10:00',
+              'action_payload': {
+                'template_type': 'post_rejected',
+              },
+            }),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card =
+        find.byKey(const ValueKey('system-notification-card-system-card-1'));
+    expect(card, findsOneWidget);
+    expect(find.text('System Notification'), findsOneWidget);
+    expect(find.text('Post has been rejected'), findsOneWidget);
+    expect(find.text('View more'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('system-notification-footer-system-card-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('notification-unread-dot-system-card-1')),
+      findsOneWidget,
+    );
+
+    await tester.tap(card);
+    await tester.pumpAndSettle();
+    expect(marked, ['system-card-1']);
+    expect(opened?.id, 'system-card-1');
+  });
+
+  testWidgets('system notification card confirms deletion and refreshes',
+      (tester) async {
+    var deleted = false;
+    var loads = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSectionsPage(
+          initialSection: NotificationSection.system,
+          deleteNotification: (id) async {
+            expect(id, 'system-delete-1');
+            deleted = true;
+          },
+          loadNotifications: (_) async {
+            loads += 1;
+            if (deleted) return const <ChatNotification>[];
+            return [
+              ChatNotification.fromMap({
+                'id': 'system-delete-1',
+                'type': 'system',
+                'title': 'Creator update',
+                'body': 'Congratulations',
+                'created_at': '2026-07-13T01:10:00',
+              }),
+            ];
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('system-notification-menu-system-delete-1')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete notification?'), findsOneWidget);
+    expect(deleted, isFalse);
+    await tester.tap(
+      find.byKey(const ValueKey('confirm-delete-system-notification')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(deleted, isTrue);
+    expect(loads, 2);
+    expect(find.text('No notifications'), findsOneWidget);
+  });
+
+  testWidgets('system notification detail renders creator award as email',
+      (tester) async {
+    const adminReason =
+        'Your application shows consistent, valuable community contributions.';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'creator-detail-1',
+            'type': 'system',
+            'title': 'You are now a verified content creator',
+            'body':
+                'Hi Ava,\n\nCongratulations, and thank you for being an active part of CyanZone.',
+            'created_at': '2026-07-13T01:10:00',
+            'action_payload': {
+              'template_type': 'creator_badge_awarded',
+            },
+          }),
+          loadDecisionReason: (notificationId) async {
+            expect(notificationId, 'creator-detail-1');
+            return adminReason;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verification Application'), findsOneWidget);
+    expect(
+      find.text('Your account verification application has been reviewed.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('system-notification-decision-card')),
+      findsOneWidget,
+    );
+    expect(find.text('Admin:'), findsOneWidget);
+    final creatorCard = find.byKey(
+      const ValueKey('system-notification-decision-card'),
+    );
+    expect(
+      find.descendant(
+        of: creatorCard,
+        matching: find.text(adminReason),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Your account is now verified as a CyanZone content creator.'),
+      findsNothing,
+    );
+    expect(
+      tester.getBottomLeft(find.text('Admin:')).dy,
+      lessThan(tester.getTopLeft(creatorCard).dy),
+    );
+    expect(find.text('Congratulations'), findsNothing);
+    expect(find.textContaining('We appreciate the time'), findsNothing);
+    expect(find.byTooltip('Delete notification'), findsOneWidget);
+    expect(find.text('Appeal decision'), findsNothing);
+  });
+
+  testWidgets('creator-status removal resolves the administrator reason',
+      (tester) async {
+    const adminReason =
+        'Creator access was removed after repeated guideline violations.';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'creator-removed-detail-1',
+            'type': 'system',
+            'title': 'Creator status updated',
+            'body':
+                'Your verified CyanZone content creator status has been removed.',
+            'created_at': '2026-08-01T22:28:00',
+          }),
+          loadDecisionReason: (notificationId) async {
+            expect(notificationId, 'creator-removed-detail-1');
+            return adminReason;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(
+      const ValueKey('system-notification-decision-card'),
+    );
+    expect(
+        find.descendant(of: card, matching: find.text(adminReason)), findsOne);
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.text(
+          'Your verified CyanZone content creator status has been removed.',
+        ),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('published-post detail briefly explains the notification',
+      (tester) async {
+    const result =
+        'Your post “Morning walk” passed moderation and was published successfully.';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'published-detail-1',
+            'type': 'system',
+            'post_id': 'post-1',
+            'title': 'Your post was published successfully',
+            'body': 'Hi Ava,\n\n$result',
+            'created_at': '2026-08-02T01:10:00',
+            'action_payload': {
+              'template_type': 'post_approved',
+              'post_title': 'Morning walk',
+              'brief': 'Hi Ava,',
+            },
+          }),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Your post has completed moderation review.'),
+      findsOneWidget,
+    );
+    expect(find.text('Hi Ava,'), findsNothing);
+    expect(find.text('Admin:'), findsOneWidget);
+    final card = find.byKey(
+      const ValueKey('system-notification-decision-card'),
+    );
+    expect(find.descendant(of: card, matching: find.text(result)), findsOne);
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.textContaining('Hi Ava,'),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('rejected system detail opens post and submits valid appeal',
+      (tester) async {
+    var openedPost = false;
+    String? submittedReason;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'rejected-detail-1',
+            'type': 'system',
+            'post_id': 'post-1',
+            'title': 'Your post was not approved',
+            'body': 'Hi Ava,\n\nYour post was rejected.',
+            'created_at': '2026-07-13T01:10:00',
+            'action_type': 'open_rejected_post',
+            'action_payload': {
+              'template_type': 'post_rejected',
+              'post_title': 'My hiking post',
+              'moderation_evidence': 'Image safety result',
+            },
+          }),
+          openRejectedPost: (_) async => openedPost = true,
+          loadAppealState: (_) async => PostAppealState.none,
+          submitAppeal: (_, reason) async => submittedReason = reason,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final postLink = find.byKey(
+      const ValueKey('rejected-post-inline-link'),
+    );
+    expect(find.text('View post'), findsOneWidget);
+    expect(find.text('My hiking post'), findsNothing);
+    expect(
+      tester.getBottomLeft(postLink).dy,
+      lessThan(tester.getTopLeft(find.text('Admin:')).dy),
+    );
+    await tester.tap(
+      postLink,
+    );
+    await tester.pump();
+    expect(openedPost, isTrue);
+
+    final field = find.byKey(const ValueKey('post-appeal-reason'));
+    expect(field, findsOneWidget);
+    expect(find.byIcon(Icons.gavel_rounded), findsOneWidget);
+    expect(find.text('Appeal decision'), findsNothing);
+    expect(find.text('No appeal submitted'), findsNothing);
+    expect(find.text('Checking appeal status'), findsNothing);
+    expect(find.text('Appeal submitted'), findsNothing);
+    final counter = find.byKey(const ValueKey('post-appeal-counter'));
+    expect(find.text('0 / 500'), findsOneWidget);
+    expect(
+      tester.getTopRight(counter).dx,
+      closeTo(tester.getTopRight(field).dx, 0.1),
+    );
+    await tester.enterText(field, 'Too short');
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Submit appeal'),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    const validReason =
+        'This post is suitable because the image documents a public trail.';
+    await tester.enterText(field, validReason);
+    await tester.pump();
+    final submitButton = find.widgetWithText(FilledButton, 'Submit appeal');
+    await tester.ensureVisible(submitButton);
+    await tester.pumpAndSettle();
+    await tester.tap(submitButton);
+    await tester.pumpAndSettle();
+
+    expect(submittedReason, validReason);
+    expect(find.text('Appeal submitted'), findsOneWidget);
+    expect(field, findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Submit appeal'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Submit appeal'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester.getBottomLeft(find.text('Appeal submitted')).dy,
+      lessThan(
+        tester
+            .getTopLeft(find.widgetWithText(FilledButton, 'Submit appeal'))
+            .dy,
+      ),
+    );
+  });
+
+  testWidgets('final rejected appeal is labelled and cannot be submitted again',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'rejected-final-1',
+            'type': 'system',
+            'post_id': 'post-1',
+            'title': 'Your post was not approved',
+            'body': 'Your post was rejected.',
+            'created_at': '2026-07-13T01:10:00',
+            'action_payload': {
+              'template_type': 'post_rejected',
+              'post_title': 'My hiking post',
+            },
+          }),
+          loadAppealState: (_) async => PostAppealState.rejected,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Appeal rejected · Final decision'), findsOneWidget);
+    expect(find.byKey(const ValueKey('post-appeal-reason')), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Submit appeal'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Submit appeal'),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('report-removed post can appeal but removed comment cannot',
+      (tester) async {
+    ChatNotification removal(String template, {String? commentId}) =>
+        ChatNotification.fromMap({
+          'id': template,
+          'type': 'system',
+          'post_id': 'post-1',
+          'comment_id': commentId,
+          'title': 'Content removed after reports',
+          'body': 'An administrator removed your content.',
+          'created_at': '2026-08-02T01:10:00',
+          'action_payload': {'template_type': template},
+        });
+
+    final widget = MaterialApp(
+      home: SystemNotificationDetailPage(
+        notification: removal('reported_post_removed'),
+        loadAppealState: (_) async => PostAppealState.none,
+      ),
+    );
+    await tester.pumpWidget(widget);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('post-appeal-reason')), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: removal(
+            'reported_comment_removed',
+            commentId: 'comment-1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('post-appeal-reason')), findsNothing);
+    expect(find.textContaining('Appeal '), findsNothing);
+  });
+
+  testWidgets('report-removal detail shows only its reason in the white card',
+      (tester) async {
+    const reason = 'The post violates the community safety guideline.';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'legacy-report-post-reason',
+            'type': 'system',
+            'title': 'Content removed after reports',
+            'body': 'An administrator removed your content.',
+            'created_at': '2026-08-02T01:10:00',
+            'action_payload': {'post_id': 'post-1'},
+          }),
+          loadAppealState: (_) async => PostAppealState.none,
+          loadDecisionReason: (_) async => reason,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(
+      const ValueKey('system-notification-decision-card'),
+    );
+    expect(find.text('Admin:'), findsOneWidget);
+    expect(find.descendant(of: card, matching: find.text(reason)), findsOne);
+    expect(find.descendant(of: card, matching: find.text('Decision')),
+        findsNothing);
+    expect(find.byKey(const ValueKey('post-appeal-reason')), findsOneWidget);
+  });
+
+  testWidgets('missing rejected post disables its link and appeal',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'rejected-missing-1',
+            'type': 'system',
+            'post_id': 'post-missing',
+            'title': 'Your post was not approved',
+            'body': 'Unfortunately, your post “Missing post” was rejected.',
+            'created_at': '2026-07-13T01:10:00',
+            'action_payload': {
+              'template_type': 'post_rejected',
+              'post_title': 'Missing post',
+            },
+          }),
+          openRejectedPost: (_) async => throw Exception('missing'),
+          loadAppealState: (_) async => PostAppealState.none,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('rejected-post-inline-link')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('rejected-post-unavailable-message')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('post-appeal-reason')), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Submit appeal'), findsNothing);
+  });
+
+  testWidgets('post appeal preserves the reason when submission fails',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PostAppealForm(
+            onSubmit: (_) async => throw Exception('network'),
+          ),
+        ),
+      ),
+    );
+
+    const reason =
+        'The image documents a public place and follows the community rules.';
+    final field = find.byKey(const ValueKey('post-appeal-reason'));
+    await tester.enterText(field, reason);
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Submit appeal'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(reason), findsOneWidget);
+    expect(
+      find.text('Could not submit your appeal. Please retry.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('system notification detail deletes only after confirmation',
+      (tester) async {
+    String? deletedId;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SystemNotificationDetailPage(
+                      notification: ChatNotification.fromMap({
+                        'id': 'creator-delete-1',
+                        'type': 'system',
+                        'title': 'Creator update',
+                        'body': 'Congratulations.',
+                        'created_at': '2026-07-13T01:10:00',
+                        'action_payload': {
+                          'template_type': 'creator_badge_awarded',
+                        },
+                      }),
+                      deleteNotification: (id) async => deletedId = id,
+                    ),
+                  ),
+                ),
+                child: const Text('Open detail'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open detail'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Delete notification'));
+    await tester.pumpAndSettle();
+    expect(deletedId, isNull);
+    await tester.tap(
+      find.byKey(const ValueKey('confirm-delete-system-detail')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(deletedId, 'creator-delete-1');
+    expect(find.text('Open detail'), findsOneWidget);
   });
 
   testWidgets('New Followers rows open follower profile and show latest label',

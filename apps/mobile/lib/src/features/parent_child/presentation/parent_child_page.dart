@@ -1,297 +1,234 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../data/parent_child_repository.dart';
+import '../data/parent_supervision_models.dart';
+import 'check_in_page.dart';
+import 'family_links_page.dart';
+import 'link_candidates_page.dart';
+import 'safety_records_page.dart';
+import 'sos_page.dart';
+import 'sos_tracking_scope.dart';
+import 'supervision_dashboards.dart';
+import 'supervision_notification_router.dart';
 
 class ParentChildPage extends StatefulWidget {
-  const ParentChildPage({super.key});
+  const ParentChildPage({
+    super.key,
+    this.repository,
+    this.subscribeToRealtime = true,
+  });
+
+  final ParentChildRepositoryContract? repository;
+  final bool subscribeToRealtime;
 
   @override
   State<ParentChildPage> createState() => _ParentChildPageState();
 }
 
-class _ParentChildPageState extends State<ParentChildPage> {
-  late final ParentChildRepository _repository;
-  late Future<List<Map<String, dynamic>>> _linksFuture;
+class _ParentChildPageState extends State<ParentChildPage>
+    with WidgetsBindingObserver {
+  late final ParentChildRepositoryContract _repository;
+  late Future<SupervisionDashboardState> _dashboardFuture;
+  RealtimeChannel? _channel;
+  Timer? _refreshDebounce;
 
   @override
   void initState() {
     super.initState();
-    _repository = ParentChildRepository(Supabase.instance.client);
-    _linksFuture = _repository.fetchLinks();
+    WidgetsBinding.instance.addObserver(this);
+    _repository =
+        widget.repository ?? ParentChildRepository(Supabase.instance.client);
+    _dashboardFuture = _repository.fetchDashboard(localDay: DateTime.now());
+    if (widget.subscribeToRealtime) {
+      _channel = _repository.subscribeToSupervisionChanges(
+        onChange: _scheduleRefresh,
+      );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  void _scheduleRefresh() {
+    _refreshDebounce?.cancel();
+    _refreshDebounce = Timer(const Duration(milliseconds: 180), _refresh);
   }
 
   void _refresh() {
+    if (!mounted) return;
     setState(() {
-      _linksFuture = _repository.fetchLinks();
+      _dashboardFuture = _repository.fetchDashboard(localDay: DateTime.now());
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        title: const Text(
-          'Family Connection',
-          style: TextStyle(fontWeight: FontWeight.w900),
-        ),
-        actions: [
-          IconButton(
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh_rounded),
+  Future<void> _openCandidates() async {
+    try {
+      final state = await _dashboardFuture;
+      if (!mounted) return;
+      var changed = false;
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => FractionallySizedBox(
+          heightFactor: .86,
+          child: LinkCandidatesPage(
+            repository: _repository,
+            establishedRole: state.role,
+            embedded: true,
+            onRequestCreated: () => changed = true,
           ),
-        ],
-      ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _linksFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final links = snapshot.data ?? [];
-
-          if (links.isEmpty) {
-            return _EmptyState(onAdd: () {});
-          }
-
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _SafetyCard(onSOS: () => _showSOSDialog(context)),
-              const SizedBox(height: 24),
-              Text(
-                'Linked Family Members',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              ...links.map((link) => _FamilyLinkCard(link: link)),
-            ],
-          );
-        },
-      ),
-    );
+        ),
+      );
+      if (changed) _refresh();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to open family link requests right now.'),
+        ),
+      );
+    }
   }
 
-  void _showSOSDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Send SOS Alert?'),
-        content: const Text(
-          'This will immediately notify your linked parents that you need help.',
+  Future<void> _openFamilyLinks(SupervisionDashboardState state) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => FamilyLinksPage(
+          repository: _repository,
+          currentUserId: state.currentUserId,
+          initialLinks: state.links,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await _repository.createSOS('Emergency SOS triggered');
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('SOS Alert Sent!')),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE11D48),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Send SOS'),
-          ),
-        ],
       ),
     );
+    _refresh();
   }
-}
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onAdd});
+  Future<void> _openCheckIn() async {
+    final sent = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CheckInPage(repository: _repository),
+      ),
+    );
+    if (sent == true) _refresh();
+  }
 
-  final VoidCallback onAdd;
+  Future<void> _openSos() async {
+    final coordinator = SosTrackingScope.maybeOf(context);
+    final sent = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SosPage(
+          repository: _repository,
+          onSosStarted: coordinator?.start,
+        ),
+      ),
+    );
+    if (sent == true) _refresh();
+  }
+
+  Future<void> _openRecords(SupervisionDashboardState state) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => SafetyRecordsPage(
+          repository: _repository,
+          canManageSos: state.role == FamilyRole.parent,
+        ),
+      ),
+    );
+    _refresh();
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.family_restroom_rounded,
-              size: 64,
-              color: Color(0xFF4490AD),
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshDebounce?.cancel();
+    final channel = _channel;
+    if (channel != null) unawaited(_repository.unsubscribe(channel));
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: const Color(0xFFF1F5F9),
+        appBar: AppBar(
+          backgroundColor: Color(0xFFFAFCFC),
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          centerTitle: false,
+          titleSpacing: 16,
+          title: const Text(
+            'Parent Supervision',
+            style: TextStyle(
+              color: Color(0xFF0B1F3E),
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'No family links yet',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'Add family link',
+              icon: const Icon(
+                Icons.person_add_alt_1_rounded,
+                color: Color(0xFF0B1F3E),
+                size: 28,
               ),
+              onPressed: _openCandidates,
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Connect with your parents or children to enable safety features, screen time tracking, and SOS alerts.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF64748B), height: 1.5),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: onAdd,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add Family Member'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4490AD),
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
+            const SizedBox(width: 8),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _SafetyCard extends StatelessWidget {
-  const _SafetyCard({required this.onSOS});
-
-  final VoidCallback onSOS;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0B1F3E), Color(0xFF1E3A8A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.shield_rounded, color: Colors.white, size: 24),
-              SizedBox(width: 10),
-              Text(
-                'Safety Center',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
+        body: FutureBuilder<SupervisionDashboardState>(
+          future: _dashboardFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('Unable to load Parent Supervision.'),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                        onPressed: _refresh, child: const Text('Retry')),
+                  ]),
+                ),
+              );
+            }
+            final state = snapshot.requireData;
+            final notificationRouter = SupervisionNotificationRouter(
+              repository: _repository,
+              currentUserId: state.currentUserId,
+              canManageSos: state.role == FamilyRole.parent,
+              subscribeToRealtime: widget.subscribeToRealtime,
+            );
+            return RefreshIndicator(
+              onRefresh: () async => _refresh(),
+              child: SupervisionDashboard(
+                state: state,
+                callbacks: SupervisionDashboardCallbacks(
+                  onFamily: () => _openFamilyLinks(state),
+                  onRecords: () => _openRecords(state),
+                  onCheckIn: _openCheckIn,
+                  onSos: _openSos,
+                  onNotification: (notification) {
+                    unawaited(
+                      notificationRouter
+                          .open(context, notification)
+                          .whenComplete(_refresh),
+                    );
+                  },
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'In case of emergency, use the SOS button to alert your family immediately.',
-            style: TextStyle(color: Colors.white70, height: 1.4),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: onSOS,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE11D48),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'TRIGGER SOS ALERT',
-                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FamilyLinkCard extends StatelessWidget {
-  const _FamilyLinkCard({required this.link});
-
-  final Map<String, dynamic> link;
-
-  @override
-  Widget build(BuildContext context) {
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    final isParent = link['parent_id'] == currentUserId;
-    final other = isParent ? link['child'] : link['parent'];
-    final status = link['status'] as String;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      color: const Color(0xFFF8FAFC),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFE2E8F0),
-          backgroundImage: other['avatar_url'] != null
-              ? NetworkImage(other['avatar_url'])
-              : null,
-          child: other['avatar_url'] == null
-              ? const Icon(Icons.person_rounded, color: Color(0xFF64748B))
-              : null,
+            );
+          },
         ),
-        title: Text(
-          other['name'] ?? 'Family Member',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text(
-          isParent ? 'Child' : 'Parent',
-          style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: status == 'active'
-                ? const Color(0xFFDCFCE7)
-                : const Color(0xFFFEF9C3),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            status.toUpperCase(),
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              color: status == 'active'
-                  ? const Color(0xFF166534)
-                  : const Color(0xFF854D0E),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+      );
 }

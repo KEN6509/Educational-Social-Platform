@@ -1,8 +1,26 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../core/security/password_policy.dart';
+import '../../../core/widgets/password_checklist.dart';
+import '../domain/auth_gateway.dart';
+import '../domain/pending_registration_store.dart';
+import '../domain/registration_request.dart';
+import 'email_otp_panel.dart';
+import 'legal_policy.dart';
+import 'registration_consent_field.dart';
+import 'registration_controller.dart';
 
 class AuthPage extends StatefulWidget {
-  const AuthPage({super.key});
+  const AuthPage({
+    required this.authGateway,
+    required this.pendingRegistrationStore,
+    super.key,
+  });
+
+  final AuthGateway authGateway;
+  final PendingRegistrationStore pendingRegistrationStore;
 
   @override
   State<AuthPage> createState() => _AuthPageState();
@@ -14,13 +32,43 @@ class _AuthPageState extends State<AuthPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _nameController = TextEditingController();
+  final _otpController = TextEditingController();
 
   bool _isRegistering = false;
   bool _isLoading = false;
   bool _showPassword = false;
   bool _showConfirmPassword = false;
+  PasswordPolicyResult _passwordStatus = PasswordPolicy.evaluate('');
   String? _message;
   bool _isSuccessMessage = false;
+  bool _hasAcceptedPolicies = false;
+  bool _showConsentError = false;
+  late final RegistrationController _registrationController;
+
+  RegistrationState get _registrationState => _registrationController.state;
+
+  @override
+  void initState() {
+    super.initState();
+    _registrationController = RegistrationController(
+      authGateway: widget.authGateway,
+      pendingRegistrationStore: widget.pendingRegistrationStore,
+    )..addListener(_onRegistrationChanged);
+    _otpController.addListener(_onOtpChanged);
+    unawaited(_registrationController.restore());
+  }
+
+  void _onRegistrationChanged() {
+    if (!mounted) return;
+    if (_registrationState.showsOtp) {
+      _isRegistering = true;
+    }
+    setState(() {});
+  }
+
+  void _onOtpChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
@@ -28,11 +76,38 @@ class _AuthPageState extends State<AuthPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _nameController.dispose();
+    _otpController
+      ..removeListener(_onOtpChanged)
+      ..dispose();
+    _registrationController
+      ..removeListener(_onRegistrationChanged)
+      ..dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final email = _emailController.text.trim().toLowerCase();
+    final password = _passwordController.text;
+
+    if (_isRegistering) {
+      if (!_hasAcceptedPolicies) {
+        setState(() => _showConsentError = true);
+        return;
+      }
+      await _registrationController.register(
+        RegistrationRequest(
+          name: _nameController.text.trim(),
+          email: email,
+          password: password,
+          termsVersion: LegalPolicy.termsVersion,
+          privacyVersion: LegalPolicy.privacyVersion,
+          consentAcceptedAt: DateTime.now().toUtc(),
+        ),
+      );
       return;
     }
 
@@ -43,35 +118,42 @@ class _AuthPageState extends State<AuthPage> {
     });
 
     try {
-      final auth = Supabase.instance.client.auth;
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
-
-      if (_isRegistering) {
-        final response = await auth.signUp(
-          email: email,
-          password: password,
-          data: {'name': _nameController.text.trim()},
-        );
-
-        if (response.session == null && mounted) {
-          setState(() {
-            _message =
-                'Account created. Check your email if confirmation is enabled.';
-            _isSuccessMessage = true;
-          });
-        }
-      } else {
-        await auth.signInWithPassword(email: email, password: password);
+      await widget.authGateway.signIn(email: email, password: password);
+    } on AuthFailure catch (error) {
+      if (error.reason == AuthFailureReason.emailNotConfirmed) {
+        await _registrationController.resumeUnconfirmedLogin(email);
+      } else if (mounted) {
+        setState(() => _message = error.message);
       }
-    } on AuthException catch (error) {
-      setState(() => _message = error.message);
     } catch (_) {
-      setState(() => _message = 'Something went wrong. Please try again.');
+      if (mounted) {
+        setState(() => _message = 'Something went wrong. Please try again.');
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _verifyOtp() async {
+    await _registrationController.verifyOtp(_otpController.text);
+  }
+
+  Future<void> _resendOtp() async {
+    _otpController.clear();
+    await _registrationController.resendOtp();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _backToRegistrationForm() async {
+    _otpController.clear();
+    await _registrationController.backToForm();
+    if (mounted) {
+      setState(() {
+        _isRegistering = true;
+        _message = null;
+      });
     }
   }
 
@@ -84,7 +166,12 @@ class _AuthPageState extends State<AuthPage> {
       _isRegistering = isRegistering;
       _message = null;
       _isSuccessMessage = false;
+      _showConsentError = false;
+      if (isRegistering) {
+        _hasAcceptedPolicies = false;
+      }
       _showConfirmPassword = false;
+      _passwordStatus = PasswordPolicy.evaluate(_passwordController.text);
       _formKey = GlobalKey<FormState>();
     });
   }
@@ -146,29 +233,60 @@ class _AuthPageState extends State<AuthPage> {
                               ),
                             ),
                             const SizedBox(height: 22),
-                            _AuthPanel(
-                              isRegistering: _isRegistering,
-                              isLoading: _isLoading,
-                              message: _message,
-                              isSuccessMessage: _isSuccessMessage,
-                              formKey: _formKey,
-                              nameController: _nameController,
-                              emailController: _emailController,
-                              passwordController: _passwordController,
-                              confirmPasswordController:
-                                  _confirmPasswordController,
-                              showPassword: _showPassword,
-                              showConfirmPassword: _showConfirmPassword,
-                              onModeChanged: _changeAuthMode,
-                              onTogglePassword: () => setState(
-                                () => _showPassword = !_showPassword,
-                              ),
-                              onToggleConfirmPassword: () => setState(
-                                () => _showConfirmPassword =
-                                    !_showConfirmPassword,
-                              ),
-                              onSubmit: _submit,
-                            ),
+                            _registrationState.showsOtp
+                                ? EmailOtpPanel(
+                                    state: _registrationState,
+                                    tokenController: _otpController,
+                                    onTokenChanged: (_) => setState(() {}),
+                                    onVerify: _verifyOtp,
+                                    onResend: _resendOtp,
+                                    onBack: _backToRegistrationForm,
+                                  )
+                                : _AuthPanel(
+                                    isRegistering: _isRegistering,
+                                    isLoading:
+                                        _isLoading || _registrationState.isBusy,
+                                    message: _isRegistering
+                                        ? _registrationState.message
+                                        : _message,
+                                    isSuccessMessage: _isRegistering
+                                        ? _registrationState.isSuccessMessage
+                                        : _isSuccessMessage,
+                                    formKey: _formKey,
+                                    nameController: _nameController,
+                                    emailController: _emailController,
+                                    passwordController: _passwordController,
+                                    confirmPasswordController:
+                                        _confirmPasswordController,
+                                    showPassword: _showPassword,
+                                    showConfirmPassword: _showConfirmPassword,
+                                    passwordStatus: _passwordStatus,
+                                    hasAcceptedPolicies: _hasAcceptedPolicies,
+                                    showConsentError: _showConsentError,
+                                    onModeChanged: _changeAuthMode,
+                                    onConsentChanged: (accepted) {
+                                      setState(() {
+                                        _hasAcceptedPolicies = accepted;
+                                        if (accepted) {
+                                          _showConsentError = false;
+                                        }
+                                      });
+                                    },
+                                    onPasswordChanged: (value) {
+                                      setState(() {
+                                        _passwordStatus =
+                                            PasswordPolicy.evaluate(value);
+                                      });
+                                    },
+                                    onTogglePassword: () => setState(
+                                      () => _showPassword = !_showPassword,
+                                    ),
+                                    onToggleConfirmPassword: () => setState(
+                                      () => _showConfirmPassword =
+                                          !_showConfirmPassword,
+                                    ),
+                                    onSubmit: _submit,
+                                  ),
                             const SizedBox(height: 18),
                             Wrap(
                               alignment: WrapAlignment.center,
@@ -262,7 +380,12 @@ class _AuthPanel extends StatelessWidget {
     required this.confirmPasswordController,
     required this.showPassword,
     required this.showConfirmPassword,
+    required this.passwordStatus,
+    required this.hasAcceptedPolicies,
+    required this.showConsentError,
     required this.onModeChanged,
+    required this.onConsentChanged,
+    required this.onPasswordChanged,
     required this.onTogglePassword,
     required this.onToggleConfirmPassword,
     required this.onSubmit,
@@ -279,7 +402,12 @@ class _AuthPanel extends StatelessWidget {
   final TextEditingController confirmPasswordController;
   final bool showPassword;
   final bool showConfirmPassword;
+  final PasswordPolicyResult passwordStatus;
+  final bool hasAcceptedPolicies;
+  final bool showConsentError;
   final ValueChanged<bool> onModeChanged;
+  final ValueChanged<bool> onConsentChanged;
+  final ValueChanged<String> onPasswordChanged;
   final VoidCallback onTogglePassword;
   final VoidCallback onToggleConfirmPassword;
   final VoidCallback onSubmit;
@@ -368,8 +496,6 @@ class _AuthPanel extends StatelessWidget {
                     : const [AutofillHints.password],
                 decoration: InputDecoration(
                   labelText: 'Password',
-                  helperText:
-                      isRegistering ? 'Use at least 8 characters.' : null,
                   prefixIcon: const Icon(Icons.lock_outline_rounded),
                   suffixIcon: IconButton(
                     tooltip: showPassword ? 'Hide password' : 'Show password',
@@ -382,11 +508,13 @@ class _AuthPanel extends StatelessWidget {
                   ),
                 ),
                 validator: (value) {
-                  if ((value ?? '').length < 8) {
-                    return 'Password must be at least 8 characters.';
+                  final password = value ?? '';
+                  if (!isRegistering) {
+                    return password.isEmpty ? 'Enter your password.' : null;
                   }
-                  return null;
+                  return PasswordPolicy.validationError(password);
                 },
+                onChanged: isRegistering ? onPasswordChanged : null,
                 onFieldSubmitted: (_) {
                   if (!isRegistering) {
                     onSubmit();
@@ -394,6 +522,8 @@ class _AuthPanel extends StatelessWidget {
                 },
               ),
               if (isRegistering) ...[
+                const SizedBox(height: 14),
+                PasswordChecklist(status: passwordStatus),
                 const SizedBox(height: 14),
                 TextFormField(
                   key: const ValueKey('register-confirm-password-field'),
@@ -423,6 +553,12 @@ class _AuthPanel extends StatelessWidget {
                     return null;
                   },
                   onFieldSubmitted: (_) => onSubmit(),
+                ),
+                const SizedBox(height: 14),
+                RegistrationConsentField(
+                  value: hasAcceptedPolicies,
+                  showError: showConsentError,
+                  onChanged: onConsentChanged,
                 ),
               ],
               const SizedBox(height: 20),

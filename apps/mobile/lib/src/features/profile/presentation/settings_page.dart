@@ -1,94 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/widgets/app_confirmation_dialog.dart';
+import 'notification_settings_page.dart';
 import 'set_password_page.dart';
+import 'verified_badge_page.dart';
 
-typedef NotificationPreferenceLoader = Future<Map<String, bool>> Function();
-typedef NotificationPreferenceSaver = Future<void> Function(
-  Map<String, bool> preferences,
-);
+typedef SignOutAction = Future<void> Function();
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
     this.loadNotificationPreferences,
     this.saveNotificationPreferences,
+    this.signOut,
+    this.verifiedBadgePageBuilder,
   });
 
   final NotificationPreferenceLoader? loadNotificationPreferences;
   final NotificationPreferenceSaver? saveNotificationPreferences;
+  final SignOutAction? signOut;
+  final WidgetBuilder? verifiedBadgePageBuilder;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  late Future<_NotificationPreferenceState> _preferencesFuture;
+  bool _isSigningOut = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _preferencesFuture = _loadPreferences();
-  }
+  Future<void> _confirmLogout() async {
+    if (_isSigningOut) return;
 
-  Future<_NotificationPreferenceState> _loadPreferences() async {
-    final injectedLoader = widget.loadNotificationPreferences;
-    if (injectedLoader != null) {
-      return _NotificationPreferenceState.fromMap(await injectedLoader());
-    }
+    final shouldLogout = await showAppConfirmationDialog(
+      context: context,
+      icon: Icons.logout_rounded,
+      iconColor: const Color(0xFFE11D48),
+      iconBackgroundColor: const Color(0xFFFFE4E6),
+      title: 'Log out?',
+      message: 'Are you sure you want to log out of CyanZone?',
+      primaryLabel: 'Log out',
+      primaryColor: const Color(0xFFE11D48),
+    );
+    if (shouldLogout != true || !mounted) return;
 
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return const _NotificationPreferenceState();
-
-    final row = await Supabase.instance.client
-        .from('notification_preferences')
-        .select()
-        .eq('user_id', userId)
-        .maybeSingle();
-
-    if (row == null) return const _NotificationPreferenceState();
-    return _NotificationPreferenceState.fromMap(row);
-  }
-
-  Future<void> _updatePreference(
-    _NotificationPreferenceState current,
-    String key,
-    bool value,
-  ) async {
-    final next = current.copyWithKey(key, value);
-    setState(() {
-      _preferencesFuture = Future.value(next);
-    });
-
+    setState(() => _isSigningOut = true);
     try {
-      final injectedSaver = widget.saveNotificationPreferences;
-      if (injectedSaver != null) {
-        await injectedSaver(next.toMap());
-        return;
+      await (widget.signOut ?? Supabase.instance.client.auth.signOut).call();
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
-
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) return;
-
-      await Supabase.instance.client.from('notification_preferences').upsert({
-        'user_id': userId,
-        'in_app_enabled': next.inAppEnabled,
-        'chat_enabled': next.chatEnabled,
-        'activity_enabled': next.activityEnabled,
-        'system_enabled': next.systemEnabled,
-        'followers_enabled': next.followersEnabled,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }, onConflict: 'user_id');
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _preferencesFuture = Future.value(current);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not update notification setting.'),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not log out. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSigningOut = false);
+      }
     }
   }
 
@@ -137,69 +110,44 @@ class _SettingsPageState extends State<SettingsPage> {
                   );
                 },
               ),
+              const Divider(height: 1, indent: 48),
+              _SettingsTile(
+                icon: Icons.verified_rounded,
+                title: 'Verified Badge',
+                subtitle: 'Requirements and application',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: widget.verifiedBadgePageBuilder ??
+                          (_) => const VerifiedBadgePage(),
+                    ),
+                  );
+                },
+              ),
             ]),
             const SizedBox(height: 24),
-            _buildSectionHeader('IN-APP NOTIFICATIONS'),
-            FutureBuilder<_NotificationPreferenceState>(
-              future: _preferencesFuture,
-              builder: (context, snapshot) {
-                final prefs =
-                    snapshot.data ?? const _NotificationPreferenceState();
-                final isLoading =
-                    snapshot.connectionState == ConnectionState.waiting;
-                return _buildSection([
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 14, 16, 8),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'These settings control CyanZone in-app badges and notification lists. Phone push notifications are not enabled yet.',
-                        style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 12,
-                          height: 1.35,
-                        ),
+            _buildSectionHeader('GENERAL'),
+            _buildSection([
+              _SettingsTile(
+                icon: Icons.notifications_none_rounded,
+                title: 'Notification',
+                subtitle: 'Manage notification preferences',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => NotificationSettingsPage(
+                        loadNotificationPreferences:
+                            widget.loadNotificationPreferences,
+                        saveNotificationPreferences:
+                            widget.saveNotificationPreferences,
                       ),
                     ),
-                  ),
-                  _PreferenceSwitch(
-                    title: 'In-app notifications',
-                    value: prefs.inAppEnabled,
-                    enabled: !isLoading,
-                    onChanged: (value) =>
-                        _updatePreference(prefs, 'in_app_enabled', value),
-                  ),
-                  _PreferenceSwitch(
-                    title: 'Chat badges',
-                    value: prefs.chatEnabled,
-                    enabled: !isLoading && prefs.inAppEnabled,
-                    onChanged: (value) =>
-                        _updatePreference(prefs, 'chat_enabled', value),
-                  ),
-                  _PreferenceSwitch(
-                    title: 'Activity messages',
-                    value: prefs.activityEnabled,
-                    enabled: !isLoading && prefs.inAppEnabled,
-                    onChanged: (value) =>
-                        _updatePreference(prefs, 'activity_enabled', value),
-                  ),
-                  _PreferenceSwitch(
-                    title: 'System notifications',
-                    value: prefs.systemEnabled,
-                    enabled: !isLoading && prefs.inAppEnabled,
-                    onChanged: (value) =>
-                        _updatePreference(prefs, 'system_enabled', value),
-                  ),
-                  _PreferenceSwitch(
-                    title: 'New followers',
-                    value: prefs.followersEnabled,
-                    enabled: !isLoading && prefs.inAppEnabled,
-                    onChanged: (value) =>
-                        _updatePreference(prefs, 'followers_enabled', value),
-                  ),
-                ]);
-              },
-            ),
+                  );
+                },
+              ),
+            ]),
             const SizedBox(height: 24),
             _buildSection([
               _SettingsTile(
@@ -207,12 +155,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 title: 'Log out',
                 titleColor: const Color(0xFFE11D48),
                 showChevron: false,
-                onTap: () async {
-                  await Supabase.instance.client.auth.signOut();
-                  if (context.mounted) {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  }
-                },
+                onTap: _confirmLogout,
               ),
             ]),
             const SizedBox(height: 40),
@@ -255,86 +198,6 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
       child: Column(children: children),
-    );
-  }
-}
-
-class _NotificationPreferenceState {
-  const _NotificationPreferenceState({
-    this.inAppEnabled = true,
-    this.chatEnabled = true,
-    this.activityEnabled = true,
-    this.systemEnabled = true,
-    this.followersEnabled = true,
-  });
-
-  final bool inAppEnabled;
-  final bool chatEnabled;
-  final bool activityEnabled;
-  final bool systemEnabled;
-  final bool followersEnabled;
-
-  factory _NotificationPreferenceState.fromMap(Map<String, dynamic> map) {
-    return _NotificationPreferenceState(
-      inAppEnabled: map['in_app_enabled'] as bool? ?? true,
-      chatEnabled: map['chat_enabled'] as bool? ?? true,
-      activityEnabled: map['activity_enabled'] as bool? ?? true,
-      systemEnabled: map['system_enabled'] as bool? ?? true,
-      followersEnabled: map['followers_enabled'] as bool? ?? true,
-    );
-  }
-
-  _NotificationPreferenceState copyWithKey(String key, bool value) {
-    return _NotificationPreferenceState(
-      inAppEnabled: key == 'in_app_enabled' ? value : inAppEnabled,
-      chatEnabled: key == 'chat_enabled' ? value : chatEnabled,
-      activityEnabled: key == 'activity_enabled' ? value : activityEnabled,
-      systemEnabled: key == 'system_enabled' ? value : systemEnabled,
-      followersEnabled: key == 'followers_enabled' ? value : followersEnabled,
-    );
-  }
-
-  Map<String, bool> toMap() {
-    return {
-      'in_app_enabled': inAppEnabled,
-      'chat_enabled': chatEnabled,
-      'activity_enabled': activityEnabled,
-      'system_enabled': systemEnabled,
-      'followers_enabled': followersEnabled,
-    };
-  }
-}
-
-class _PreferenceSwitch extends StatelessWidget {
-  const _PreferenceSwitch({
-    required this.title,
-    required this.value,
-    required this.enabled,
-    required this.onChanged,
-  });
-
-  final String title;
-  final bool value;
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SwitchListTile.adaptive(
-      title: Text(
-        title,
-        style: const TextStyle(
-          color: Color(0xFF1E293B),
-          fontWeight: FontWeight.w700,
-          fontSize: 15,
-        ),
-      ),
-      value: value,
-      activeThumbColor: Colors.white,
-      activeTrackColor: const Color(0xFF4490AD),
-      inactiveThumbColor: Colors.white,
-      inactiveTrackColor: const Color(0xFFE2E8F0),
-      onChanged: enabled ? onChanged : null,
     );
   }
 }

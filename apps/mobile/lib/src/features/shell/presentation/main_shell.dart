@@ -9,6 +9,7 @@ import '../../chat/data/chat_repository.dart';
 import '../../chat/presentation/chat_page.dart';
 import '../../chat/presentation/chat_widgets.dart';
 import '../../posts/data/aspect_ratio_cache.dart';
+import '../../posts/application/moderation_submission_coordinator.dart';
 import '../../posts/data/feed_mode.dart';
 import '../../posts/data/feed_post.dart';
 import '../../posts/data/post_interaction_sync.dart';
@@ -22,10 +23,14 @@ import '../../posts/presentation/filter_page.dart';
 import '../../posts/presentation/post_card_ratio_preloader.dart';
 import '../../posts/presentation/post_card_skeleton.dart';
 import '../../posts/presentation/post_waterfall_layout.dart';
+import '../../posts/presentation/content_moderation_scope.dart';
+import '../../posts/presentation/pending_moderation_retry_banner.dart';
 import '../../profile/data/user_profile.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/content_creator_badge.dart';
 import '../../profile/presentation/profile_page.dart';
+import '../../parent_child/data/parent_child_repository.dart';
+import '../../parent_child/services/screen_time_tracker.dart';
 import '../../parent_child/presentation/parent_child_page.dart';
 import '../../search/data/search_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -37,7 +42,7 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   final _homeKey = GlobalKey<HomeFeedPageState>();
   int _index = 0;
   int _profileRefreshSignal = 0;
@@ -49,6 +54,8 @@ class _MainShellState extends State<MainShell> {
   late Future<List<TagCategory>> _tagsFuture;
   bool _isInitialized = false;
   int _chatBadgeCount = 0;
+  RealtimeChannel? _notificationBadgeChannel;
+  ForegroundScreenTimeTracker? _screenTimeTracker;
 
   // Fixed tags for the horizontal bar
   static const _fixedTags = [
@@ -63,18 +70,64 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tagsRepository = TagsRepository(Supabase.instance.client);
     _chatRepository = ChatRepository(Supabase.instance.client);
     _tagsFuture = _tagsRepository.fetchCatalog();
     // Pre-initialize cache for smoother layout
     AspectRatioCache.init();
     _refreshChatBadge();
+    _notificationBadgeChannel = _chatRepository.subscribeToNotificationChanges(
+      channelName: 'main-shell-notification-badge',
+      onChange: (_) => _refreshChatBadge(),
+    );
     _initAsync();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _screenTimeTracker?.onResumed();
+      unawaited(_screenTimeTracker?.flush());
+      _refreshChatBadge();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      unawaited(_screenTimeTracker?.onPaused());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_screenTimeTracker?.onPaused());
+    _screenTimeTracker?.dispose();
+    final channel = _notificationBadgeChannel;
+    if (channel != null) {
+      _chatRepository.unsubscribe(channel);
+    }
+    super.dispose();
   }
 
   Future<void> _initAsync() async {
     final prefs = await SharedPreferences.getInstance();
     _searchRepository = SearchRepository(Supabase.instance.client, prefs);
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final repository = ParentChildRepository(Supabase.instance.client);
+      final tracker = await ForegroundScreenTimeTracker.create(
+        userId: userId,
+        sync: repository.syncScreenTime,
+        preferences: prefs,
+      );
+      if (!mounted) {
+        tracker.dispose();
+        return;
+      }
+      _screenTimeTracker = tracker;
+      _screenTimeTracker?.onResumed();
+      unawaited(_screenTimeTracker?.flush());
+    }
     if (mounted) {
       setState(() {
         _isInitialized = true;
@@ -92,7 +145,7 @@ class _MainShellState extends State<MainShell> {
       final count = await _chatRepository.fetchUnreadChatTabBadgeCount();
       if (mounted) setState(() => _chatBadgeCount = count);
     } catch (_) {
-      if (mounted) setState(() => _chatBadgeCount = 0);
+      // Keep the last confirmed count when a refresh temporarily fails.
     }
   }
 
@@ -168,6 +221,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final moderationGateway = ContentModerationScope.of(context);
     final pages = [
       HomeFeedPage(
         key: _homeKey,
@@ -222,6 +276,9 @@ class _MainShellState extends State<MainShell> {
               onUnselect: _unselectTag,
               onOpenFilter: _openFilterPage,
             ),
+          if (_index == 0 &&
+              moderationGateway is ModerationSubmissionCoordinator)
+            PendingModerationRetryBanner(controller: moderationGateway),
           Expanded(
             child: IndexedStack(
               index: _index,
@@ -255,9 +312,6 @@ class _MainShellState extends State<MainShell> {
               _index = value;
               if (value == 4) {
                 _profileRefreshSignal += 1;
-              }
-              if (value == 3) {
-                _chatBadgeCount = 0;
               }
             });
             if (value == 3) {

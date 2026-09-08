@@ -1,7 +1,91 @@
 import 'package:cyanzone_mobile/src/features/chat/data/chat_models.dart';
+import 'package:cyanzone_mobile/src/features/chat/data/chat_mention.dart';
+import 'package:cyanzone_mobile/src/features/chat/presentation/chat_mention_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('ChatMention', () {
+    test('allows repeated occurrences but deduplicates recipients', () {
+      const mentions = [
+        ChatMention(userId: 'u1', displayText: '@Ava', start: 0, end: 4),
+        ChatMention(userId: 'u1', displayText: '@Ava', start: 9, end: 13),
+      ];
+
+      expect(ChatMention.uniqueRecipientIds(mentions), ['u1']);
+    });
+
+    test('controller detects active query and inserts repeated mentions', () {
+      final controller = ChatMentionController();
+
+      expect(controller.queryFor('Hi @av', 6), 'av');
+      final first = controller.insertMention(
+        text: 'Hi @av',
+        selectionOffset: 6,
+        userId: 'u1',
+        displayName: 'Ava',
+      );
+      final secondText = '${first.text}@a';
+      final second = controller.insertMention(
+        text: secondText,
+        selectionOffset: secondText.length,
+        userId: 'u1',
+        displayName: 'Ava',
+      );
+
+      expect(second.text, 'Hi @Ava @Ava ');
+      expect(second.mentions, hasLength(2));
+      expect(ChatMention.uniqueRecipientIds(second.mentions), ['u1']);
+    });
+
+    test('controller removes a selected mention after its token is edited', () {
+      final controller = ChatMentionController();
+      final inserted = controller.insertMention(
+        text: '@av',
+        selectionOffset: 3,
+        userId: 'u1',
+        displayName: 'Ava',
+      );
+
+      final reconciled = controller.reconcile(
+        previousText: inserted.text,
+        text: inserted.text.replaceFirst('@Ava', '@Eva'),
+      );
+
+      expect(reconciled, isEmpty);
+    });
+
+    test('RPC offsets count Unicode code points instead of UTF-16 units', () {
+      const body = '😀 hi @Ava';
+      const mention = ChatMention(
+        userId: 'u1',
+        displayText: '@Ava',
+        start: 6,
+        end: 10,
+      );
+
+      expect(mention.toRpcMap(body)['start_offset'], 5);
+      expect(mention.toRpcMap(body)['end_offset'], 9);
+    });
+
+    test('controller shifts intact mentions after an earlier text edit', () {
+      final controller = ChatMentionController();
+      final inserted = controller.insertMention(
+        text: 'Hi @av',
+        selectionOffset: 6,
+        userId: 'u1',
+        displayName: 'Ava',
+      );
+
+      final reconciled = controller.reconcile(
+        previousText: inserted.text,
+        text: 'Hello ${inserted.text}',
+      );
+
+      expect(reconciled.single.start, inserted.mentions.single.start + 6);
+      expect(reconciled.single.matches('Hello ${inserted.text}'), isTrue);
+    });
+  });
+
   group('ChatConversation', () {
     test('parses direct pending state with display title and unread count', () {
       final conversation = ChatConversation.fromMap({
@@ -22,6 +106,43 @@ void main() {
       expect(conversation.isGroup, isFalse);
       expect(conversation.isRequest, isTrue);
     });
+
+    test('defaults legacy conversations to sendable and parses blocked state',
+        () {
+      final legacy = ChatConversation.fromMap({
+        'id': 'legacy-direct',
+        'type': 'direct',
+      });
+      final blocked = ChatConversation.fromMap({
+        'id': 'blocked-direct',
+        'type': 'direct',
+        'can_send_messages': false,
+      });
+
+      expect(legacy.canSendMessages, isTrue);
+      expect(blocked.canSendMessages, isFalse);
+    });
+  });
+
+  test('ChatMessage parses structured mention entities', () {
+    final message = ChatMessage.fromMap({
+      'id': 'm1',
+      'conversation_id': 'c1',
+      'sender_id': 'u2',
+      'body': 'Hi @Ava',
+      'created_at': '2026-07-12T00:00:00Z',
+      'chat_message_mentions': [
+        {
+          'mentioned_user_id': 'u1',
+          'display_text': '@Ava',
+          'start_offset': 3,
+          'end_offset': 7,
+        }
+      ],
+    }, currentUserId: 'u1');
+
+    expect(message.mentions.single.userId, 'u1');
+    expect(message.mentions.single.matches(message.body), isTrue);
   });
 
   group('ChatMessage', () {
@@ -257,6 +378,178 @@ void main() {
 
       expect(notification.activityLabel, 'mentioned you');
       expect(notification.activityGroup, NotificationActivityGroup.mentions);
+    });
+
+    test('parses rejected post system notification metadata', () {
+      final notification = ChatNotification.fromMap({
+        'id': 'system-rejected-1',
+        'type': 'system',
+        'post_id': 'post-1',
+        'title': 'Your post was not approved',
+        'body': 'Full rejection message',
+        'action_type': 'open_rejected_post',
+        'action_payload': {
+          'template_type': 'post_rejected',
+          'post_title': 'My first post',
+          'moderation_evidence': 'Image safety score exceeded',
+          'scheduled_deletion_at': '2026-07-20T00:00:00Z',
+        },
+        'created_at': '2026-07-13T00:00:00Z',
+      });
+
+      expect(notification.actionType, 'open_rejected_post');
+      expect(notification.systemTemplateType, 'post_rejected');
+      expect(notification.systemDisplayTitle, 'Post has been rejected');
+      expect(notification.systemPostTitle, 'My first post');
+      expect(
+        notification.moderationEvidence,
+        'Image safety score exceeded',
+      );
+      expect(
+        notification.scheduledDeletionAt,
+        DateTime.parse('2026-07-20T00:00:00Z').toLocal(),
+      );
+      expect(notification.isPostRejection, isTrue);
+      expect(notification.isCreatorAward, isFalse);
+    });
+
+    test('parses informational creator award system notification', () {
+      final notification = ChatNotification.fromMap({
+        'id': 'system-creator-1',
+        'type': 'system',
+        'title': 'You are now a verified content creator',
+        'body': 'Congratulations',
+        'action_type': 'none',
+        'action_payload': {
+          'template_type': 'creator_badge_awarded',
+        },
+        'created_at': '2026-07-13T00:00:00Z',
+      });
+
+      expect(notification.isCreatorAward, isTrue);
+      expect(notification.isPostRejection, isFalse);
+      expect(notification.systemDisplayTitle, 'Verification Application');
+      expect(
+        notification.systemBrief,
+        'Your account verification application has been reviewed.',
+      );
+      expect(notification.systemDecisionLabel, 'Congratulations');
+      expect(
+        notification.systemDecisionMessage,
+        'Your account is now verified as a CyanZone content creator.',
+      );
+      expect(notification.moderationEvidence,
+          'No additional moderation evidence was provided.');
+    });
+
+    test('separates a published-post greeting from its decision message', () {
+      final notification = ChatNotification.fromMap({
+        'id': 'system-post-approved-1',
+        'type': 'system',
+        'post_id': 'post-1',
+        'title': 'Your post was published successfully',
+        'body':
+            'Hi Ava,\n\nYour post “Morning walk” passed moderation and was published successfully.',
+        'created_at': '2026-08-02T00:00:00Z',
+        'action_payload': {
+          'template_type': 'post_approved',
+          'post_title': 'Morning walk',
+          'brief': 'Hi Ava,',
+        },
+      });
+
+      expect(
+        notification.systemBrief,
+        'Your post has completed moderation review.',
+      );
+      expect(
+        notification.systemDecisionMessage,
+        'Your post “Morning walk” passed moderation and was published successfully.',
+      );
+    });
+
+    test('maps structured reported-post removal and appeal eligibility', () {
+      final postRemoval = ChatNotification.fromMap({
+        'id': 'system-report-post-1',
+        'type': 'system',
+        'post_id': 'post-1',
+        'title': 'Content removed after reports',
+        'body': 'Your post was removed.',
+        'created_at': '2026-08-02T00:00:00Z',
+        'action_payload': {
+          'template_type': 'reported_post_removed',
+          'brief': 'We reviewed reports about your post.',
+          'decision_label': 'Decision',
+          'decision_message': 'The post breaks the safety guideline.',
+        },
+      });
+      final commentRemoval = ChatNotification.fromMap({
+        'id': 'system-report-comment-1',
+        'type': 'system',
+        'post_id': 'post-1',
+        'comment_id': 'comment-1',
+        'title': 'Content removed after reports',
+        'body': 'Your comment was removed.',
+        'created_at': '2026-08-02T00:00:00Z',
+        'action_payload': {
+          'template_type': 'reported_comment_removed',
+        },
+      });
+
+      expect(postRemoval.systemBrief, 'We reviewed reports about your post.');
+      expect(postRemoval.systemDecisionLabel, 'Decision');
+      expect(
+        postRemoval.systemDecisionMessage,
+        'The post breaks the safety guideline.',
+      );
+      expect(postRemoval.isAppealableModerationNotification, isTrue);
+      expect(commentRemoval.isAppealableModerationNotification, isFalse);
+    });
+
+    test('keeps legacy reported-post removal notices appealable', () {
+      final notification = ChatNotification.fromMap({
+        'id': 'legacy-system-report-post-1',
+        'type': 'system',
+        'post_id': 'post-1',
+        'title': 'Content removed after reports',
+        'body': 'Your post was removed after reviewing community reports.',
+        'created_at': '2026-08-01T00:00:00Z',
+        'action_payload': {'post_id': 'post-1'},
+      });
+
+      expect(notification.systemTemplateType, 'reported_post_removed');
+      expect(notification.postId, 'post-1');
+      expect(notification.isAppealableModerationNotification, isTrue);
+    });
+
+    test('only original rejected or report-removed post notices are appealable',
+        () {
+      ChatNotification notification(String templateType) =>
+          ChatNotification.fromMap({
+            'id': templateType,
+            'type': 'system',
+            'post_id': 'post-1',
+            'title': 'Update',
+            'body': 'Update body',
+            'created_at': '2026-08-02T00:00:00Z',
+            'action_payload': {'template_type': templateType},
+          });
+
+      expect(notification('post_rejected').isAppealableModerationNotification,
+          isTrue);
+      expect(
+        notification('reported_post_removed')
+            .isAppealableModerationNotification,
+        isTrue,
+      );
+      expect(
+          notification('post_appeal_rejected')
+              .isAppealableModerationNotification,
+          isFalse);
+      expect(
+          notification('creator_request_rejected')
+              .isAppealableModerationNotification,
+          isFalse);
     });
   });
 }
