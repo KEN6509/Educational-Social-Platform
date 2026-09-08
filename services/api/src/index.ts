@@ -1,3 +1,5 @@
+import express from 'express';
+
 import {
   createVerifyAdmin,
   type AdminAuthSource,
@@ -147,6 +149,6 @@ const app = createApp({
   protectedAdminRouter,
   moderationRouter,
   verifyAdmin: createVerifyAdmin(adminAuthSource),
-});
+}, express());
 
 export default app;

@@ -23,6 +23,17 @@ test('only the composed server uses a Vercel Express entry-point filename', () =
   );
 });
 
+test('the recognized Vercel entry imports Express directly', () => {
+  const entrySource = readFileSync(
+    new URL('./index.ts', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(entrySource, /^import express from 'express';$/m);
+  assert.match(entrySource, /createApp\(\{[\s\S]*\}, express\(\)\);/);
+  assert.match(entrySource, /^export default app;$/m);
+});
+
 test('Vercel rewrites every public route to the API function', () => {
   const config = JSON.parse(
     readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'),

@@ -26,8 +26,10 @@ export type AppDependencies = {
 
 const createHelmetMiddleware = helmetModule as unknown as () => express.RequestHandler;
 
-export function createApp(dependencies: AppDependencies) {
-  const app = express();
+export function createApp(
+  dependencies: AppDependencies,
+  app: express.Express = express(),
+) {
   const allowedOrigins = new Set(dependencies.allowedOrigins ?? []);
 
   app.use(createHelmetMiddleware());
