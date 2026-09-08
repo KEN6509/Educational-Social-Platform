@@ -1,3 +1,5 @@
+import express from 'express';
+
 import {
   createVerifyAdmin,
   type AdminAuthSource,
@@ -5,7 +7,7 @@ import {
 import { createAdminRepository } from './admin/adminRepository.js';
 import { createProtectedAdminRouter } from './admin/adminRouter.js';
 import { createAdminService } from './admin/adminService.js';
-import { createApp } from './app.js';
+import { createApp } from './createApp.js';
 import { env } from './config/env.js';
 import {
   createSupabaseAdminRequestClient,
@@ -147,6 +149,6 @@ const app = createApp({
   protectedAdminRouter,
   moderationRouter,
   verifyAdmin: createVerifyAdmin(adminAuthSource),
-});
+}, express());
 
 export default app;
