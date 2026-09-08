@@ -1,6 +1,6 @@
 import cors from 'cors';
 import express, { type Router } from 'express';
-import helmet from 'helmet';
+import * as helmetModule from 'helmet';
 
 import type { VerifyAdmin } from './admin/adminAuth.js';
 import {
@@ -28,7 +28,7 @@ export function createApp(dependencies: AppDependencies) {
   const app = express();
   const allowedOrigins = new Set(dependencies.allowedOrigins ?? []);
 
-  app.use(helmet());
+  app.use(helmetModule.default());
   app.use(cors({
     origin: (origin, callback) => {
       callback(null, origin == null || allowedOrigins.has(origin));

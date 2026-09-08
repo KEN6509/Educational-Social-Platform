@@ -19,3 +19,13 @@ test('Vercel rewrites every public route to the API function', () => {
     { source: '/(.*)', destination: '/api' },
   ]);
 });
+
+test('Vercel Express compilation uses the portable Helmet module export', () => {
+  const appSource = readFileSync(
+    new URL('./app.ts', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(appSource, /^import \* as helmetModule from 'helmet';$/m);
+  assert.match(appSource, /app\.use\(helmetModule\.default\(\)\);/);
+});
