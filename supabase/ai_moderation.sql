@@ -573,7 +573,11 @@ begin
 
   if v_case.target_type = 'post' then
     update public.posts
-    set moderation_status = case when p_case_state = 'approved' then 'approved' else case when p_case_state = 'rejected' then 'rejected' else 'pending' end end,
+    set moderation_status = (case
+          when p_case_state = 'approved' then 'approved'
+          when p_case_state = 'rejected' then 'rejected'
+          else 'pending'
+        end)::public.moderation_status,
         ai_toxicity_score = p_overall_risk_score / 100,
         moderation_reason = p_user_reason,
         reviewed_at = case when p_case_state = 'admin_review' then null else now() end,
@@ -582,7 +586,11 @@ begin
     where id = v_case.target_id;
   else
     update public.comments
-    set moderation_status = case when p_case_state = 'approved' then 'approved' else case when p_case_state = 'rejected' then 'rejected' else 'pending' end end,
+    set moderation_status = (case
+          when p_case_state = 'approved' then 'approved'
+          when p_case_state = 'rejected' then 'rejected'
+          else 'pending'
+        end)::public.moderation_status,
         ai_toxicity_score = p_overall_risk_score / 100,
         moderation_reason = p_user_reason,
         updated_at = now()

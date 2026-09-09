@@ -223,16 +223,21 @@ test('falls back to 3.8 Flash once after primary 503', async () => {
   assert.deepEqual(models, ['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
 });
 
-test('retries the primary once for a timeout instead of using fallback', async () => {
+test('leaves a network timeout retryable without duplicating the provider call', async () => {
   const models: string[] = [];
   const gateway = createGateway(async (request) => {
     models.push(request.model);
-    if (models.length === 1) throw new Error('request timed out');
-    return { output_text: JSON.stringify(safeResponse) };
+    throw new Error('request timed out');
   });
 
-  await gateway.moderate(commentTarget);
-  assert.deepEqual(models, ['gemini-3.5-flash-lite', 'gemini-3.5-flash-lite']);
+  await assert.rejects(
+    gateway.moderate(commentTarget),
+    (error: unknown) =>
+      error instanceof ModerationProviderError &&
+      error.retryable === true &&
+      error.providerAttempts === 1,
+  );
+  assert.deepEqual(models, ['gemini-3.5-flash-lite']);
 });
 
 test('never makes a third provider call', async () => {
@@ -264,7 +269,7 @@ test('preserves a safety block raised on the second provider call', async () => 
   let calls = 0;
   const gateway = createGateway(async () => {
     calls += 1;
-    if (calls === 1) throw new Error('request timed out');
+    if (calls === 1) throw { status: 503, message: 'unavailable' };
     throw new GeminiInputSafetyError(
       [{ category: 'HARM_CATEGORY_HATE_SPEECH', blocked: true }],
       'text',

@@ -98,8 +98,8 @@ do not backfill old Activity/New Followers rows.
 - `GEMINI_API_KEY` is required by the API moderation routes and must remain
   server-side. The default chain uses `gemini-3.5-flash-lite` first and
   `gemini-3.8-flash` as one fallback after HTTP 429/503. Other retryable
-  failures retry the primary once; each moderation request makes at most two
-  provider calls with an 8500 ms timeout per call. `GEMINI_MODEL`,
+  transport failures return a retryable error without duplicating the provider
+  call. Each provider call has a 15-second timeout. `GEMINI_MODEL`,
   `GEMINI_FALLBACK_MODEL`, and `GEMINI_TIMEOUT_MS` are optional API overrides.
 
 ## Local Tooling
@@ -133,7 +133,7 @@ REPORT_REVIEW_THRESHOLD=1
 GEMINI_API_KEY=your-gemini-api-key
 GEMINI_MODEL=gemini-3.5-flash-lite
 GEMINI_FALLBACK_MODEL=gemini-3.8-flash
-GEMINI_TIMEOUT_MS=8500
+GEMINI_TIMEOUT_MS=15000
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 

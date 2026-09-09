@@ -67,6 +67,18 @@ test('new content is no longer auto-approved', () => {
   assert.match(schema, /moderation_status[^\n]+default 'pending'/i);
 });
 
+test('AI decisions are cast to the moderation status enum before assignment', () => {
+  const enumAssignments = migration.match(
+    /set moderation_status = \(case[\s\S]*?end\)::public\.moderation_status/gim,
+  );
+
+  assert.equal(
+    enumAssignments?.length,
+    2,
+    'posts and comments must both cast the AI decision to public.moderation_status',
+  );
+});
+
 test('authenticated inserts cannot supply moderation authority fields', () => {
   assert.match(
     migration,
