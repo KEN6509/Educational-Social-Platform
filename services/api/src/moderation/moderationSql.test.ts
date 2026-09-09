@@ -32,6 +32,13 @@ test('upgrade SQL defines the complete moderation authority', () => {
   assert.match(migration, /invalidate_post_image_moderation/i);
 });
 
+test('deleting images cannot revive a post that is already removed', () => {
+  assert.match(
+    migration,
+    /create or replace function public\.invalidate_post_image_moderation\(\)[\s\S]*?update public\.posts[\s\S]*?where id = v_post_id\s+and moderation_status <> 'removed'/i,
+  );
+});
+
 test('fresh schema contains the moderation base tables and revision fields', () => {
   assert.match(schema, /create table if not exists public\.content_moderation_cases/i);
   assert.match(schema, /moderation_revision integer not null default 1/i);
