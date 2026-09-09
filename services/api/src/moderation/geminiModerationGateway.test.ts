@@ -37,13 +37,16 @@ const commentTarget: ModerationTarget = {
 
 function createGateway(
   createInteraction: GeminiInteractionClient['create'],
+  loadImageData?: (uri: string) => Promise<string>,
 ) {
   return new GeminiModerationGateway({
     apiKey: 'test-key',
     primaryModel: 'gemini-3.5-flash-lite',
     fallbackModel: 'gemini-3.8-flash',
     timeoutMs: 8500,
+    allowedImageOrigin: 'https://example.supabase.co',
     createInteraction,
+    ...(loadImageData == null ? {} : { loadImageData }),
   });
 }
 
@@ -65,11 +68,40 @@ test('applies the timeout and disables SDK retries on every provider call', asyn
   ]);
 });
 
-test('sends text and every trusted image URI to Gemini and parses structured output', async () => {
+test('rejects image URLs outside the configured Supabase origin before download', async () => {
+  let interactionCalls = 0;
+  let imageLoadCalls = 0;
+  const gateway = createGateway(async () => {
+    interactionCalls += 1;
+    return { output_text: JSON.stringify(safeResponse) };
+  }, async () => {
+    imageLoadCalls += 1;
+    return 'base64-data';
+  });
+
+  await assert.rejects(
+    gateway.moderate({
+      targetType: 'post',
+      content: '',
+      tags: [],
+      images: [{ uri: 'http://127.0.0.1/private.jpg', mimeType: 'image/jpeg' }],
+    }),
+    (error: unknown) =>
+      error instanceof ModerationProviderError && error.retryable === false,
+  );
+  assert.equal(imageLoadCalls, 0);
+  assert.equal(interactionCalls, 0);
+});
+
+test('loads trusted image bytes and sends every image to Gemini as inline data', async () => {
   let request: GeminiInteractionRequest | undefined;
+  const loadedUris: string[] = [];
   const gateway = createGateway(async (input) => {
     request = input;
     return { output_text: JSON.stringify(safeResponse) };
+  }, async (uri) => {
+    loadedUris.push(uri);
+    return Buffer.from(`bytes:${uri}`).toString('base64');
   });
 
   const result = await gateway.moderate({
@@ -87,13 +119,21 @@ test('sends text and every trusted image URI to Gemini and parses structured out
   assert.equal(request?.generation_config.thinking_level, 'low');
   assert.equal(request?.response_format?.mime_type, 'application/json');
   assert.equal(request?.input.filter((part) => part.type === 'image').length, 2);
+  assert.deepEqual(loadedUris, [
+    'https://example.supabase.co/storage/v1/object/public/posts/a.webp',
+    'https://example.supabase.co/storage/v1/object/public/posts/b.jpg',
+  ]);
+  const imageParts = request?.input
+    .filter((part) => part.type === 'image')
+    .map((part) => part as unknown as Record<string, unknown>);
   assert.deepEqual(
-    request?.input.filter((part) => part.type === 'image').map((part) => part.uri),
+    imageParts?.map((part) => part.data),
     [
-      'https://example.supabase.co/storage/v1/object/public/posts/a.webp',
-      'https://example.supabase.co/storage/v1/object/public/posts/b.jpg',
+      Buffer.from('bytes:https://example.supabase.co/storage/v1/object/public/posts/a.webp').toString('base64'),
+      Buffer.from('bytes:https://example.supabase.co/storage/v1/object/public/posts/b.jpg').toString('base64'),
     ],
   );
+  assert.deepEqual(imageParts?.map((part) => part.uri), [undefined, undefined]);
   assert.equal(result.model, 'gemini-3.5-flash-lite');
   assert.equal(result.providerAttempts, 1);
   assert.equal(result.promptVersion, 'cyanzone-moderation-v2');

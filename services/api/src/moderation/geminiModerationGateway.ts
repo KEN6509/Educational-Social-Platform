@@ -19,7 +19,7 @@ export type GeminiTextInputPart = {
 
 export type GeminiImageInputPart = {
   type: 'image';
-  uri: string;
+  data: string;
   mime_type: ModerationTarget['images'][number]['mimeType'];
 };
 
@@ -66,7 +66,9 @@ export type GeminiModerationGatewayOptions = {
   primaryModel: string;
   fallbackModel: string;
   timeoutMs: number;
+  allowedImageOrigin: string;
   createInteraction?: GeminiInteractionClient['create'];
+  loadImageData?: (uri: string) => Promise<string>;
 };
 
 const SYSTEM_INSTRUCTION = [
@@ -87,20 +89,40 @@ export class GeminiModerationGateway implements ModerationProvider {
   private readonly primaryModel: string;
   private readonly fallbackModel: string;
   private readonly timeoutMs: number;
+  private readonly allowedImageOrigin: string;
   private readonly createInteraction: GeminiInteractionClient['create'];
+  private readonly loadImageData: (uri: string) => Promise<string>;
 
   constructor(options: GeminiModerationGatewayOptions) {
     this.primaryModel = options.primaryModel;
     this.fallbackModel = options.fallbackModel;
     this.timeoutMs = options.timeoutMs;
+    this.allowedImageOrigin = new URL(options.allowedImageOrigin).origin;
     this.createInteraction =
       options.createInteraction ??
       createGoogleInteraction({ apiKey: options.apiKey });
+    this.loadImageData = options.loadImageData ?? createImageDataLoader(this.timeoutMs);
   }
 
   async moderate(target: ModerationTarget): Promise<ModerationProviderResult> {
+    let imageParts: GeminiImageInputPart[];
     try {
-      return await this.moderateWithModel(target, this.primaryModel, 1);
+      imageParts = await Promise.all(
+        target.images.map(async (image) => {
+          assertTrustedImageUri(image.uri, this.allowedImageOrigin);
+          return {
+            type: 'image' as const,
+            data: await this.loadImageData(image.uri),
+            mime_type: image.mimeType,
+          };
+        }),
+      );
+    } catch (error) {
+      throw withProviderAttempts(normalizeGeminiError(error), 1);
+    }
+
+    try {
+      return await this.moderateWithModel(target, imageParts, this.primaryModel, 1);
     } catch (error) {
       const primaryError = withProviderAttempts(normalizeGeminiError(error), 1);
       if (!primaryError.retryable) throw primaryError;
@@ -110,7 +132,7 @@ export class GeminiModerationGateway implements ModerationProvider {
       }
 
       try {
-        return await this.moderateWithModel(target, this.fallbackModel, 2);
+        return await this.moderateWithModel(target, imageParts, this.fallbackModel, 2);
       } catch (secondError) {
         throw withProviderAttempts(normalizeGeminiError(secondError), 2);
       }
@@ -119,6 +141,7 @@ export class GeminiModerationGateway implements ModerationProvider {
 
   private async moderateWithModel(
     target: ModerationTarget,
+    imageParts: GeminiImageInputPart[],
     model: string,
     providerAttempts: number,
   ): Promise<ModerationProviderResult> {
@@ -139,11 +162,7 @@ export class GeminiModerationGateway implements ModerationProvider {
           type: 'text',
           text: buildModerationPrompt(target),
         },
-        ...target.images.map((image): GeminiImageInputPart => ({
-          type: 'image',
-          uri: image.uri,
-          mime_type: image.mimeType,
-        })),
+        ...imageParts,
       ],
     };
 
@@ -192,6 +211,54 @@ export class GeminiModerationGateway implements ModerationProvider {
         cause: error,
       });
     }
+  }
+}
+
+function createImageDataLoader(timeoutMs: number) {
+  return async (uri: string): Promise<string> => {
+    let response: Response;
+    try {
+      response = await fetch(uri, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error) {
+      throw new ModerationProviderError('Unable to download moderation image', {
+        retryable: true,
+        cause: error,
+      });
+    }
+
+    if (!response.ok) {
+      throw new ModerationProviderError('Unable to download moderation image', {
+        retryable: response.status === 408 || response.status === 429 || response.status >= 500,
+        statusCode: response.status,
+      });
+    }
+
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length === 0) {
+      throw new ModerationProviderError('Moderation image is empty', {
+        retryable: false,
+      });
+    }
+    return bytes.toString('base64');
+  };
+}
+
+function assertTrustedImageUri(uri: string, allowedOrigin: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(uri);
+  } catch (error) {
+    throw new ModerationProviderError('Moderation image URL is invalid', {
+      retryable: false,
+      cause: error,
+    });
+  }
+  if (parsed.origin !== allowedOrigin) {
+    throw new ModerationProviderError('Moderation image URL is not trusted', {
+      retryable: false,
+    });
   }
 }
 
