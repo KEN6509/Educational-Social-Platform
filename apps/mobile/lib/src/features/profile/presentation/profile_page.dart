@@ -778,6 +778,7 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
   static final Map<String, List<FeedPost>> _postedPostsCache = {};
 
   late Future<List<FeedPost>> _future;
+  Future<List<FeedPost>>? _appliedFuture;
   List<FeedPost> _posts = [];
 
   @override
@@ -816,6 +817,10 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
     setState(() {
       _posts = updatedPosts;
     });
+    if (widget.mode == _ProfilePostGridMode.posted && update.isDeleted) {
+      _postedPostsCache[widget.profileUserId] = List<FeedPost>.of(updatedPosts);
+      unawaited(_cachePostedPosts(updatedPosts));
+    }
   }
 
   @override
@@ -827,6 +832,7 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
         _posts = _approvedPostedPostsFromMemoryCache(fallback: _posts);
       }
       _future = _fetchPostsWithRatios();
+      _appliedFuture = null;
     }
   }
 
@@ -910,7 +916,8 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
     return FutureBuilder<List<FeedPost>>(
       future: _future,
       builder: (context, snapshot) {
-        if (snapshot.hasData) {
+        if (snapshot.hasData && _appliedFuture != _future) {
+          _appliedFuture = _future;
           _posts = snapshot.data ?? <FeedPost>[];
         }
 
