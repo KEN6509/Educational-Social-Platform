@@ -7,6 +7,7 @@ import {
 const score = z.number().finite().min(0).max(100);
 
 export const moderationResultSchema = z.object({
+  recommendedDecision: z.enum(['approved', 'admin_review', 'rejected']),
   overallRiskScore: score,
   categoryScores: z.object(
     Object.fromEntries(MODERATION_CATEGORIES.map((category) => [category, score])) as Record<
@@ -23,6 +24,7 @@ export const GEMINI_MODERATION_RESPONSE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: [
+    'recommendedDecision',
     'overallRiskScore',
     'categoryScores',
     'evidence',
@@ -30,6 +32,10 @@ export const GEMINI_MODERATION_RESPONSE_SCHEMA = {
     'evidenceSource',
   ],
   properties: {
+    recommendedDecision: {
+      type: 'string',
+      enum: ['approved', 'admin_review', 'rejected'],
+    },
     overallRiskScore: { type: 'number', minimum: 0, maximum: 100 },
     categoryScores: {
       type: 'object',

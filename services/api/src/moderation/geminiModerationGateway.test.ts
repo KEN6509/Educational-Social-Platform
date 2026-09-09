@@ -12,6 +12,7 @@ import {
 } from './geminiModerationGateway.js';
 
 const safeResponse = {
+  recommendedDecision: 'approved',
   overallRiskScore: 12,
   categoryScores: {
     harassmentBullying: 1,
@@ -95,8 +96,29 @@ test('sends text and every trusted image URI to Gemini and parses structured out
   );
   assert.equal(result.model, 'gemini-3.5-flash-lite');
   assert.equal(result.providerAttempts, 1);
-  assert.equal(result.promptVersion, 'cyanzone-moderation-v1');
+  assert.equal(result.promptVersion, 'cyanzone-moderation-v2');
   assert.equal(result.overallRiskScore, 12);
+  assert.equal(result.recommendedDecision, 'approved');
+});
+
+test('gives Gemini an explicit youth-safety enforcement contract', async () => {
+  let request: GeminiInteractionRequest | undefined;
+  const gateway = createGateway(async (input) => {
+    request = input;
+    return { output_text: JSON.stringify(safeResponse) };
+  });
+
+  await gateway.moderate({
+    targetType: 'post',
+    title: 'fuck you',
+    content: 'fuck you',
+    tags: [],
+    images: [],
+  });
+
+  assert.match(request?.system_instruction ?? '', /direct hostile profanity/i);
+  assert.match(request?.system_instruction ?? '', /recommendedDecision/i);
+  assert.match(request?.system_instruction ?? '', /rejected/i);
 });
 
 test('sends comment text without image parts', async () => {

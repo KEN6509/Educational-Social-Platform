@@ -113,4 +113,16 @@ void main() {
     await coordinator.retry(const PendingModerationTarget.post('post-1'));
     expect(store.targets, isEmpty);
   });
+
+  test('processing response stays in the retry queue until it is terminal',
+      () async {
+    final gateway = FakeModerationGateway()
+      ..postOutcome = result('post-1', ContentModerationState.processing);
+    final store = FakeRetryStore();
+    final coordinator = ModerationSubmissionCoordinator(gateway, store);
+
+    await coordinator.moderatePost('post-1');
+
+    expect(store.targets, [const PendingModerationTarget.post('post-1')]);
+  });
 }

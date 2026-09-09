@@ -1,4 +1,4 @@
-export const MODERATION_PROMPT_VERSION = 'cyanzone-moderation-v1';
+export const MODERATION_PROMPT_VERSION = 'cyanzone-moderation-v2';
 
 export const MODERATION_CATEGORIES = [
   'harassmentBullying',
@@ -34,6 +34,7 @@ export type ModerationTarget = {
 };
 
 export type ModerationProviderResult = {
+  recommendedDecision: ModerationDecision;
   overallRiskScore: number;
   categoryScores: Record<ModerationCategory, number>;
   evidence: string[];
@@ -110,10 +111,22 @@ export interface ModerationRepository {
 
 export type ModerationDecision = 'approved' | 'admin_review' | 'rejected';
 
-export function decideModeration(score: number): ModerationDecision {
-  if (score < 40) return 'approved';
-  if (score <= 60) return 'admin_review';
-  return 'rejected';
+export function decideModeration(
+  result: Pick<ModerationProviderResult, 'overallRiskScore' | 'recommendedDecision'>,
+): ModerationDecision {
+  const scoreDecision = result.overallRiskScore < 40
+    ? 'approved'
+    : result.overallRiskScore <= 60
+      ? 'admin_review'
+      : 'rejected';
+  const severity: Record<ModerationDecision, number> = {
+    approved: 0,
+    admin_review: 1,
+    rejected: 2,
+  };
+  return severity[result.recommendedDecision] > severity[scoreDecision]
+    ? result.recommendedDecision
+    : scoreDecision;
 }
 
 export interface ModerationProvider {
