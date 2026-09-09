@@ -33,6 +33,10 @@ import '../../parent_child/data/parent_child_repository.dart';
 import '../../parent_child/services/screen_time_tracker.dart';
 import '../../parent_child/presentation/parent_child_page.dart';
 import '../../search/data/search_repository.dart';
+import '../../notifications/presentation/push_notification_scope.dart';
+import '../../notifications/presentation/push_permission_prompt.dart';
+import '../../notifications/presentation/push_destination_navigator.dart';
+import '../../notifications/domain/push_destination.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MainShell extends StatefulWidget {
@@ -56,6 +60,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _chatBadgeCount = 0;
   RealtimeChannel? _notificationBadgeChannel;
   ForegroundScreenTimeTracker? _screenTimeTracker;
+  StreamSubscription<PushDestination>? _pushDestinationSubscription;
 
   // Fixed tags for the horizontal bar
   static const _fixedTags = [
@@ -82,6 +87,37 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       onChange: (_) => _refreshChatBadge(),
     );
     _initAsync();
+    final pushCoordinator = PushNotificationScope.maybeOf(context);
+    if (pushCoordinator != null) {
+      _pushDestinationSubscription = pushCoordinator.destinations.listen(
+        (destination) => unawaited(_openPushDestination(destination)),
+      );
+    }
+    unawaited(_initPushNotifications());
+  }
+
+  Future<void> _openPushDestination(PushDestination destination) async {
+    if (!mounted) return;
+    await PushDestinationNavigator(
+      resolve: httpPushDestinationResolver(),
+    ).open(context, destination);
+  }
+
+  Future<void> _initPushNotifications() async {
+    final coordinator = PushNotificationScope.maybeOf(context);
+    if (coordinator == null) return;
+    await coordinator.onAuthenticated();
+    if (!mounted || !(await coordinator.shouldShowPermissionPrompt())) return;
+    await coordinator.markPermissionPromptShown();
+    if (!mounted) return;
+    final enable = await PushPermissionPrompt.show(context);
+    if (enable == true) {
+      try {
+        await coordinator.enablePush();
+      } catch (_) {
+        // Settings remains available if permission or registration fails.
+      }
+    }
   }
 
   @override
@@ -102,6 +138,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_screenTimeTracker?.onPaused());
     _screenTimeTracker?.dispose();
+    unawaited(_pushDestinationSubscription?.cancel());
     final channel = _notificationBadgeChannel;
     if (channel != null) {
       _chatRepository.unsubscribe(channel);

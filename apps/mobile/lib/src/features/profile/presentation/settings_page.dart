@@ -5,6 +5,8 @@ import '../../../core/widgets/app_confirmation_dialog.dart';
 import 'notification_settings_page.dart';
 import 'set_password_page.dart';
 import 'verified_badge_page.dart';
+import '../../notifications/application/push_notification_coordinator.dart';
+import '../../notifications/presentation/push_notification_scope.dart';
 
 typedef SignOutAction = Future<void> Function();
 
@@ -15,12 +17,14 @@ class SettingsPage extends StatefulWidget {
     this.saveNotificationPreferences,
     this.signOut,
     this.verifiedBadgePageBuilder,
+    this.pushNotificationCoordinator,
   });
 
   final NotificationPreferenceLoader? loadNotificationPreferences;
   final NotificationPreferenceSaver? saveNotificationPreferences;
   final SignOutAction? signOut;
   final WidgetBuilder? verifiedBadgePageBuilder;
+  final PushNotificationCoordinator? pushNotificationCoordinator;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -46,6 +50,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
     setState(() => _isSigningOut = true);
     try {
+      await (widget.pushNotificationCoordinator ??
+              PushNotificationScope.maybeOf(context))
+          ?.beforeSignOut();
       await (widget.signOut ?? Supabase.instance.client.auth.signOut).call();
       if (mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
@@ -142,6 +149,9 @@ class _SettingsPageState extends State<SettingsPage> {
                             widget.loadNotificationPreferences,
                         saveNotificationPreferences:
                             widget.saveNotificationPreferences,
+                        pushNotificationCoordinator:
+                            widget.pushNotificationCoordinator ??
+                                PushNotificationScope.maybeOf(context),
                       ),
                     ),
                   );

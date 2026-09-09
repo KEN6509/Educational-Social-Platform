@@ -27,7 +27,7 @@ CyanZone is a mobile-first, parent-supervised educational and interest-based soc
 - Required deployment target: Vercel for the Administration Portal and Express API/Vercel Functions.
 - Version control: Git with the GitHub `origin` repository.
 
-The Gemini moderation workflow and authenticated Admin moderation queue are implemented in code. FCM push delivery and live Vercel/Supabase acceptance evidence remain pending. Private direct and group chat messages are intentionally excluded from AI moderation.
+The Gemini moderation workflow, authenticated Admin moderation queue, and Android FCM push delivery are implemented in code. Live Firebase/Supabase webhook/Vercel configuration and final acceptance evidence remain pending. Private direct and group chat messages are intentionally excluded from AI moderation.
 
 ## Stable product rules
 
@@ -69,7 +69,7 @@ apps/mobile/lib/src/features/parent_child/
 - Normal users include teenagers, parents, and content creators. Teenagers are the primary audience; parent-only access begins after successful linking; verified creators remain normal users.
 - System Administrators operate the web Administration Portal and require moderation procedures and basic data-management knowledge, not an advanced technical background.
 - The documented development/test baseline is Windows 10/11 with Visual Studio Code, an Intel Core i5 or equivalent, 8 GB RAM, 256 GB SSD, an Android test phone, and stable internet access.
-- The required software baseline is represented by the stack above: Flutter/Dart, React/Vite/TypeScript/Tailwind, Node/Express/TypeScript, Supabase/PostgreSQL/Auth/RLS/Storage/Realtime, FCM, Gemini, Git/GitHub, and Vercel. FCM and live deployment/acceptance evidence remain pending; Gemini is connected through the privileged API.
+- The required software baseline is represented by the stack above: Flutter/Dart, React/Vite/TypeScript/Tailwind, Node/Express/TypeScript, Supabase/PostgreSQL/Auth/RLS/Storage/Realtime, FCM, Gemini, Git/GitHub, and Vercel. Android FCM and Gemini are connected through the privileged API; live configuration and acceptance evidence remain pending.
 
 ## SRS functional traceability
 
@@ -90,7 +90,7 @@ Status meanings:
 | F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Partial** | The privileged API performs structured Gemini text/image moderation for posts, edits, and public comments; persists revisioned results, exact submitted-content snapshots, risk scores, evidence, model/version, timestamps, and decision source; switches once to the fallback model for explicit 429/503 responses; keeps content unpublished on failure; and routes 40%-60% cases to the authenticated Admin review queue. Mobile retryable failures are retained across restarts against the same record ID. The API and Admin clients are deployed and the Gemini key/models are live. The current enum-cast SQL correction, 15-second provider timeout deployment value, redeployment, and final 20-second/device acceptance evidence remain required. |
 | F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Server-authoritative parent/child linking, role enforcement, role dashboards, foreground CyanZone screen-time tracking and threshold events, location-aware Check-In, foreground-only 10-second live SOS location, OpenStreetMap detail maps, multi-parent acknowledgement/timeline/resolution, safety records, dedicated realtime supervision notifications, and two-party unlink request/accept/reject flows are implemented in the repository. The updated `parent_supervision.sql` must be rerun on Supabase. Password reauthentication for unlink, former-link historical-record authorization, remote inspection, and multi-account/physical-device acceptance remain incomplete or unverified. |
 | F009 / REQ_F009 | Intermediate | Real-Time Communication | **Partial** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. Message requests are intentionally hidden from active mobile loading and UI while their existing data and backend foundation remain dormant. Active direct-chat entry and every new direct-message send require a current follow relationship in either direction, and group-member candidates/validation are limited to Followers and Following. Existing accepted conversations and history remain readable after both users unfollow, but their composer is blocked. The user applied the previous `chat.sql`; the updated follow-only functions still require live reapplication and verification. |
-| F010 / REQ_F010 | Intermediate | Notifications | **Partial** | Activity, New Followers, and System notification rows/counts refresh through foreground Supabase Realtime even before their section is opened. Per-section/conversation unread counts, the total Messaging-tab badge, notification preferences, compact structured System details, notification-side one-final-appeal handling, and Gemini moderation outcome foundations are implemented. FCM background/closed-app delivery and final live moderation acceptance remain missing. Retaining reported content intentionally sends no author notification. |
+| F010 / REQ_F010 | Intermediate | Notifications | **Partial** | Activity, New Followers, and System notification rows/counts refresh through foreground Supabase Realtime even before their section is opened. Android FCM permission, token registration/revocation, independent preferences, server dispatch, bounded delivery retries, foreground/background/terminated handling, and typed destination routing are implemented. Live Firebase/Supabase webhook configuration, physical-device acceptance, and iOS/APNs remain outside the MVP. Retaining reported content intentionally sends no author notification. |
 | F011 / REQ_F011 | Advanced | Administration Portal | **Partial** | The deployed functional portal includes Overview, Users, Creator Requests, grouped Reports, Appeals, and an authenticated API-backed AI-Flagged Content queue/detail/decision workflow. Assign Creator, Retain Content, and AI Approve do not require manual reasons; Creator Request rejection, Remove Creator, Remove Content, AI Reject, and both Appeal actions require 10-500 characters. Reason-free persisted actions receive stable internal audit text. Users excludes administrator profiles at the API query boundary. Final browser/device acceptance evidence remains pending. |
 
 ## Current mobile implementation
@@ -176,7 +176,7 @@ Still required:
   Creator status, rejected posts, Pending-to-Approved publication,
   reported-content removal, and both appeal outcomes have in-app notification
   foundations; retaining reported content intentionally sends none.
-- FCM token registration, Android runtime notification permission, secure server-side delivery, background/terminated handling, deep links, retries, and device tests.
+- Apply the FCM SQL migration, configure Firebase/Vercel/Supabase webhooks, and complete Android physical-device push acceptance.
 
 ### Sharing and post image preview
 
@@ -391,13 +391,15 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 
 ### 5. Notifications and FCM
 
-- [ ] Add Firebase configuration and `firebase_messaging` for the Android app.
-- [ ] Request Android notification permission and preserve in-app notifications when permission is denied.
-- [ ] Register, refresh, revoke, and securely store per-device FCM tokens.
-- [ ] Implement server-side push dispatch for supported messages, engagement, followers, moderation, appeal, creator, screen-time, check-in, and SOS events.
-- [ ] Respect notification preferences and intended-recipient authorization.
-- [ ] Handle foreground, background, and terminated app states with safe deep links to the correct conversation or notification detail.
-- [ ] Add retry/deduplication/observability and Android device tests.
+- [x] Add Firebase configuration hooks and `firebase_messaging` for the Android app.
+- [x] Request Android notification permission and preserve in-app notifications when permission is denied.
+- [x] Register, refresh, revoke, and securely store per-device FCM tokens.
+- [x] Implement server-side push dispatch for supported notification categories with recipient authorization.
+- [x] Respect independent in-app/phone preferences and intended-recipient authorization.
+- [x] Handle foreground, background, and terminated app states with versioned safe destinations.
+- [x] Add bounded retry, deduplication, invalid-token cleanup, and delivery status records.
+- [ ] Apply the live SQL/webhook/Firebase configuration and complete Android device acceptance.
+- [ ] Add iOS/APNs delivery (future improvement).
 
 ### 6. Chat conformance
 
@@ -602,9 +604,9 @@ Not covered by this verification:
   `parent_supervision.sql` and `chat.sql` must be rerun. Local SQL contract regressions validate
   repository text and behavior contracts but do not prove that hosted tables,
   functions, triggers, grants, RLS policies, and Realtime publication match it.
-- Live Gemini/Supabase configuration, Vercel deployment, FCM, or final device
-  acceptance. The API code and client integrations are implemented, but hosted
-  configuration and acceptance evidence are still required.
+- Live Gemini/Supabase configuration, Vercel push environment/webhook setup, or
+  final device acceptance. The API code and client integrations are implemented,
+  but hosted configuration and acceptance evidence are still required.
 - Android physical-device location, background/terminated notification, or full screen-size acceptance. The latest OTP build was installed on the Android 16 device, but its pixel comparison remains pending because the device was locked during capture.
 - Latest Chrome and Edge acceptance outside the in-app browser.
 - Vercel deployment.
@@ -628,7 +630,7 @@ Immediate implementation sequence updated on September 7, 2026:
 
 1. Create the Gemini API key, apply the revised `ai_moderation.sql`, and deploy/configure the API and Admin Portal on Vercel.
 2. Verify the implemented F007 Gemini workflow with real-provider post, image, comment, admin-review, rejection, and same-record retry paths.
-3. Add FCM push delivery, notification preferences, and safe deep links.
+3. Apply and verify Android FCM push delivery, notification preferences, and safe deep links.
 
 Before MVP/UAT completion:
 
@@ -696,4 +698,4 @@ CORS_ALLOWED_ORIGINS
 
 Set `REPORT_REVIEW_THRESHOLD=1` only while performing functional tests with the current small user population. Set it to `1000` before any deployment.
 
-FCM server credentials and any Vercel-specific environment values must be added through secure deployment configuration when those features are implemented; never commit them.
+FCM server credentials and any Vercel-specific environment values must be added through secure deployment configuration; never commit them.

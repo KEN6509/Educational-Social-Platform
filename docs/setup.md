@@ -55,6 +55,7 @@ by the current mobile app. At minimum, the live project should include:
 11. `supabase/admin_portal.sql`
 12. `supabase/report_flow_simplification.sql` for an existing database only
 13. `supabase/ai_moderation.sql`
+14. `supabase/fcm_push_notifications.sql`
 
 The latest `chat.sql` is required for group-chat mentions and current System
 notifications. Run it manually in the Supabase SQL Editor after updating the
@@ -93,7 +94,10 @@ do not backfill old Activity/New Followers rows.
 - Creator assignment/removal, rejected posts, Pending-to-Approved publication,
   reported-content removal, and both appeal outcomes have in-app notification
   foundations. Retaining reported content intentionally sends no notification.
-- External FCM/APNs push delivery is deferred to the next notification phase.
+- Android FCM push delivery is implemented through the API webhook route. The
+  live project still needs the FCM SQL migration, Supabase Database Webhooks,
+  Firebase service-account values, and Android `google-services.json` setup.
+- iOS/APNs push delivery remains outside the MVP.
 - Chat messages are not sent to Gemini moderation.
 - `GEMINI_API_KEY` is required by the API moderation routes and must remain
   server-side. The default chain uses `gemini-3.5-flash-lite` first and
@@ -135,6 +139,10 @@ GEMINI_MODEL=gemini-3.5-flash-lite
 GEMINI_FALLBACK_MODEL=gemini-3.8-flash
 GEMINI_TIMEOUT_MS=15000
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+PUSH_WEBHOOK_SECRET=replace-with-a-random-secret-at-least-32-characters
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-...@your-project.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"
 ```
 
 `REPORT_REVIEW_THRESHOLD` counts unique reporters per post/comment target.
@@ -186,16 +194,23 @@ Deploy the Express API and Admin Portal only after the local checks pass:
    the Express entry point; no static output directory is needed.
 3. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_BOOTSTRAP_SECRET`,
    `REPORT_REVIEW_THRESHOLD`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
-   `GEMINI_FALLBACK_MODEL`, `GEMINI_TIMEOUT_MS`, and `CORS_ALLOWED_ORIGINS` to
-   the Preview and Production
-   environments. Set `CORS_ALLOWED_ORIGINS` to a comma-separated exact list,
-   for example `https://<admin-domain>,http://localhost:5173,http://127.0.0.1:5173`.
+   `GEMINI_FALLBACK_MODEL`, `GEMINI_TIMEOUT_MS`, `CORS_ALLOWED_ORIGINS`,
+   `PUSH_WEBHOOK_SECRET`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and
+   `FIREBASE_PRIVATE_KEY` to the Preview and Production environments. Set
+   `CORS_ALLOWED_ORIGINS` to a comma-separated exact list, for example
+   `https://<admin-domain>,http://localhost:5173,http://127.0.0.1:5173`.
+   Do not add Firebase credentials to Admin or mobile variables.
 4. Deploy and verify `https://<api-domain>/health` returns a healthy response.
 5. Create the Admin project with root directory `apps/admin`. Set
    `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_API_BASE_URL` to the
    deployed API origin, then build/redeploy it.
 6. Set `API_BASE_URL=https://<api-domain>` in `apps/mobile/.env` before the
    release build. Do not add a trailing route such as `/moderation`.
+7. In Supabase Database Webhooks, create `INSERT` webhooks for `notifications`
+   and `supervision_notifications` that call `https://<api-domain>/push/events`
+   with the exact `x-cyanzone-webhook-secret` header. The webhook body should
+   include the inserted row and its table name; verify one Chat, Activity,
+   Follower, System, and Supervision event on a physical Android device.
 
 Never put the service-role key or Gemini key in Admin/mobile variables. After
 deployment, verify one approved, one administrator-review, one rejected, and

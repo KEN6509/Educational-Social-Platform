@@ -11,9 +11,10 @@ Flutter application for CyanZone's educational social, chat, and family-safety e
 - Dormant message-request data and backend foundations retained without active mobile loading or UI
 - Group-chat member mentions, admin-only `@all`, tappable profile links, and oldest-first unread mention navigation
 - Activity, System, and New Followers pages with in-app badges/read state
+- Android push notification permission, per-device FCM registration, foreground/background handling, and safe typed notification destinations
 - Parent-child repository and safety-center foundations
 
-External device push notifications, Gemini moderation, and the remaining parent-supervision acceptance work are not implemented yet.
+Android FCM delivery, Gemini moderation, and the remaining parent-supervision acceptance work are implemented in code. Live Firebase, Supabase webhook, Vercel environment, and device acceptance configuration still require manual setup.
 
 ## Run
 

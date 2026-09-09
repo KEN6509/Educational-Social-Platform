@@ -60,7 +60,7 @@ void main() {
     expect(find.text('Activity messages'), findsOneWidget);
     expect(find.text('System notifications'), findsOneWidget);
     expect(find.text('New followers'), findsOneWidget);
-    expect(find.byType(SwitchListTile), findsNWidgets(5));
+    expect(find.byType(SwitchListTile), findsNWidgets(6));
   });
 
   Future<void> pumpSettings(

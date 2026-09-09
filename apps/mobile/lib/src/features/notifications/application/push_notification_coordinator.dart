@@ -58,6 +58,7 @@ class PushNotificationCoordinator {
     final pending = await store.readPendingDestination();
     if (pending != null && isSignedIn()) {
       await store.clearPendingDestination();
+      _destinations.add(pending);
       await onDestination(pending);
     }
   }
