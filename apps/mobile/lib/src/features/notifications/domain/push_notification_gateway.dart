@@ -20,3 +20,29 @@ abstract interface class PushNotificationGateway {
   Future<PushDestination?> get initialMessage;
   Future<void> showForeground(PushMessage message);
 }
+
+class NoopPushNotificationGateway implements PushNotificationGateway {
+  const NoopPushNotificationGateway();
+
+  @override
+  Future<PushAuthorizationStatus> requestAuthorization() async =>
+      PushAuthorizationStatus.denied;
+
+  @override
+  Future<String?> getToken() async => null;
+
+  @override
+  Stream<String> get onTokenRefresh => const Stream.empty();
+
+  @override
+  Stream<PushMessage> get onForegroundMessage => const Stream.empty();
+
+  @override
+  Stream<PushDestination> get onMessageOpened => const Stream.empty();
+
+  @override
+  Future<PushDestination?> get initialMessage async => null;
+
+  @override
+  Future<void> showForeground(PushMessage message) async {}
+}

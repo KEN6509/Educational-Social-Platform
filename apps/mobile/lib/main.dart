@@ -9,6 +9,7 @@ import 'src/app.dart';
 import 'src/app_dependencies.dart';
 import 'src/core/config/api_config.dart';
 import 'src/core/config/supabase_config.dart';
+import 'src/features/notifications/data/firebase_push_notification_gateway.dart';
 
 @pragma('vm:entry-point')
 Future<void> cyanZoneFirebaseMessagingBackgroundHandler(
@@ -37,6 +38,7 @@ Future<void> main() async {
   final dependencies = AppDependencies.production(
     Supabase.instance.client,
     apiBaseUrl: ApiConfig.baseUrl,
+    pushNotificationGateway: FirebasePushNotificationGateway(),
   );
   runApp(CyanZoneApp(dependencies: dependencies));
 }

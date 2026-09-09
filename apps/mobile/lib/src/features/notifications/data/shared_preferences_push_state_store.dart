@@ -8,6 +8,7 @@ import '../domain/push_destination.dart';
 class SharedPreferencesPushStateStore {
   static const _installationIdKey = 'notifications.push.installation_id';
   static const _promptShownKey = 'notifications.push.prompt_shown';
+  static const _pushEnabledKey = 'notifications.push.enabled';
   static const _pendingDestinationKey =
       'notifications.push.pending_destination';
 
@@ -30,6 +31,16 @@ class SharedPreferencesPushStateStore {
   Future<void> markPromptShown() async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setBool(_promptShownKey, true);
+  }
+
+  Future<bool> pushEnabled() async {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getBool(_pushEnabledKey) ?? false;
+  }
+
+  Future<void> setPushEnabled(bool value) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_pushEnabledKey, value);
   }
 
   Future<void> savePendingDestination(PushDestination destination) async {
