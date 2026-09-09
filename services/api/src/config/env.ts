@@ -34,8 +34,8 @@ const envSchema = z
       .number()
       .int()
       .min(1000)
-      .max(9500)
-      .default(8500),
+      .max(18000)
+      .default(15000),
     CORS_ALLOWED_ORIGINS: corsOriginsSchema,
   })
   .refine((value) => value.GEMINI_MODEL !== value.GEMINI_FALLBACK_MODEL, {

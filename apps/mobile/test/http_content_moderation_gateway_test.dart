@@ -10,6 +10,16 @@ import 'package:cyanzone_mobile/src/features/posts/data/http_content_moderation_
 import 'package:cyanzone_mobile/src/features/posts/domain/content_moderation.dart';
 
 void main() {
+  test('keeps the request open for the API moderation budget', () {
+    final gateway = HttpContentModerationGateway(
+      baseUrl: Uri.parse('https://api.cyanzone.test'),
+      accessToken: () async => 'token',
+      client: MockClient((request) async => http.Response('{}', 200)),
+    );
+
+    expect(gateway.timeout, const Duration(seconds: 30));
+  });
+
   test('posts target id with the Supabase bearer token and parses approval',
       () async {
     late http.Request captured;
@@ -86,7 +96,8 @@ void main() {
     );
   });
 
-  test('keeps a cooldown response retryable for the persistent queue', () async {
+  test('keeps a cooldown response retryable for the persistent queue',
+      () async {
     final gateway = HttpContentModerationGateway(
       baseUrl: Uri.parse('https://api.cyanzone.test'),
       accessToken: () async => 'token',

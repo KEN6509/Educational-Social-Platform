@@ -101,13 +101,12 @@ export class GeminiModerationGateway implements ModerationProvider {
       const primaryError = withProviderAttempts(normalizeGeminiError(error), 1);
       if (!primaryError.retryable) throw primaryError;
 
-      const secondModel = primaryError.statusCode === 429 ||
-          primaryError.statusCode === 503
-        ? this.fallbackModel
-        : this.primaryModel;
+      if (primaryError.statusCode !== 429 && primaryError.statusCode !== 503) {
+        throw primaryError;
+      }
 
       try {
-        return await this.moderateWithModel(target, secondModel, 2);
+        return await this.moderateWithModel(target, this.fallbackModel, 2);
       } catch (secondError) {
         throw withProviderAttempts(normalizeGeminiError(secondError), 2);
       }
