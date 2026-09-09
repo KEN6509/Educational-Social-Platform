@@ -90,6 +90,7 @@ const moderationProvider = env.GEMINI_API_KEY
       primaryModel: env.GEMINI_MODEL,
       fallbackModel: env.GEMINI_FALLBACK_MODEL,
       timeoutMs: env.GEMINI_TIMEOUT_MS,
+      allowedImageOrigin: env.SUPABASE_URL,
     })
   : {
       moderate: async () => {
