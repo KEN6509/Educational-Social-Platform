@@ -20,6 +20,7 @@ const member = { id: 'member-1', email: 'member@cyanzone.test' };
 
 function providerResult(score: number): ModerationProviderResult {
   return {
+    recommendedDecision: 'approved',
     overallRiskScore: score,
     categoryScores: {
       harassmentBullying: score,
@@ -34,7 +35,7 @@ function providerResult(score: number): ModerationProviderResult {
     userReason: 'test reason',
     evidenceSource: 'text',
     model: 'gemini-3.8-flash',
-    promptVersion: 'cyanzone-moderation-v1',
+    promptVersion: 'cyanzone-moderation-v2',
   };
 }
 
@@ -174,6 +175,25 @@ test('invokes the provider once and persists its exact attempt count', async () 
   assert.equal(harness.applied?.state, 'approved');
   assert.equal(harness.persistedResult?.attemptCount, 2);
   assert.equal(harness.persistedResult?.model, 'gemini-3.8-flash');
+});
+
+test('honors an explicit Gemini rejection even when its numeric risk score is low', async () => {
+  const harness = createHarness();
+  harness.provider.moderate = async () => ({
+    ...providerResult(30),
+    recommendedDecision: 'rejected',
+    categoryScores: {
+      ...providerResult(30).categoryScores,
+      harassmentBullying: 30,
+    },
+    evidence: ['fuck you'],
+    userReason: 'Direct hostile profanity targets another person.',
+  });
+
+  const response = await harness.service.moderate('post', 'post-1', member);
+
+  assert.equal(response.caseState, 'rejected');
+  assert.equal(harness.persistedResult?.state, 'rejected');
 });
 
 test('safety-blocked input is fail-closed as a score-100 rejection', async () => {

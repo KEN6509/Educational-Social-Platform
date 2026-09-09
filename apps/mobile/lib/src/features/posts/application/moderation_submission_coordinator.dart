@@ -43,7 +43,8 @@ final class ModerationSubmissionCoordinator extends ChangeNotifier
   ) async {
     try {
       final result = await request();
-      if (result.state == ContentModerationState.failed) {
+      if (result.state == ContentModerationState.failed ||
+          result.state == ContentModerationState.processing) {
         await _retryStore.save(target);
       } else {
         await _retryStore.remove(target);

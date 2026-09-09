@@ -1,5 +1,6 @@
 import {
   GeminiInputSafetyError,
+  MODERATION_PROMPT_VERSION,
   MODERATION_CATEGORIES,
   decideModeration,
   ModerationProviderError,
@@ -111,7 +112,7 @@ export function createModerationService(
 
       try {
         const providerResult = await provider.moderate(target.target);
-        const state = decideModeration(providerResult.overallRiskScore);
+        const state = decideModeration(providerResult);
         return await applyResult(
           repository,
           moderationCase,
@@ -206,13 +207,14 @@ function createSafetyResult(
     ? ` (${[...new Set(blockedCategories)].join(', ')})`
     : '';
   return {
+    recommendedDecision: 'rejected',
     overallRiskScore: 100,
     categoryScores,
     evidence: [`Gemini blocked the input under its safety policy${categoryLabel}.`],
     userReason: 'This content could not be cleared by automated safety checks.',
     evidenceSource,
     model: 'gemini-safety-policy',
-    promptVersion: 'cyanzone-moderation-v1',
+    promptVersion: MODERATION_PROMPT_VERSION,
     providerAttempts: error.providerAttempts,
   };
 }
