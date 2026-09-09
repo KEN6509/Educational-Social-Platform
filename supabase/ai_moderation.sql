@@ -359,6 +359,7 @@ begin
       published_at = null,
       updated_at = now()
   where id = v_post_id
+    and moderation_status <> 'removed'
   returning moderation_revision into v_revision;
 
   if v_revision is not null then
