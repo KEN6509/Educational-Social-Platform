@@ -21,6 +21,7 @@ export type AppDependencies = {
   ) => Promise<void>;
   protectedAdminRouter: Router;
   moderationRouter: Router;
+  pushRouter?: Router;
   verifyAdmin: VerifyAdmin;
 };
 
@@ -42,6 +43,7 @@ export function createApp(
 
   app.use('/admin', createAdminRouter(dependencies));
   app.use('/moderation', dependencies.moderationRouter);
+  if (dependencies.pushRouter) app.use('/push', dependencies.pushRouter);
   app.use('/health', healthRouter);
 
   app.use(
