@@ -2,6 +2,17 @@
 
 This document records useful improvements that are outside the CyanZone MVP scope.
 
+## iOS Push Notifications
+
+For the MVP, CyanZone will provide phone push notifications on Android through
+Firebase Cloud Messaging. The existing in-app notification lists and badges
+will continue to work independently of phone push delivery.
+
+In the future, CyanZone can add iPhone and iPad push delivery through Apple Push
+Notification service (APNs). This will require an Apple Developer account, iOS
+Firebase configuration, APNs credentials, permission and lifecycle handling,
+and testing on a physical Apple device.
+
 ## Background Location Tracking
 
 For the MVP, SOS location updates work only while CyanZone remains open on the child's device. The app sends a new SOS location about every 10 seconds while the SOS is active.
