@@ -17,3 +17,4 @@ import './app.test.js';
 import './vercelEntry.test.js';
 import './lib/passwordPolicy.test.js';
 import './push/pushSql.test.js';
+import './push/firebasePushGateway.test.js';
