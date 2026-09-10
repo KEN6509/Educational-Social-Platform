@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/errors/friendly_error.dart';
+import '../../../core/widgets/navigation_clearance.dart';
 import '../data/feed_mode.dart';
 import '../data/feed_post.dart';
 import '../data/post_interaction_sync.dart';
@@ -227,6 +228,10 @@ class HomeFeedPageState extends State<HomeFeedPage> {
             slivers: [
               SliverPostWaterfallGrid(
                 posts: posts,
+                padding: withNavigationClearance(
+                  context,
+                  const EdgeInsets.fromLTRB(14, 10, 14, 24),
+                ),
                 cardBuilder: (context, post) {
                   return FeedCard(
                     key: ValueKey('home_post_${post.id}'),

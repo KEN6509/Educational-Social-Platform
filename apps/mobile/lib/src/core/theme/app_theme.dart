@@ -73,6 +73,8 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: AppColors.surface,
+        actionTextColor: AppColors.cyan,
+        disabledActionTextColor: AppColors.textMuted,
         elevation: 10,
         contentTextStyle: const TextStyle(
           color: AppColors.textPrimary,

@@ -1,47 +1,59 @@
+import 'dart:io';
+
 import 'package:cyanzone_mobile/src/core/theme/app_design_tokens.dart';
 import 'package:cyanzone_mobile/src/features/shell/presentation/widgets/cyanzone_bottom_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('renders the floating navigation and routes taps',
-      (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
+  for (final viewport in const [Size(320, 640), Size(412, 915)]) {
+    testWidgets('routes all destinations at ${viewport.width.toInt()} px',
+        (tester) async {
+      tester.view.physicalSize = viewport;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    var selectedIndex = 0;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MediaQuery(
-          data: const MediaQueryData(viewPadding: EdgeInsets.only(bottom: 24)),
-          child: Scaffold(
-            extendBody: true,
-            body: ColoredBox(color: AppColors.mint),
-            bottomNavigationBar: CyanZoneBottomNavigation(
-              selectedIndex: selectedIndex,
-              chatBadgeCount: 3,
-              onTap: (value) => selectedIndex = value,
+      final taps = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              viewPadding: EdgeInsets.only(bottom: 24),
+              textScaler: TextScaler.linear(1.3),
+            ),
+            child: Scaffold(
+              extendBody: true,
+              body: const ColoredBox(color: AppColors.mint),
+              bottomNavigationBar: CyanZoneBottomNavigation(
+                selectedIndex: 0,
+                chatBadgeCount: 3,
+                onTap: taps.add,
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.byIcon(Icons.home_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.supervised_user_circle_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.add_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.mode_comment_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.account_circle_outlined), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
-    expect(
-      tester.getSize(find.byType(CyanZoneBottomNavigation)).height,
-      AppLayout.floatingNavigationClearance + 24,
-    );
+      Finder destination(String label) => find.byWidgetPredicate(
+            (widget) => widget is Semantics && widget.properties.label == label,
+          );
 
-    await tester.tap(find.byIcon(Icons.mode_comment_outlined));
-    expect(selectedIndex, 3);
-  });
+      const labels = ['Home', 'Parent-Child', 'Create', 'Chats', 'Profile'];
+      for (var index = 0; index < labels.length; index += 1) {
+        final finder = destination(labels[index]);
+        expect(finder, findsOneWidget);
+        await tester.tap(finder);
+        expect(taps.last, index);
+      }
+      expect(find.text('3'), findsOneWidget);
+      expect(
+        tester.getSize(find.byType(CyanZoneBottomNavigation)).height,
+        AppLayout.floatingNavigationClearance + 24,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('uses the rounded surface token for the navigation pill',
       (tester) async {
@@ -67,6 +79,43 @@ void main() {
     );
     final decoration = decorated.decoration as BoxDecoration;
     expect(decoration.borderRadius, BorderRadius.circular(AppRadii.navigation));
+  });
+
+  testWidgets('extendBody exposes navigation clearance to nested tab scaffolds',
+      (tester) async {
+    double? observedBottomPadding;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          extendBody: true,
+          body: Scaffold(
+            body: Builder(
+              builder: (context) {
+                observedBottomPadding = MediaQuery.paddingOf(context).bottom;
+                return const SizedBox.expand();
+              },
+            ),
+          ),
+          bottomNavigationBar: const SizedBox(
+            height: AppLayout.floatingNavigationClearance,
+          ),
+        ),
+      ),
+    );
+
+    expect(observedBottomPadding, AppLayout.floatingNavigationClearance);
+  });
+
+  test('main shell enables extendBody and delegates all navigation taps', () {
+    final source = File(
+      'lib/src/features/shell/presentation/main_shell.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('extendBody: true'));
+    expect(source, contains('onTap: _handleNavigationTap'));
+    expect(source, contains('chatBadgeCount: _chatBadgeCount'));
+    expect(source, contains('if (value == 0)'));
+    expect(source, contains('else if (value == 4)'));
   });
 }
 

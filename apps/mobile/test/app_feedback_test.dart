@@ -69,4 +69,50 @@ void main() {
     tester.widget<TextButton>(retryButton).onPressed!();
     expect(retried, isTrue);
   });
+
+  testWidgets('two long actions do not overflow on a compact scaled screen',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => AppFeedback.show(
+                  context,
+                  message: 'This item will be hidden from your feed.',
+                  kind: AppFeedbackKind.warning,
+                  actions: [
+                    AppFeedbackAction(
+                      label: 'Cancel this action',
+                      onPressed: () {},
+                    ),
+                    AppFeedbackAction(
+                      label: 'Report inappropriate content',
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+                child: const Text('Show'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Show'));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Cancel this action'), findsOneWidget);
+    expect(find.text('Report inappropriate content'), findsOneWidget);
+  });
 }

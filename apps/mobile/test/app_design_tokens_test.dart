@@ -37,6 +37,8 @@ void main() {
     expect(theme.scaffoldBackgroundColor, AppColors.background);
     expect(theme.snackBarTheme.behavior, SnackBarBehavior.floating);
     expect(theme.snackBarTheme.backgroundColor, AppColors.surface);
+    expect(theme.snackBarTheme.actionTextColor, AppColors.cyan);
+    expect(theme.snackBarTheme.disabledActionTextColor, AppColors.textMuted);
     expect(theme.dialogTheme.backgroundColor, AppColors.surface);
   });
 }
