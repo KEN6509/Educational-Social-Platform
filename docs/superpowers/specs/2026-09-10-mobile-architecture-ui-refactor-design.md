@@ -265,7 +265,7 @@ Implementation must:
   the overlay.
 
 The navigation pill uses a 62-pixel component height, 12-pixel horizontal and
-bottom outer margins, and the existing 28-pixel radius. The shared minimum
+vertical outer margins, and the existing 28-pixel radius. The shared minimum
 content clearance is therefore 86 pixels plus the device bottom inset. The
 five main tabs covered by this rule are Home, Parent-Child, Create, Chats, and
 Profile.
