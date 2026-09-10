@@ -482,13 +482,19 @@ void main() {
       final source = File('lib/src/features/shell/presentation/main_shell.dart')
           .readAsStringSync();
 
-      final navigationStart = source.indexOf('onTap: (value)');
-      final navigationEnd =
-          source.indexOf('chatBadgeCount: _chatBadgeCount', navigationStart);
+      expect(source, contains('onTap: _handleNavigationTap'));
+      expect(source, contains('chatBadgeCount: _chatBadgeCount'));
+      final navigationStart = source.indexOf('void _handleNavigationTap');
+      final navigationEnd = source.indexOf(
+        'Future<void> _openFilterPage',
+        navigationStart,
+      );
       expect(navigationStart, greaterThanOrEqualTo(0));
       expect(navigationEnd, greaterThan(navigationStart));
-      final navigationSource = source.substring(navigationStart, navigationEnd);
-      expect(navigationSource, isNot(contains('_chatBadgeCount = 0')));
+      expect(
+        source.substring(navigationStart, navigationEnd),
+        isNot(contains('_chatBadgeCount = 0')),
+      );
 
       final refreshStart = source.indexOf('Future<void> _refreshChatBadge()');
       final refreshEnd =
