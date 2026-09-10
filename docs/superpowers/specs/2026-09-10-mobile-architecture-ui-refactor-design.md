@@ -273,6 +273,44 @@ Profile.
 Each tab owns only its content padding needs; it must not duplicate the visual
 construction of the navigation bar.
 
+## Approved Stage-One Corrections
+
+Physical-device review identified two layout problems after the floating
+navigation was introduced. Parent Supervision still used the muted grey
+surface and eight-pixel horizontal insets, while Create Post allowed its image
+grid and primary action to sit too close to navigation-owned space.
+
+The targeted correction is:
+
+- Parent Supervision uses the shared application background and the normal
+  20-pixel page inset.
+- Its scrollable content reserves the shared navigation clearance plus normal
+  component spacing so the final notification remains fully reachable.
+- Create Post removes unintended internal grid padding, uses the shared
+  section-spacing rhythm, and keeps the Post button at least 16 pixels above
+  the floating navigation when scrolled to the end.
+- These changes remain limited to the affected pages. Other page-padding
+  migrations continue incrementally instead of becoming a mechanical
+  application-wide replacement.
+
+The same correction establishes deterministic post ordering:
+
+- The owner's Profile Posts tab places every non-approved post, including
+  pending and rejected posts, above approved posts. Both groups are ordered by
+  post creation time descending, with post ID as a stable tie-breaker.
+- Profile Liked and Saved tabs use the like or save interaction time
+  descending, with a stable secondary key.
+- Home Saves uses the same save-interaction ordering as Profile Saved.
+- Home Following is ordered by post creation time descending when initially
+  opened or selected. A user-initiated refresh may rearrange the newly fetched
+  Following results.
+- Home Feeds keeps its existing behaviour unchanged.
+
+The implementation must apply the ordering after network fetches, cached
+state restoration, and relevant in-memory interaction updates so a normal
+rebuild cannot introduce a different sequence. It does not require a Supabase
+schema migration or a new API endpoint.
+
 ## GoF Pattern Mapping
 
 Six GoF patterns are in scope. They are applied only where they reduce existing
