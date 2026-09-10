@@ -12,6 +12,7 @@ import 'package:cyanzone_mobile/src/features/chat/presentation/chat_details_page
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_room_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_widgets.dart';
+import 'package:cyanzone_mobile/src/core/widgets/unread_badge.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/create_group_chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/notification_sections_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/system_notification_detail_page.dart';

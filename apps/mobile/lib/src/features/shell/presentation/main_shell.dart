@@ -7,7 +7,7 @@ import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/shimmer_skeleton.dart';
 import '../../chat/data/chat_repository.dart';
 import '../../chat/presentation/chat_page.dart';
-import '../../chat/presentation/chat_widgets.dart';
+import '../../../core/widgets/unread_badge.dart';
 import '../../posts/data/aspect_ratio_cache.dart';
 import '../../posts/application/moderation_submission_coordinator.dart';
 import '../../posts/data/feed_mode.dart';

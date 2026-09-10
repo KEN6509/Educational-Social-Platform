@@ -7,6 +7,7 @@ import 'package:photo_manager/photo_manager.dart';
 
 import '../data/chat_models.dart';
 import '../data/chat_mention.dart';
+import '../../../core/widgets/unread_badge.dart';
 
 const chatNavy = Color(0xFF0B1F3E);
 const chatCyan = Color(0xFF4490AD);
@@ -43,35 +44,6 @@ const _groupColors = [
   Color(0xFF059669),
   Color(0xFFDB2777),
 ];
-
-class UnreadBadge extends StatelessWidget {
-  const UnreadBadge({super.key, required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    if (count <= 0) return const SizedBox.shrink();
-
-    return Container(
-      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        color: chatDanger,
-        shape: BoxShape.circle,
-      ),
-      child: Text(
-        count > 99 ? '99+' : '$count',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
 
 class ChatAvatar extends StatelessWidget {
   const ChatAvatar({

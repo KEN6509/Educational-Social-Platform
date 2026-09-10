@@ -10,6 +10,7 @@ import 'chat_room_page.dart';
 import 'chat_widgets.dart';
 import 'create_group_chat_page.dart';
 import 'notification_sections_page.dart';
+import '../../../core/widgets/unread_badge.dart';
 
 typedef ConversationLoader = Future<List<ChatConversation>> Function();
 typedef CountLoader = Future<Map<NotificationSection, int>> Function();
