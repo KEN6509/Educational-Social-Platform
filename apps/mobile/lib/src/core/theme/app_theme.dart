@@ -1,71 +1,92 @@
 import 'package:flutter/material.dart';
 
+import 'app_design_tokens.dart';
+
 class AppTheme {
   const AppTheme._();
 
   static ThemeData get light {
-    const cyan = Color(0xFF4490AD);
-    const ink = Color(0xFF172026);
-    const navy = Color(0xFF0B1F3E);
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.cyan,
+      primary: AppColors.cyan,
+      secondary: AppColors.mint,
+      surface: AppColors.background,
+      error: AppColors.error,
+    );
 
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: cyan,
-        primary: cyan,
-        secondary: const Color(0xFF58E1B5),
-        surface: const Color(0xFFFAFCFC),
-      ),
-      scaffoldBackgroundColor: const Color(0xFFFAFCFC),
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: AppColors.background,
+      dividerColor: AppColors.border,
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF1F5F9), // Changed from light green (0xFFF8FCFC) to neutral grey
+        fillColor: AppColors.surfaceMuted,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)), // More neutral border
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: cyan, width: 1.8),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: const BorderSide(color: AppColors.cyan, width: 1.8),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFFB42318)),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: const BorderSide(color: AppColors.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFFB42318), width: 1.8),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.8),
         ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.lg,
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: navy,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFFB9C9D1),
-          disabledForegroundColor: Colors.white,
+          backgroundColor: AppColors.navy,
+          foregroundColor: AppColors.surface,
+          disabledBackgroundColor: AppColors.disabled,
+          disabledForegroundColor: AppColors.surface,
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(AppRadii.control),
           ),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w800,
-            letterSpacing: 0,
           ),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.dialog),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.surface,
+        elevation: 10,
+        contentTextStyle: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.compact),
         ),
       ),
       appBarTheme: const AppBarTheme(
         centerTitle: false,
-        backgroundColor: Color(0xFFFAFCFC),
-        foregroundColor: ink,
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
     );

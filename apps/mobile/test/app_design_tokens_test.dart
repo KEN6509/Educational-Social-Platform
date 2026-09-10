@@ -1,4 +1,6 @@
 import 'package:cyanzone_mobile/src/core/theme/app_design_tokens.dart';
+import 'package:cyanzone_mobile/src/core/theme/app_theme.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -25,5 +27,16 @@ void main() {
     expect(AppRadii.navigation, 28);
     expect(AppLayout.floatingNavigationHeight, 62);
     expect(AppLayout.floatingNavigationClearance, 86);
+  });
+
+  test('AppTheme exposes CyanZone semantic component styling', () {
+    final theme = AppTheme.light;
+
+    expect(theme.colorScheme.primary, AppColors.cyan);
+    expect(theme.colorScheme.surface, AppColors.background);
+    expect(theme.scaffoldBackgroundColor, AppColors.background);
+    expect(theme.snackBarTheme.behavior, SnackBarBehavior.floating);
+    expect(theme.snackBarTheme.backgroundColor, AppColors.surface);
+    expect(theme.dialogTheme.backgroundColor, AppColors.surface);
   });
 }
