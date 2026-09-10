@@ -43,6 +43,7 @@ class UserProfile {
 
   UserProfile copyWith({
     bool? isFollowing,
+    int? postCount,
     int? followerCount,
     int? followingCount,
   }) {
@@ -55,7 +56,7 @@ class UserProfile {
       isContentCreator: isContentCreator,
       isAdmin: isAdmin,
       isFollowing: isFollowing ?? this.isFollowing,
-      postCount: postCount,
+      postCount: postCount ?? this.postCount,
       followerCount: followerCount ?? this.followerCount,
       followingCount: followingCount ?? this.followingCount,
     );

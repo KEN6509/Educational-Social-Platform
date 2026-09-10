@@ -16,3 +16,8 @@ import './config/env.test.js';
 import './app.test.js';
 import './vercelEntry.test.js';
 import './lib/passwordPolicy.test.js';
+import './push/pushSql.test.js';
+import './push/firebasePushGateway.test.js';
+import './push/pushRepository.test.js';
+import './push/pushService.test.js';
+import './push/pushRouter.test.js';

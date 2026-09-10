@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase project configuration contains credentials and must stay local.
+/android/app/google-services.json

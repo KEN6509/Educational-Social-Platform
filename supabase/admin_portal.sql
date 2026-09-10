@@ -148,7 +148,7 @@ begin
     p_action_type,
     coalesce(p_action_payload, '{}'::jsonb)
   where coalesce((
-    select np.in_app_enabled and np.system_enabled
+    select (np.in_app_enabled or np.push_enabled) and np.system_enabled
     from public.notification_preferences np
     where np.user_id = p_user_id
   ), true);

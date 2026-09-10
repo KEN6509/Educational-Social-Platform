@@ -35,8 +35,9 @@ void main() {
   test('Supabase README documents parent supervision rollout', () {
     expect(readme, contains('parent_supervision.sql'));
     expect(readme, contains('supervision_notifications'));
-    expect(readme, contains('FCM remains deferred'));
-    expect(readme, contains('in-app Realtime only'));
+    expect(readme, contains('Android FCM delivery is implemented in code'));
+    expect(
+        readme, contains('In-app Realtime notifications remain independent'));
   });
 
   test('creates dedicated supervision storage and cancellation state', () {

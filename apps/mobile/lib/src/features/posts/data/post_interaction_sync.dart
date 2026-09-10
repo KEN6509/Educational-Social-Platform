@@ -13,10 +13,17 @@ class PostInteractionUpdate {
   final FeedPost post;
   final Map<String, dynamic> result;
 
+  bool get isDeleted => result['deleted'] == true;
+
   List<FeedPost> applyToPosts(
     List<FeedPost> posts, {
     bool insertIfMissing = false,
   }) {
+    if (isDeleted) {
+      if (!posts.any((item) => item.id == postId)) return posts;
+      return posts.where((item) => item.id != postId).toList();
+    }
+
     var found = false;
     final updated = posts.map((item) {
       if (item.id != postId) return item;

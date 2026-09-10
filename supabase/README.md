@@ -253,11 +253,12 @@ pauses when the app is minimized, locked, or terminated, and resumes the newest
 unresolved child SOS when the app returns. Resolution prevents further server
 location updates. OpenStreetMap tiles are a best-effort visual layer for the
 MVP/UAT and do not affect coordinate capture or Supabase updates when tiles are
-unavailable. Current notification delivery is in-app Realtime only.
-FCM remains deferred until device push delivery is added later; Supervision Notifications
-remain separate from Messages notifications. Physical-device GPS, lifecycle,
-multi-account, and live Realtime evidence remains part of the manual acceptance
-pass.
+unavailable. In-app Realtime notifications remain independent from Android FCM
+delivery. The FCM code is implemented, while the live Firebase, Vercel,
+Supabase webhook, and physical-device setup is still manual. Supervision
+Notifications remain separate from Messages notifications. Physical-device
+GPS, lifecycle, multi-account, Realtime, and push evidence remains part of the
+manual acceptance pass.
 
 ## 5. Configure Authentication
 
@@ -498,8 +499,15 @@ including `comment_reply`, `comment_like`, and `mention`. Existing
 notifications are not backfilled automatically; create a new comment, reply,
 mention, or comment like after applying the SQL to verify the live trigger path.
 
-Current mobile notifications are in-app Supabase rows and badges. External
-FCM/APNs device push delivery is not configured yet.
+### Android FCM push delivery
+
+After the base notification tables and triggers exist, apply
+`supabase/fcm_push_notifications.sql`. It is safe to rerun and adds protected
+per-device tokens, delivery records, notification preferences, and the RPCs
+used by the API. Then configure the two Supabase `INSERT` Database Webhooks
+described in `docs/setup.md`. Android FCM delivery is implemented in code but
+is not live until Firebase, Vercel, the SQL file, both webhooks, and a fresh
+physical-device build are configured. iOS/APNs remains future work.
 
 ## 7. Client Usage
 

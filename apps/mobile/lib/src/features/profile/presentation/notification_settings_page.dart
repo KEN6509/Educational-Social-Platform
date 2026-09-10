@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../notifications/application/push_notification_coordinator.dart';
+
 typedef NotificationPreferenceLoader = Future<Map<String, bool>> Function();
 typedef NotificationPreferenceSaver = Future<void> Function(
   Map<String, bool> preferences,
@@ -11,10 +13,12 @@ class NotificationSettingsPage extends StatefulWidget {
     super.key,
     this.loadNotificationPreferences,
     this.saveNotificationPreferences,
+    this.pushNotificationCoordinator,
   });
 
   final NotificationPreferenceLoader? loadNotificationPreferences;
   final NotificationPreferenceSaver? saveNotificationPreferences;
+  final PushNotificationCoordinator? pushNotificationCoordinator;
 
   @override
   State<NotificationSettingsPage> createState() =>
@@ -55,6 +59,42 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     bool value,
   ) async {
     final next = current.copyWithKey(key, value);
+
+    if (key == 'push_enabled' && widget.pushNotificationCoordinator != null) {
+      setState(() {
+        _preferencesFuture = Future.value(next);
+      });
+      try {
+        final enabled = value
+            ? await widget.pushNotificationCoordinator!.enablePush()
+            : await widget.pushNotificationCoordinator!
+                .disablePush()
+                .then((_) => true);
+        if (!enabled && mounted) {
+          setState(() {
+            _preferencesFuture = Future.value(current);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Phone notifications were not enabled.'),
+            ),
+          );
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _preferencesFuture = Future.value(current);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not update phone notification setting.'),
+            ),
+          );
+        }
+      }
+      return;
+    }
+
     setState(() {
       _preferencesFuture = Future.value(next);
     });
@@ -72,6 +112,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       await Supabase.instance.client.from('notification_preferences').upsert({
         'user_id': userId,
         'in_app_enabled': next.inAppEnabled,
+        'push_enabled': next.pushEnabled,
         'chat_enabled': next.chatEnabled,
         'activity_enabled': next.activityEnabled,
         'system_enabled': next.systemEnabled,
@@ -146,16 +187,24 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     ),
                   ],
                 ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
-                  child: Text(
-                    'Phone push notifications are not enabled yet.',
-                    style: TextStyle(
-                      color: Color(0xFF64748B),
-                      fontSize: 12,
-                      height: 1.35,
+                const SizedBox(height: 24),
+                const _SectionHeader('PHONE NOTIFICATIONS'),
+                _SettingsGroup(
+                  children: [
+                    _PreferenceSwitch(
+                      icon: Icons.phone_android_rounded,
+                      title: 'Phone push notifications',
+                      subtitle:
+                          'Receive alerts when CyanZone is in the background.',
+                      value: prefs.pushEnabled,
+                      enabled: !isLoading,
+                      onChanged: (value) => _updatePreference(
+                        prefs,
+                        'push_enabled',
+                        value,
+                      ),
                     ),
-                  ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 const _SectionHeader('NOTIFICATION TYPES'),
@@ -165,7 +214,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                       icon: Icons.chat_bubble_outline_rounded,
                       title: 'Chat badges',
                       value: prefs.chatEnabled,
-                      enabled: !isLoading && prefs.inAppEnabled,
+                      enabled: !isLoading &&
+                          (prefs.inAppEnabled || prefs.pushEnabled),
                       onChanged: (value) => _updatePreference(
                         prefs,
                         'chat_enabled',
@@ -177,7 +227,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                       icon: Icons.notifications_active_outlined,
                       title: 'Activity messages',
                       value: prefs.activityEnabled,
-                      enabled: !isLoading && prefs.inAppEnabled,
+                      enabled: !isLoading &&
+                          (prefs.inAppEnabled || prefs.pushEnabled),
                       onChanged: (value) => _updatePreference(
                         prefs,
                         'activity_enabled',
@@ -189,7 +240,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                       icon: Icons.shield_outlined,
                       title: 'System notifications',
                       value: prefs.systemEnabled,
-                      enabled: !isLoading && prefs.inAppEnabled,
+                      enabled: !isLoading &&
+                          (prefs.inAppEnabled || prefs.pushEnabled),
                       onChanged: (value) => _updatePreference(
                         prefs,
                         'system_enabled',
@@ -201,7 +253,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                       icon: Icons.person_add_alt_1_outlined,
                       title: 'New followers',
                       value: prefs.followersEnabled,
-                      enabled: !isLoading && prefs.inAppEnabled,
+                      enabled: !isLoading &&
+                          (prefs.inAppEnabled || prefs.pushEnabled),
                       onChanged: (value) => _updatePreference(
                         prefs,
                         'followers_enabled',
@@ -222,6 +275,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
 class _NotificationPreferenceState {
   const _NotificationPreferenceState({
     this.inAppEnabled = true,
+    this.pushEnabled = false,
     this.chatEnabled = true,
     this.activityEnabled = true,
     this.systemEnabled = true,
@@ -229,6 +283,7 @@ class _NotificationPreferenceState {
   });
 
   final bool inAppEnabled;
+  final bool pushEnabled;
   final bool chatEnabled;
   final bool activityEnabled;
   final bool systemEnabled;
@@ -237,6 +292,7 @@ class _NotificationPreferenceState {
   factory _NotificationPreferenceState.fromMap(Map<String, dynamic> map) {
     return _NotificationPreferenceState(
       inAppEnabled: map['in_app_enabled'] as bool? ?? true,
+      pushEnabled: map['push_enabled'] as bool? ?? false,
       chatEnabled: map['chat_enabled'] as bool? ?? true,
       activityEnabled: map['activity_enabled'] as bool? ?? true,
       systemEnabled: map['system_enabled'] as bool? ?? true,
@@ -247,6 +303,7 @@ class _NotificationPreferenceState {
   _NotificationPreferenceState copyWithKey(String key, bool value) {
     return _NotificationPreferenceState(
       inAppEnabled: key == 'in_app_enabled' ? value : inAppEnabled,
+      pushEnabled: key == 'push_enabled' ? value : pushEnabled,
       chatEnabled: key == 'chat_enabled' ? value : chatEnabled,
       activityEnabled: key == 'activity_enabled' ? value : activityEnabled,
       systemEnabled: key == 'system_enabled' ? value : systemEnabled,
@@ -257,6 +314,7 @@ class _NotificationPreferenceState {
   Map<String, bool> toMap() {
     return {
       'in_app_enabled': inAppEnabled,
+      'push_enabled': pushEnabled,
       'chat_enabled': chatEnabled,
       'activity_enabled': activityEnabled,
       'system_enabled': systemEnabled,

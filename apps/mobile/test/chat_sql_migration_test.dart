@@ -25,6 +25,12 @@ void main() {
     expect(
       sql,
       contains(
+        'alter table public.notification_preferences add column if not exists push_enabled',
+      ),
+    );
+    expect(
+      sql,
+      contains(
         'alter table public.notification_preferences add column if not exists activity_enabled',
       ),
     );
@@ -49,6 +55,7 @@ void main() {
     expect(sql, contains('notifications_type_check'));
     expect(sql, contains("'chat_message'"));
     expect(sql, contains("'new_follower'"));
+    expect(sql, contains('(np.in_app_enabled or np.push_enabled)'));
   });
 
   test('chat SQL marks notification sections read through RPC', () {

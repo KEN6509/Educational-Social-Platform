@@ -131,6 +131,8 @@ create table if not exists public.post_appeals (
 
 alter table public.notification_preferences add column if not exists in_app_enabled boolean not null default true;
 
+alter table public.notification_preferences add column if not exists push_enabled boolean not null default false;
+
 alter table public.notification_preferences add column if not exists chat_enabled boolean not null default true;
 
 alter table public.notification_preferences add column if not exists activity_enabled boolean not null default true;
@@ -1156,7 +1158,7 @@ begin
     where cm.conversation_id = p_conversation_id
       and cm.user_id <> v_current_user
       and cm.status in ('active', 'pending')
-      and coalesce(np.in_app_enabled, true)
+      and (coalesce(np.in_app_enabled, true) or coalesce(np.push_enabled, false))
       and coalesce(np.chat_enabled, true);
   exception
     when undefined_column or check_violation or foreign_key_violation then
@@ -1388,7 +1390,7 @@ begin
       jsonb_build_object('user_id', new.follower_id)
     where exists (select 1 from public.profiles p where p.id = new.following_id)
       and coalesce((
-        select np.in_app_enabled and np.followers_enabled
+        select (np.in_app_enabled or np.push_enabled) and np.followers_enabled
         from public.notification_preferences np
         where np.user_id = new.following_id
       ), true);
@@ -1424,7 +1426,7 @@ begin
         'open_post',
         jsonb_build_object('post_id', new.post_id)
       where coalesce((
-        select np.in_app_enabled and np.activity_enabled
+        select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
         from public.notification_preferences np
         where np.user_id = v_post_author_id
       ), true)
@@ -1468,7 +1470,7 @@ begin
       'open_post',
       jsonb_build_object('post_id', new.post_id)
     where coalesce((
-      select np.in_app_enabled and np.activity_enabled
+      select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = v_post_author_id
     ), true)
@@ -1519,7 +1521,7 @@ begin
       'open_post',
       jsonb_build_object('post_id', new.post_id, 'comment_id', new.id)
     where coalesce((
-      select np.in_app_enabled and np.activity_enabled
+      select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = v_post_author_id
     ), true);
@@ -1541,7 +1543,7 @@ begin
       'open_post',
       jsonb_build_object('post_id', new.post_id, 'comment_id', new.id)
     where coalesce((
-      select np.in_app_enabled and np.activity_enabled
+      select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = v_parent_author_id
     ), true);
@@ -1563,7 +1565,7 @@ begin
       'open_post',
       jsonb_build_object('post_id', new.post_id, 'comment_id', new.id)
     where coalesce((
-      select np.in_app_enabled and np.activity_enabled
+      select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = new.tagged_user_id
     ), true);
@@ -1601,7 +1603,7 @@ begin
       'open_post',
       jsonb_build_object('post_id', v_post_id, 'comment_id', new.comment_id)
     where coalesce((
-      select np.in_app_enabled and np.activity_enabled
+      select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = v_comment_author_id
     ), true)
@@ -1702,7 +1704,7 @@ begin
           'Your account is now verified as a CyanZone content creator.'
       )
     where coalesce((
-      select np.in_app_enabled and np.system_enabled
+      select (np.in_app_enabled or np.push_enabled) and np.system_enabled
       from public.notification_preferences np
       where np.user_id = new.id
     ), true)
@@ -1786,7 +1788,7 @@ begin
         'scheduled_deletion_at', v_deletion_at
       )
     where coalesce((
-      select np.in_app_enabled and np.system_enabled
+      select (np.in_app_enabled or np.push_enabled) and np.system_enabled
       from public.notification_preferences np
       where np.user_id = new.author_id
     ), true)
@@ -1851,7 +1853,7 @@ begin
         )
       )
     where coalesce((
-      select np.in_app_enabled and np.system_enabled
+      select (np.in_app_enabled or np.push_enabled) and np.system_enabled
       from public.notification_preferences np
       where np.user_id = new.author_id
     ), true)

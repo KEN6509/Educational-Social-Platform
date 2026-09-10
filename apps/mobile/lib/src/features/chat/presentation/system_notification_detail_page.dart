@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../../posts/presentation/post_detail_page.dart';
+import '../../posts/data/post_interaction_sync.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
 import 'chat_widgets.dart';
@@ -119,9 +120,16 @@ class _SystemNotificationDetailPageState
         throw const ChatNotificationPostUnavailableException();
       }
       if (!mounted) return;
-      await Navigator.of(context).push(
+      final result = await Navigator.of(context).push<Map<String, dynamic>>(
         MaterialPageRoute(builder: (_) => PostDetailPage(post: post)),
       );
+      if (result != null) {
+        PostInteractionSync.publish(
+          postId: post.id,
+          post: post,
+          result: result,
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _postUnavailable = true);

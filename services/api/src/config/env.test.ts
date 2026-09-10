@@ -76,3 +76,36 @@ test('CORS origins are trimmed, deduplicated, and parsed for deployment', () => 
     'http://localhost:5173',
   ]);
 });
+
+test('push configuration is optional for local development', () => {
+  const env = parseEnv(requiredEnv);
+  assert.equal(env.PUSH_WEBHOOK_SECRET, undefined);
+  assert.equal(env.FIREBASE_PROJECT_ID, undefined);
+});
+
+test('push configuration requires every Firebase credential together', () => {
+  assert.throws(
+    () =>
+      parseEnv({
+        ...requiredEnv,
+        PUSH_WEBHOOK_SECRET: 'p'.repeat(32),
+        FIREBASE_PROJECT_ID: 'cyanzone-test',
+      }),
+    /Firebase push configuration/i,
+  );
+});
+
+test('push configuration normalizes Vercel escaped private-key newlines', () => {
+  const env = parseEnv({
+    ...requiredEnv,
+    PUSH_WEBHOOK_SECRET: 'p'.repeat(32),
+    FIREBASE_PROJECT_ID: 'cyanzone-test',
+    FIREBASE_CLIENT_EMAIL: 'firebase-adminsdk@example.iam.gserviceaccount.com',
+    FIREBASE_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----\\n',
+  });
+
+  assert.equal(
+    env.FIREBASE_PRIVATE_KEY,
+    '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----\n',
+  );
+});

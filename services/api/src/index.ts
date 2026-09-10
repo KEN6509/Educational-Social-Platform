@@ -26,6 +26,13 @@ import { createModerationService } from './moderation/moderationService.js';
 import { createModerationRouter } from './moderation/moderationRouter.js';
 import { ModerationProviderError } from './moderation/moderationTypes.js';
 import { AdminBootstrapError } from './routes/admin.js';
+import { FirebasePushGateway } from './push/firebasePushGateway.js';
+import {
+  createPushRepository,
+  type PushSupabaseClient,
+} from './push/pushRepository.js';
+import { createPushRouter } from './push/pushRouter.js';
+import { createPushService } from './push/pushService.js';
 
 const adminAuthSource: AdminAuthSource = {
   getUser: async (token) => {
@@ -110,6 +117,24 @@ const moderationRouter = createModerationRouter({
   ),
 });
 
+const pushRouter = env.PUSH_WEBHOOK_SECRET &&
+    env.FIREBASE_PROJECT_ID &&
+    env.FIREBASE_CLIENT_EMAIL &&
+    env.FIREBASE_PRIVATE_KEY
+  ? createPushRouter({
+      verifyMember: createVerifyMember(memberAuthSource),
+      webhookSecret: env.PUSH_WEBHOOK_SECRET,
+      service: createPushService(
+        createPushRepository(supabaseAdmin as unknown as PushSupabaseClient),
+        new FirebasePushGateway({
+          projectId: env.FIREBASE_PROJECT_ID,
+          clientEmail: env.FIREBASE_CLIENT_EMAIL,
+          privateKey: env.FIREBASE_PRIVATE_KEY,
+        }),
+      ),
+    })
+  : undefined;
+
 const app = createApp({
   allowedOrigins: env.CORS_ALLOWED_ORIGINS,
   bootstrapSecret: env.ADMIN_BOOTSTRAP_SECRET,
@@ -149,6 +174,7 @@ const app = createApp({
   },
   protectedAdminRouter,
   moderationRouter,
+  pushRouter,
   verifyAdmin: createVerifyAdmin(adminAuthSource),
 }, express());
 
