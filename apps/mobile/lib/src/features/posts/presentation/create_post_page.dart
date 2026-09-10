@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../data/feed_post.dart';
 import '../data/posts_repository.dart';
 import '../domain/content_moderation.dart';
@@ -312,34 +313,25 @@ class _CreatePostPageState extends State<CreatePostPage> {
   }
 
   void _showModerationMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AppFeedback.show(context, message: message);
   }
 
   void _showModerationRetry(String postId) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: const Text('Moderation could not complete.'),
-          action: SnackBarAction(
-            label: 'Retry moderation',
-            onPressed: () => _moderatePost(postId),
-          ),
+    AppFeedback.show(
+      context,
+      message: 'Moderation could not complete.',
+      kind: AppFeedbackKind.warning,
+      actions: [
+        AppFeedbackAction(
+          label: 'Retry moderation',
+          onPressed: () => _moderatePost(postId),
         ),
-      );
+      ],
+    );
   }
 
   void _showSubmissionError(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(message),
-        ),
-      );
+    AppFeedback.showError(context, message);
   }
 
   String _contentTypeFor(_DraftImage image) {
