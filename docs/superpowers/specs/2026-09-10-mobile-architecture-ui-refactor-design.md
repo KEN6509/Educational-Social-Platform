@@ -90,6 +90,10 @@ documentation and tests. Existing API, Administration Portal, and Supabase
 code remain unchanged unless a mobile test exposes a genuine compatibility
 defect that cannot be resolved inside the mobile boundary.
 
+If that exception occurs, implementation stops at the mobile boundary. The
+incompatible contract is documented and the user must approve a separate
+backend, portal, or SQL change before it is made.
+
 The refactor may make small visual adjustments when inconsistent values are
 replaced by shared tokens. The overall CyanZone appearance, page content,
 navigation, and interaction behaviour must remain recognizable and unchanged.
@@ -142,6 +146,27 @@ and idiomatic for Flutter.
 Primitive values define the approved CyanZone palette, spacing scale, radii,
 and shadows. The spacing scale is based on `4, 8, 12, 16, 20, 24, 32`.
 
+The initial palette consolidates colours already used by CyanZone:
+
+- cyan `#4490AD`;
+- navy `#0B1F3E`;
+- mint `#58E1B5`;
+- background `#FAFCFC`;
+- surface `#FFFFFF`;
+- muted surface `#F1F5F9`;
+- primary text `#0F172A`;
+- secondary text `#64748B`;
+- muted text `#94A3B8`;
+- border `#E2E8F0`;
+- success `#10B981`;
+- warning `#B45309`; and
+- error `#E11D48`.
+
+The initial component radii are 14 pixels for compact feedback surfaces, 18
+pixels for inputs and normal buttons, 22 pixels for dialogs, and 28 pixels for
+the floating navigation pill. These tokens consolidate existing visual values;
+they do not introduce a new visual identity.
+
 ### Semantic tokens
 
 Semantic tokens describe purpose rather than raw values, including:
@@ -181,9 +206,20 @@ dialog system. It supports:
 - permission request variants.
 
 All variants use consistent title and description typography, surface colour,
-radius, padding, action spacing, loading state, and dismissal behaviour.
+radius, padding, action spacing, disabled state, and dismissal behaviour.
 Button order and emphasis remain appropriate to the action. Destructive
 actions must be visually distinct and require explicit confirmation.
+
+Confirmation and destructive variants are not dismissed by tapping the
+barrier. The primary action is a full-width filled button followed by a
+full-width secondary text action, matching the existing CyanZone confirmation
+dialog. Information dialogs may use one acknowledgement action. Permission
+dialogs use the same layout with a primary Enable action and a secondary Not
+now action. Buttons use semantic Flutter controls rather than raw gesture
+detectors so focus, disabled state, and accessibility semantics remain intact.
+The dialog returns the user's decision and closes before a long-running action
+starts; operation loading remains on the owning page rather than trapping the
+user inside a modal progress state.
 
 The push permission prompt is migrated to the shared dialog design. Existing
 feature dialogs are migrated gradually rather than replaced in one large
@@ -204,6 +240,11 @@ The established white floating post/share feedback surface is the visual
 baseline: white background, readable dark text, subtle border or shadow, and a
 CyanZone-coloured optional action. Status must not depend on colour alone.
 
+A normal snackbar remains visible for four seconds. A snackbar with an action
+remains visible for six seconds. Showing a new snackbar hides the current one
+first. The snackbar uses `SnackBarBehavior.floating`; the containing Scaffold
+geometry and shared margins keep it above the floating navigation pill.
+
 Pages call a small API such as `showSuccess`, `showError`, or a typed general
 method instead of constructing `SnackBar` objects directly. Long explanations
 remain in page content or dialogs; snackbars stay concise.
@@ -222,6 +263,12 @@ Implementation must:
 - provide one shared navigation-height/clearance value; and
 - ensure the final list item, form action, or chat content is not hidden behind
   the overlay.
+
+The navigation pill uses a 62-pixel component height, 12-pixel horizontal and
+bottom outer margins, and the existing 28-pixel radius. The shared minimum
+content clearance is therefore 86 pixels plus the device bottom inset. The
+five main tabs covered by this rule are Home, Parent-Child, Create, Chats, and
+Profile.
 
 Each tab owns only its content padding needs; it must not duplicate the visual
 construction of the navigation bar.
@@ -320,6 +367,10 @@ Retry actions must call the existing idempotent workflow where available and
 must not duplicate posts, messages, moderation requests, or supervision
 actions.
 
+If an existing retry workflow is not idempotent, the snackbar must not expose a
+Retry action during this refactor. The workflow is recorded as a separate
+behaviour defect instead of adding an unsafe retry.
+
 ## Migration Order
 
 1. Add and test shared theme, spacing, page-inset, dialog, and snackbar
@@ -361,6 +412,39 @@ coverage is missing. Verification includes:
 Manual checks cover representative small and large Android screens, every main
 tab, long scrolling pages, forms, the chat composer, dialogs, snackbars with
 and without actions, keyboard visibility, and system navigation insets.
+
+Widget layout checks use at least a compact 320 by 640 logical-pixel surface
+and a common 412 by 915 surface, including a 1.3 text scale where the component
+contains user-facing text. Android verification follows the Flutter-managed
+minimum and target SDK values already configured by the project rather than
+introducing new SDK requirements.
+
+The push permission dialog must still be checked on the available physical
+Android phone. This verifies the refactored prompt and permission transition;
+it does not replace the separately deferred two-account FCM delivery test.
+
+## Stage Exit Criteria
+
+A refactor stage is complete only when:
+
+- `flutter analyze` exits successfully with no new issues;
+- every related test command exits successfully with zero failures;
+- the full mobile suite passes after the shell, posts, chat, and final stages;
+- the changed screens pass their manual checklist on the available Android
+  device or are explicitly recorded as awaiting device evidence;
+- no raw user-facing exception text was introduced; and
+- `git diff --check` reports no whitespace errors.
+
+For listener and request optimizations, evidence must show the specific change:
+one subscription per owning lifecycle, disposal when the owner closes, no
+duplicate request caused by an ordinary rebuild, or an item-level update in
+place of a complete refresh. File movement alone is not optimization evidence.
+
+An existing automated-test failure, a broken core flow, hidden content behind
+the floating bar, or a new duplicate request/subscription is a stage blocker.
+The next stage does not start until it is corrected. "Mobile is stable" means
+all required automated checks pass and no known blocker remains in the manual
+mobile checklist.
 
 ## Delivery and Risk Control
 
