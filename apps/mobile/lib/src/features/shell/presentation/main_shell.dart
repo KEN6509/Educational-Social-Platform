@@ -7,7 +7,6 @@ import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/shimmer_skeleton.dart';
 import '../../chat/data/chat_repository.dart';
 import '../../chat/presentation/chat_page.dart';
-import '../../../core/widgets/unread_badge.dart';
 import '../../posts/data/aspect_ratio_cache.dart';
 import '../../posts/application/moderation_submission_coordinator.dart';
 import '../../posts/data/feed_mode.dart';
@@ -37,6 +36,7 @@ import '../../notifications/presentation/push_notification_scope.dart';
 import '../../notifications/presentation/push_permission_prompt.dart';
 import '../../notifications/presentation/push_destination_navigator.dart';
 import '../../notifications/domain/push_destination.dart';
+import 'widgets/cyanzone_bottom_navigation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MainShell extends StatefulWidget {
@@ -198,6 +198,27 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     setState(() => _chatBadgeCount = count);
   }
 
+  void _handleNavigationTap(int value) {
+    if (value == _index) {
+      if (value == 0) {
+        _homeKey.currentState?.revealRefreshAndRefresh();
+      } else if (value == 4) {
+        setState(() => _profileRefreshSignal += 1);
+      }
+      return;
+    }
+
+    setState(() {
+      _index = value;
+      if (value == 4) {
+        _profileRefreshSignal += 1;
+      }
+    });
+    if (value == 3) {
+      _refreshChatBadge();
+    }
+  }
+
   Future<void> _openFilterPage() async {
     final result = await Navigator.of(context).push<Set<String>>(
       MaterialPageRoute(
@@ -297,6 +318,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     barTags.addAll(_fixedTags);
 
     return Scaffold(
+      extendBody: true,
       appBar: _index == 0
           ? _HomeAppBar(
               onFilterTap: _openFilterPage,
@@ -331,39 +353,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           ),
         ],
       ),
-      bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x120B1F3E),
-              blurRadius: 18,
-              offset: Offset(0, -4),
-            ),
-          ],
-        ),
-        child: _CyanZoneNavBar(
-          selectedIndex: _index,
-          onTap: (value) {
-            if (value == _index) {
-              if (value == 0) {
-                _homeKey.currentState?.revealRefreshAndRefresh();
-              } else if (value == 4) {
-                setState(() => _profileRefreshSignal += 1);
-              }
-              return;
-            }
-            setState(() {
-              _index = value;
-              if (value == 4) {
-                _profileRefreshSignal += 1;
-              }
-            });
-            if (value == 3) {
-              _refreshChatBadge();
-            }
-          },
-          chatBadgeCount: _chatBadgeCount,
-        ),
+      bottomNavigationBar: CyanZoneBottomNavigation(
+        selectedIndex: _index,
+        onTap: _handleNavigationTap,
+        chatBadgeCount: _chatBadgeCount,
       ),
     );
   }
@@ -962,203 +955,6 @@ class _HomeAppBarState extends State<_HomeAppBar>
           ),
         ),
       ],
-    );
-  }
-}
-
-class _CyanZoneNavBar extends StatelessWidget {
-  const _CyanZoneNavBar({
-    required this.selectedIndex,
-    required this.onTap,
-    this.chatBadgeCount = 0,
-  });
-
-  final int selectedIndex;
-  final ValueChanged<int> onTap;
-  final int chatBadgeCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(12, 0, 12, bottomInset > 0 ? 8 : 12),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0xFFE7EEF0)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x180B1F3E),
-              blurRadius: 22,
-              offset: Offset(0, 10),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _NavButton(
-                  icon: Icons.home_outlined,
-                  selectedIcon: Icons.home_rounded,
-                  label: 'Home',
-                  selected: selectedIndex == 0,
-                  onTap: () => onTap(0),
-                ),
-                _NavButton(
-                  icon: Icons.supervised_user_circle_outlined,
-                  selectedIcon: Icons.supervised_user_circle_rounded,
-                  label: 'Parent-Child',
-                  selected: selectedIndex == 1,
-                  onTap: () => onTap(1),
-                ),
-                _CreateNavButton(
-                  selected: selectedIndex == 2,
-                  onTap: () => onTap(2),
-                ),
-                _NavButton(
-                  icon: Icons.mode_comment_outlined,
-                  selectedIcon: Icons.mode_comment_rounded,
-                  label: 'Chats',
-                  selected: selectedIndex == 3,
-                  onTap: () => onTap(3),
-                  badgeCount: chatBadgeCount,
-                ),
-                _NavButton(
-                  icon: Icons.account_circle_outlined,
-                  selectedIcon: Icons.account_circle_rounded,
-                  label: 'Profile',
-                  selected: selectedIndex == 4,
-                  onTap: () => onTap(4),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CreateNavButton extends StatelessWidget {
-  const _CreateNavButton({
-    required this.selected,
-    required this.onTap,
-  });
-
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: 'Create',
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          width: 58,
-          height: 46,
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xFF0B1F3E) : const Color(0xFFF3F7F8),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: selected
-                ? const [
-                    BoxShadow(
-                      color: Color(0x260B1F3E),
-                      blurRadius: 12,
-                      offset: Offset(0, 5),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Icon(
-            Icons.add_rounded,
-            color: selected ? Colors.white : const Color(0xFF0B1F3E),
-            size: 31,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavButton extends StatelessWidget {
-  const _NavButton({
-    required this.icon,
-    required this.selectedIcon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.badgeCount = 0,
-  });
-
-  final IconData icon;
-  final IconData selectedIcon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final int badgeCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? const Color(0xFF0B1F3E) : const Color(0xFF667781);
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          splashColor: Colors.transparent, // Remove splash
-          highlightColor: Colors.transparent, // Remove splash
-          onTap: onTap,
-          child: SizedBox(
-            width: 50,
-            height: 44,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Icon(
-                  selected ? selectedIcon : icon,
-                  color: color,
-                  size: selected ? 28 : 26,
-                ),
-                if (badgeCount > 0)
-                  Positioned(
-                    top: 2,
-                    right: 4,
-                    child: UnreadBadge(count: badgeCount),
-                  ),
-                if (selected)
-                  Positioned(
-                    bottom: 1,
-                    child: Container(
-                      width: 4,
-                      height: 4,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF0B1F3E),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
