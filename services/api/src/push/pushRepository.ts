@@ -9,6 +9,7 @@ export type PushSourceRecord = {
   eventType: string;
   title: string;
   body: string;
+  createdAt: string;
   actorId: string | null;
   postId: string | null;
   commentId: string | null;
@@ -45,6 +46,7 @@ export type PushRepository = {
     userId: string;
     deviceId: string;
     token: string;
+    enabled: boolean;
   }): Promise<void>;
   deactivateDevice(userId: string, deviceId: string): Promise<void>;
   loadSource(
@@ -79,12 +81,13 @@ export type PushSupabaseClient = {
 
 export function createPushRepository(client: PushSupabaseClient): PushRepository {
   return {
-    async registerDevice({userId, deviceId, token}) {
+    async registerDevice({userId, deviceId, token, enabled}) {
       const result = await client.rpc('register_push_device', {
         p_user_id: userId,
         p_device_id: deviceId,
         p_token: token,
         p_platform: 'android',
+        p_is_active: enabled,
       });
       assertSuccess(result, 'Unable to register push device.');
     },
@@ -99,8 +102,8 @@ export function createPushRepository(client: PushSupabaseClient): PushRepository
 
     async loadSource(sourceTable, sourceId) {
       const columns = sourceTable === 'notifications'
-        ? 'id,user_id,type,title,body,actor_id,post_id,comment_id,conversation_id,message_id,action_type,action_payload'
-        : 'id,user_id,event_type,title,body,link_id,check_in_id,sos_id,child_id';
+        ? 'id,user_id,type,title,body,created_at,actor_id,post_id,comment_id,conversation_id,message_id,action_type,action_payload'
+        : 'id,user_id,event_type,title,body,created_at,link_id,check_in_id,sos_id,child_id';
       const result = await client
         .from(sourceTable)
         .select(columns)
@@ -188,6 +191,7 @@ function mapSource(
     eventType: String(row.type ?? row.event_type),
     title: String(row.title ?? ''),
     body: String(row.body ?? ''),
+    createdAt: String(row.created_at ?? ''),
     actorId: nullableString(row.actor_id),
     postId: nullableString(row.post_id),
     commentId: nullableString(row.comment_id),

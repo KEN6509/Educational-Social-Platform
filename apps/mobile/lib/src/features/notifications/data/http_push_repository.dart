@@ -12,19 +12,25 @@ class HttpPushRepository {
     required this.accessToken,
     Uri? baseUrl,
     http.Client? client,
+    Duration timeout = const Duration(seconds: 12),
   })  : _baseUrl = baseUrl ?? ApiConfig.baseUrl,
-        _client = client ?? http.Client();
+        _client = client ?? http.Client(),
+        _timeout = timeout;
 
   final PushAccessTokenReader accessToken;
   final Uri _baseUrl;
   final http.Client _client;
+  final Duration _timeout;
 
-  Future<void> registerDevice(
-      {required String deviceId, required String token}) async {
+  Future<void> registerDevice({
+    required String deviceId,
+    required String token,
+    required bool enabled,
+  }) async {
     await _send(
       'PUT',
       '/push/devices',
-      body: {'deviceId': deviceId, 'token': token},
+      body: {'deviceId': deviceId, 'token': token, 'enabled': enabled},
     );
   }
 
@@ -32,7 +38,7 @@ class HttpPushRepository {
     await _send('DELETE', '/push/devices/${Uri.encodeComponent(deviceId)}');
   }
 
-  Future<PushDestination?> resolveDestination(
+  Future<ResolvedPushDestination?> resolveDestination(
       PushDestination destination) async {
     final response = await _send(
       'GET',
@@ -40,7 +46,7 @@ class HttpPushRepository {
       expectBody: true,
     );
     final map = jsonDecode(response.body) as Map<String, dynamic>;
-    return PushDestination.tryParse(map);
+    return ResolvedPushDestination.tryParse(map);
   }
 
   Future<http.Response> _send(
@@ -60,12 +66,13 @@ class HttpPushRepository {
     final uri = _baseUrl.replace(
       path: '${_baseUrl.path.replaceFirst(RegExp(r'/+$'), '')}$path',
     );
-    final response = switch (method) {
-      'PUT' => await _client.put(uri, headers: headers, body: jsonEncode(body)),
-      'DELETE' => await _client.delete(uri, headers: headers),
-      'GET' => await _client.get(uri, headers: headers),
+    final request = switch (method) {
+      'PUT' => _client.put(uri, headers: headers, body: jsonEncode(body)),
+      'DELETE' => _client.delete(uri, headers: headers),
+      'GET' => _client.get(uri, headers: headers),
       _ => throw ArgumentError('Unsupported push method'),
     };
+    final response = await request.timeout(_timeout);
     if (response.statusCode < 200 ||
         response.statusCode >= 300 ||
         (expectBody && response.body.isEmpty)) {

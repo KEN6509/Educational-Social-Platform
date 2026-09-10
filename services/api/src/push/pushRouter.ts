@@ -26,12 +26,18 @@ export function createPushRouter(dependencies: PushRouterDependencies) {
     const member = res.locals.member as MemberIdentity;
     const deviceId = boundedString(req.body?.deviceId, 8, 160);
     const token = boundedString(req.body?.token, 20, 4096);
-    if (!deviceId || !token) {
+    const enabled = req.body?.enabled;
+    if (!deviceId || !token || typeof enabled !== 'boolean') {
       res.status(400).json({error: 'A valid Android device ID and token are required.'});
       return;
     }
     try {
-      await dependencies.service.registerDevice(member.id, deviceId, token);
+      await dependencies.service.registerDevice(
+        member.id,
+        deviceId,
+        token,
+        enabled,
+      );
       res.status(204).send();
     } catch (error) {
       handleError(res, error, 'Unable to register push device.');

@@ -34,7 +34,11 @@ class _FakeMessaging implements FirebaseMessagingClient {
 
 class _FakeLocalNotifications implements ForegroundNotificationClient {
   final shown = <PushMessage>[];
+  final opened = StreamController<PushMessage>.broadcast();
   bool initialized = false;
+
+  @override
+  Stream<PushMessage> get onMessageOpened => opened.stream;
 
   @override
   Future<void> initialize() async => initialized = true;
@@ -74,6 +78,20 @@ void main() {
     ));
     expect((await opened).route, PushRoute.conversation);
 
+    final localOpened = gateway.onMessageOpened.first;
+    local.opened.add(const PushMessage(
+      title: 'SOS',
+      body: 'Open alert',
+      data: {
+        'version': '1',
+        'sourceTable': 'supervision_notifications',
+        'sourceId': 'source-2',
+        'route': 'sos',
+        'sosId': 'sos-1',
+      },
+    ));
+    expect((await localOpened).route, PushRoute.sos);
+
     const foreground = PushMessage(title: 'Title', body: 'Body', data: {});
     await gateway.showForeground(foreground);
     expect(local.shown.single, foreground);
@@ -81,6 +99,7 @@ void main() {
     await messaging.tokenRefresh.close();
     await messaging.messages.close();
     await messaging.opened.close();
+    await local.opened.close();
   });
 
   test('malformed taps are ignored', () async {

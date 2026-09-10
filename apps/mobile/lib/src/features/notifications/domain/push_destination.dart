@@ -61,7 +61,7 @@ class PushDestination {
       _ => null,
     };
     if (route == null) return null;
-    return PushDestination(
+    final destination = PushDestination(
       sourceTable: sourceTable,
       sourceId: sourceId,
       route: route,
@@ -75,6 +75,7 @@ class PushDestination {
       sosId: _string(map['sosId']),
       childId: _string(map['childId']),
     );
+    return destination._isValid ? destination : null;
   }
 
   Map<String, String> toData() {
@@ -82,9 +83,16 @@ class PushDestination {
       'version': '1',
       'sourceTable': sourceTable,
       'sourceId': sourceId,
-      'route': route.name == 'systemNotification'
-          ? 'system_notification'
-          : route.name,
+      'route': switch (route) {
+        PushRoute.conversation => 'conversation',
+        PushRoute.post => 'post',
+        PushRoute.profile => 'profile',
+        PushRoute.systemNotification => 'system_notification',
+        PushRoute.familyLink => 'family_link',
+        PushRoute.checkIn => 'check_in',
+        PushRoute.sos => 'sos',
+        PushRoute.screenTime => 'screen_time',
+      },
     };
     final optional = <String, String?>{
       'notificationId': notificationId,
@@ -103,9 +111,50 @@ class PushDestination {
     return values;
   }
 
+  bool get _isValid {
+    final ordinary = sourceTable == 'notifications';
+    final supervision = sourceTable == 'supervision_notifications';
+    return switch (route) {
+      PushRoute.conversation => ordinary && conversationId != null,
+      PushRoute.post => ordinary && postId != null,
+      PushRoute.profile => ordinary && profileId != null,
+      PushRoute.systemNotification => ordinary && notificationId != null,
+      PushRoute.familyLink => supervision && linkId != null,
+      PushRoute.checkIn => supervision && checkInId != null,
+      PushRoute.sos => supervision && sosId != null,
+      PushRoute.screenTime => supervision && childId != null,
+    };
+  }
+
   static String? _string(dynamic value) {
     if (value is! String) return null;
     final trimmed = value.trim();
     return trimmed.isEmpty ? null : trimmed;
+  }
+}
+
+class ResolvedPushDestination {
+  const ResolvedPushDestination({
+    required this.destination,
+    required this.source,
+  });
+
+  final PushDestination destination;
+  final Map<String, dynamic> source;
+
+  static ResolvedPushDestination? tryParse(Map<String, dynamic> raw) {
+    final destination = PushDestination.tryParse(raw);
+    final rawSource = raw['source'];
+    if (destination == null || rawSource is! Map) return null;
+    final source = Map<String, dynamic>.from(rawSource);
+    if (PushDestination._string(source['id']) != destination.sourceId ||
+        PushDestination._string(source['sourceTable']) !=
+            destination.sourceTable) {
+      return null;
+    }
+    return ResolvedPushDestination(
+      destination: destination,
+      source: Map.unmodifiable(source),
+    );
   }
 }

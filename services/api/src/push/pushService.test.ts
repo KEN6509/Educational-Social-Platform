@@ -20,6 +20,7 @@ function source(overrides: Partial<PushSourceRecord> = {}): PushSourceRecord {
     eventType: 'chat_message',
     title: 'New message',
     body: 'A friend sent a message.',
+    createdAt: '2026-09-10T12:00:00.000Z',
     actorId: 'actor-1',
     postId: null,
     commentId: null,
@@ -147,4 +148,58 @@ test('push service skips disabled preferences and rejects mismatched webhook rec
     }),
     /no longer available/i,
   );
+});
+
+test('push service rejects an unsupported destination source at runtime', async () => {
+  const repository = {
+    registerDevice: async () => {},
+    deactivateDevice: async () => {},
+    loadSource: async () => source(),
+    loadPreferences: async () => ({pushEnabled: true, categoryEnabled: true}),
+    listActiveDevices: async () => [],
+    claimDelivery: async () => ({deliveryId: 'delivery-1', claimed: true, reason: 'claimed'}),
+    completeDelivery: async () => {},
+    deactivateToken: async () => {},
+  } satisfies PushRepository;
+  const service = createPushService(repository, {
+    send: async () => ({successCount: 0, failures: []}),
+  });
+
+  await assert.rejects(
+    () => service.resolveDestination('user-1', 'profiles' as never, 'source-1'),
+    /unsupported push source table/i,
+  );
+});
+
+test('push service sends at most 500 devices in each Firebase batch', async () => {
+  const batchSizes: number[] = [];
+  const repository = {
+    registerDevice: async () => {},
+    deactivateDevice: async () => {},
+    loadSource: async () => source(),
+    loadPreferences: async () => ({pushEnabled: true, categoryEnabled: true}),
+    listActiveDevices: async () => Array.from({length: 501}, (_, index) => ({
+      id: `row-${index}`,
+      userId: 'user-1',
+      deviceId: `device-${index}`,
+      token: `token-${index.toString().padStart(20, '0')}`,
+    })),
+    claimDelivery: async () => ({deliveryId: 'delivery-1', claimed: true, reason: 'claimed'}),
+    completeDelivery: async () => {},
+    deactivateToken: async () => {},
+  } satisfies PushRepository;
+  const service = createPushService(repository, {
+    send: async (messages) => {
+      batchSizes.push(messages.length);
+      return {successCount: messages.length, failures: []};
+    },
+  });
+
+  await service.processEvent({
+    type: 'INSERT',
+    table: 'notifications',
+    record: {id: 'source-1', user_id: 'user-1'},
+  });
+
+  assert.deepEqual(batchSizes, [500, 1]);
 });

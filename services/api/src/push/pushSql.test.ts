@@ -34,6 +34,16 @@ test('push migration defines device and delivery idempotency boundaries', () => 
   assert.match(migration, /create table if not exists public\.push_deliveries/i);
   assert.match(migration, /unique\s*\(source_table, source_id\)/i);
   assert.match(migration, /processing.*delivered.*partial.*skipped.*failed/is);
+  assert.match(
+    migration,
+    /delete from public\.push_device_tokens[\s\S]*?token <> p_token/i,
+  );
+  assert.match(migration, /p_is_active boolean default true/i);
+  assert.match(migration, /is_active = excluded\.is_active/i);
+  assert.match(
+    migration,
+    /create or replace function public\.register_push_device\s*\(/i,
+  );
 });
 
 test('push migration protects service-only lifecycle RPCs and member visibility', () => {
@@ -52,5 +62,9 @@ test('push migration protects service-only lifecycle RPCs and member visibility'
   assert.match(
     migration,
     /grant execute on function public\.register_push_device[\s\S]*?to service_role/i,
+  );
+  assert.match(
+    migration,
+    /revoke select, insert, update, delete on public\.push_device_tokens from anon, authenticated/i,
   );
 });

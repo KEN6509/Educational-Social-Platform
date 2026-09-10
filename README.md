@@ -117,7 +117,9 @@ CyanZone prioritizes a polished prototype over broad unfinished scope:
 ## Current Implementation Boundary
 
 - Supabase-backed in-app chat notifications and badges are implemented.
-- External Android/iOS push delivery is not implemented yet.
+- Android FCM push delivery is implemented and the Firebase/Vercel credentials
+  are configured. Supabase webhooks and physical-device acceptance remain to be
+  completed; iOS/APNs delivery is a future improvement.
 - Gemini text/image moderation is connected through the privileged API and the
   mobile/Admin clients. Failed requests are retained for same-record retry,
   and administrator cases preserve the submitted content revision. Live

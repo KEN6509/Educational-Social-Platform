@@ -32,7 +32,12 @@ export class PushServiceError extends Error {
 }
 
 export type PushService = {
-  registerDevice(userId: string, deviceId: string, token: string): Promise<void>;
+  registerDevice(
+    userId: string,
+    deviceId: string,
+    token: string,
+    enabled: boolean,
+  ): Promise<void>;
   deactivateDevice(userId: string, deviceId: string): Promise<void>;
   processEvent(event: PushWebhookEvent): Promise<PushProcessResult>;
   resolveDestination(
@@ -47,8 +52,8 @@ export function createPushService(
   gateway: PushGateway,
 ): PushService {
   return {
-    registerDevice: (userId, deviceId, token) =>
-      repository.registerDevice({userId, deviceId, token}),
+    registerDevice: (userId, deviceId, token, enabled) =>
+      repository.registerDevice({userId, deviceId, token, enabled}),
     deactivateDevice: (userId, deviceId) =>
       repository.deactivateDevice(userId, deviceId),
     async processEvent(event) {
@@ -110,7 +115,7 @@ export function createPushService(
 
       const destination = destinationFor(source);
       const messages = devices.map((device) => createMessage(source, destination, device.token));
-      const first = await sendWithOneRetry(gateway, messages);
+      const first = await sendInBatches(gateway, messages);
       for (const failure of first.failures) {
         if (failure.invalidToken) await repository.deactivateToken(failure.token);
       }
@@ -137,7 +142,8 @@ export function createPushService(
     },
 
     async resolveDestination(userId, sourceTable, sourceId) {
-      const source = await repository.loadSource(sourceTable, sourceId);
+      const validatedSourceTable = parseSourceTable(sourceTable);
+      const source = await repository.loadSource(validatedSourceTable, sourceId);
       if (!source || source.userId !== userId) {
         throw new PushServiceError(404, 'Push source is no longer available.');
       }
@@ -221,6 +227,23 @@ function createMessage(
     data,
     channelId: destination.route === 'sos' ? 'cyanzone_safety' : 'cyanzone_default',
   };
+}
+
+async function sendInBatches(
+  gateway: PushGateway,
+  messages: PushMessage[],
+): Promise<PushSendResult> {
+  let successCount = 0;
+  const failures = [] as PushSendResult['failures'];
+  for (let start = 0; start < messages.length; start += 500) {
+    const result = await sendWithOneRetry(
+      gateway,
+      messages.slice(start, start + 500),
+    );
+    successCount += result.successCount;
+    failures.push(...result.failures);
+  }
+  return {successCount, failures};
 }
 
 async function sendWithOneRetry(

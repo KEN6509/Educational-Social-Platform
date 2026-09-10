@@ -8,6 +8,7 @@ import '../domain/push_notification_gateway.dart';
 typedef PushDeviceRegistrar = Future<void> Function({
   required String deviceId,
   required String token,
+  required bool enabled,
 });
 typedef PushDeviceRevoker = Future<void> Function(String deviceId);
 typedef PushDestinationHandler = Future<void> Function(
@@ -55,6 +56,8 @@ class PushNotificationCoordinator {
       if (initial != null) await _receiveDestination(initial);
     }
 
+    await _restoreEnabledRegistration();
+
     final pending = await store.readPendingDestination();
     if (pending != null && isSignedIn()) {
       await store.clearPendingDestination();
@@ -67,6 +70,12 @@ class PushNotificationCoordinator {
     final authorization = await gateway.requestAuthorization();
     if (authorization == PushAuthorizationStatus.denied) {
       await store.setPushEnabled(false);
+      final deviceId = _deviceId ??= await store.installationId();
+      try {
+        await revokeDevice(deviceId);
+      } catch (_) {
+        // The local preference is off; a future sign-in can retry cleanup.
+      }
       return false;
     }
     final token = await gateway.getToken();
@@ -75,7 +84,7 @@ class PushNotificationCoordinator {
       await store.setPushEnabled(false);
       return false;
     }
-    await registerDevice(deviceId: deviceId, token: token);
+    await registerDevice(deviceId: deviceId, token: token, enabled: true);
     final preferences = await loadPreferences();
     await savePreferences(_copyPreferences(preferences, pushEnabled: true));
     await store.setPushEnabled(true);
@@ -124,9 +133,27 @@ class PushNotificationCoordinator {
     }
     final deviceId = _deviceId ??= await store.installationId();
     try {
-      await registerDevice(deviceId: deviceId, token: token);
+      await registerDevice(deviceId: deviceId, token: token, enabled: true);
     } catch (_) {
       // The next refresh or sign-in retries registration.
+    }
+  }
+
+  Future<void> _restoreEnabledRegistration() async {
+    final preferences = await loadPreferences();
+    await store.setPushEnabled(preferences.pushEnabled);
+    if (!isSignedIn()) return;
+    final token = await gateway.getToken();
+    if (token == null || token.trim().isEmpty) return;
+    final deviceId = _deviceId ??= await store.installationId();
+    try {
+      await registerDevice(
+        deviceId: deviceId,
+        token: token,
+        enabled: preferences.pushEnabled,
+      );
+    } catch (_) {
+      // A later app start or Firebase token refresh retries registration.
     }
   }
 

@@ -223,6 +223,15 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _refreshVersion += 1);
   }
 
+  void _handlePostedPostDeleted() {
+    final profile = _profile;
+    if (profile == null || profile.postCount <= 0) return;
+    final updated = profile.copyWith(postCount: profile.postCount - 1);
+    setState(() => _profile = updated);
+    _profileMemoryCache[updated.id] = updated;
+    unawaited(_cacheProfile(updated));
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _profile == null) {
@@ -294,6 +303,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   mode: _ProfilePostGridMode.posted,
                   profileUserId: _profile!.id,
                   refreshVersion: _refreshVersion,
+                  onPostDeleted: _handlePostedPostDeleted,
                 ),
                 _ProfilePostGrid(
                   fetcher: () =>
@@ -763,12 +773,14 @@ class _ProfilePostGrid extends StatefulWidget {
     required this.mode,
     required this.profileUserId,
     required this.refreshVersion,
+    this.onPostDeleted,
   });
 
   final Future<List<FeedPost>> Function() fetcher;
   final _ProfilePostGridMode mode;
   final String profileUserId;
   final int refreshVersion;
+  final VoidCallback? onPostDeleted;
 
   @override
   State<_ProfilePostGrid> createState() => _ProfilePostGridState();
@@ -808,6 +820,7 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
         ((widget.mode == _ProfilePostGridMode.liked && update.post.isLiked) ||
             (widget.mode == _ProfilePostGridMode.saved && update.post.isSaved));
 
+    final hadPost = _posts.any((post) => post.id == update.postId);
     final updatedPosts = update.applyToPosts(
       _posts,
       insertIfMissing: insertIfMissing,
@@ -820,6 +833,7 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
     if (widget.mode == _ProfilePostGridMode.posted && update.isDeleted) {
       _postedPostsCache[widget.profileUserId] = List<FeedPost>.of(updatedPosts);
       unawaited(_cachePostedPosts(updatedPosts));
+      if (hadPost) widget.onPostDeleted?.call();
     }
   }
 

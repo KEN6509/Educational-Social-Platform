@@ -169,19 +169,17 @@ alter table public.push_device_tokens enable row level security;
 alter table public.push_deliveries enable row level security;
 
 drop policy if exists "Users view own push devices" on public.push_device_tokens;
-create policy "Users view own push devices"
-on public.push_device_tokens for select
-to authenticated
-using (user_id = auth.uid() and is_active);
 
-revoke insert, update, delete on public.push_device_tokens from anon, authenticated;
+revoke select, insert, update, delete on public.push_device_tokens from anon, authenticated;
 revoke insert, update, delete on public.push_deliveries from anon, authenticated;
 
+drop function if exists public.register_push_device(uuid, text, text, text);
 create or replace function public.register_push_device(
   p_user_id uuid,
   p_device_id text,
   p_token text,
-  p_platform text default 'android'
+  p_platform text default 'android',
+  p_is_active boolean default true
 )
 returns public.push_device_tokens
 language plpgsql
@@ -197,27 +195,26 @@ begin
     raise exception 'Invalid push device registration';
   end if;
 
-  update public.push_device_tokens
-  set is_active = false, updated_at = now()
+  delete from public.push_device_tokens
   where user_id = p_user_id
     and device_id = p_device_id
     and token <> p_token;
 
-  update public.push_device_tokens
-  set user_id = p_user_id,
-      device_id = p_device_id,
-      platform = p_platform,
-      is_active = true,
+  insert into public.push_device_tokens (
+    user_id, device_id, token, platform, is_active, last_seen_at, updated_at
+  )
+  values (
+    p_user_id, btrim(p_device_id), btrim(p_token), p_platform,
+    p_is_active, now(), now()
+  )
+  on conflict (token) do update
+  set user_id = excluded.user_id,
+      device_id = excluded.device_id,
+      platform = excluded.platform,
+      is_active = excluded.is_active,
       last_seen_at = now(),
       updated_at = now()
-  where token = p_token
   returning * into v_device;
-
-  if not found then
-    insert into public.push_device_tokens (user_id, device_id, token, platform)
-    values (p_user_id, p_device_id, p_token, p_platform)
-    returning * into v_device;
-  end if;
 
   return v_device;
 end;
@@ -305,7 +302,7 @@ as $$
   where id = p_delivery_id and status = 'processing';
 $$;
 
-revoke execute on function public.register_push_device(uuid, text, text, text)
+revoke execute on function public.register_push_device(uuid, text, text, text, boolean)
 from public, anon, authenticated;
 revoke execute on function public.deactivate_push_device(uuid, text)
 from public, anon, authenticated;
@@ -314,7 +311,7 @@ from public, anon, authenticated;
 revoke execute on function public.complete_push_delivery(uuid, text, integer, integer, text)
 from public, anon, authenticated;
 
-grant execute on function public.register_push_device(uuid, text, text, text)
+grant execute on function public.register_push_device(uuid, text, text, text, boolean)
 to service_role;
 grant execute on function public.deactivate_push_device(uuid, text)
 to service_role;

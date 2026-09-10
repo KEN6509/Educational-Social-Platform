@@ -20,6 +20,7 @@ class PostInteractionUpdate {
     bool insertIfMissing = false,
   }) {
     if (isDeleted) {
+      if (!posts.any((item) => item.id == postId)) return posts;
       return posts.where((item) => item.id != postId).toList();
     }
 

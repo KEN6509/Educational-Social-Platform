@@ -49,7 +49,12 @@ void main() {
     var savedPushValue = false;
     final coordinator = PushNotificationCoordinator(
       gateway: gateway,
-      registerDevice: ({required deviceId, required token}) async {
+      registerDevice: ({
+        required deviceId,
+        required token,
+        required enabled,
+      }) async {
+        expect(enabled, true);
         registered = true;
       },
       revokeDevice: (_) async {},
@@ -75,7 +80,11 @@ void main() {
     final opened = <PushDestination>[];
     final coordinator = PushNotificationCoordinator(
       gateway: gateway,
-      registerDevice: ({required deviceId, required token}) async {},
+      registerDevice: ({
+        required deviceId,
+        required token,
+        required enabled,
+      }) async {},
       revokeDevice: (_) async {},
       loadPreferences: () async => const NotificationPreferenceValues(),
       savePreferences: (_) async {},
@@ -96,5 +105,83 @@ void main() {
     signedIn = true;
     await coordinator.onAuthenticated();
     expect(opened.single.postId, 'post-1');
+  });
+
+  test('authentication restores a server-enabled device registration',
+      () async {
+    final gateway = _FakeGateway();
+    final registeredTokens = <String>[];
+    final coordinator = PushNotificationCoordinator(
+      gateway: gateway,
+      registerDevice: ({
+        required deviceId,
+        required token,
+        required enabled,
+      }) async {
+        expect(enabled, true);
+        registeredTokens.add(token);
+      },
+      revokeDevice: (_) async {},
+      loadPreferences: () async =>
+          const NotificationPreferenceValues(pushEnabled: true),
+      savePreferences: (_) async {},
+      store: SharedPreferencesPushStateStore(),
+      isSignedIn: () => true,
+      onDestination: (_) async {},
+    );
+
+    await coordinator.onAuthenticated();
+
+    expect(registeredTokens, ['token-1']);
+  });
+
+  test('denied permission revokes an existing device registration', () async {
+    final gateway = _FakeGateway()
+      ..authorization = PushAuthorizationStatus.denied;
+    final revokedDevices = <String>[];
+    final coordinator = PushNotificationCoordinator(
+      gateway: gateway,
+      registerDevice: ({
+        required deviceId,
+        required token,
+        required enabled,
+      }) async {},
+      revokeDevice: (deviceId) async => revokedDevices.add(deviceId),
+      loadPreferences: () async => const NotificationPreferenceValues(),
+      savePreferences: (_) async {},
+      store: SharedPreferencesPushStateStore(),
+      isSignedIn: () => true,
+      onDestination: (_) async {},
+    );
+
+    expect(await coordinator.enablePush(), false);
+    expect(revokedDevices, hasLength(1));
+  });
+
+  test('authentication transfers a disabled device as inactive', () async {
+    final gateway = _FakeGateway();
+    final activeStates = <bool>[];
+    final coordinator = PushNotificationCoordinator(
+      gateway: gateway,
+      registerDevice: ({
+        required deviceId,
+        required token,
+        required enabled,
+      }) async {
+        activeStates.add(enabled);
+      },
+      revokeDevice: (_) async {},
+      loadPreferences: () async => const NotificationPreferenceValues(
+        pushEnabled: false,
+      ),
+      savePreferences: (_) async {},
+      store: SharedPreferencesPushStateStore(),
+      isSignedIn: () => true,
+      onDestination: (_) async {},
+    );
+
+    await coordinator.onAuthenticated();
+
+    expect(activeStates, [false]);
   });
 }

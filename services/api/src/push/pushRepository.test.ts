@@ -29,6 +29,7 @@ test('push repository calls service-role device registration and delivery RPCs',
     userId: 'user-1',
     deviceId: 'device-1',
     token: 'token-12345678901234567890',
+    enabled: false,
   });
   const claim = await repository.claimDelivery({
     sourceTable: 'notifications',
@@ -45,6 +46,7 @@ test('push repository calls service-role device registration and delivery RPCs',
         p_device_id: 'device-1',
         p_token: 'token-12345678901234567890',
         p_platform: 'android',
+        p_is_active: false,
       },
     },
     {
@@ -72,6 +74,7 @@ test('push repository reloads the authoritative notification and recipient prefe
       type: 'chat_message',
       title: 'New message',
       body: 'A friend sent a message.',
+      created_at: '2026-09-10T12:00:00.000Z',
       conversation_id: 'conversation-1',
       action_payload: {route: 'conversation'},
     },
@@ -104,5 +107,6 @@ test('push repository reloads the authoritative notification and recipient prefe
 
   assert.equal(source?.userId, 'user-1');
   assert.equal(source?.conversationId, 'conversation-1');
+  assert.equal(source?.createdAt, '2026-09-10T12:00:00.000Z');
   assert.deepEqual(preferences, {pushEnabled: true, categoryEnabled: true});
 });

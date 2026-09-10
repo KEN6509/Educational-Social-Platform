@@ -87,6 +87,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       onChange: (_) => _refreshChatBadge(),
     );
     _initAsync();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _startPushNotifications();
+    });
+  }
+
+  void _startPushNotifications() {
     final pushCoordinator = PushNotificationScope.maybeOf(context);
     if (pushCoordinator != null) {
       _pushDestinationSubscription = pushCoordinator.destinations.listen(

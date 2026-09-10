@@ -16,6 +16,14 @@ void main() {
     expect(gradle, contains('namespace = "com.cyanzone.mobile"'));
     expect(gradle, contains('applicationId = "com.cyanzone.mobile"'));
     expect(gradle, contains('id("com.google.gms.google-services")'));
+    expect(
+      gradle,
+      contains('isCoreLibraryDesugaringEnabled = true'),
+    );
+    expect(
+      gradle,
+      contains('coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:'),
+    );
     expect(settings, contains('id("com.google.gms.google-services")'));
     expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
     expect(gitignore, contains('/android/app/google-services.json'));
