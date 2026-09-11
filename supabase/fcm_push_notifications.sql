@@ -101,8 +101,9 @@ begin
   v_category := public.push_notification_category(
     tg_table_name,
     case
-      when tg_table_name = 'notifications' then new.type
-      else new.event_type
+      when tg_table_name = 'notifications'
+        then to_jsonb(new) ->> 'type'
+      else to_jsonb(new) ->> 'event_type'
     end
   );
 

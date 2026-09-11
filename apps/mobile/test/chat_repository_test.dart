@@ -6,6 +6,67 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ChatRepository', () {
+    test('post sharing only lists current eligible conversations', () {
+      const eligibleDirect = ChatConversation(
+        id: 'direct-eligible',
+        type: ChatConversationType.direct,
+        requestStatus: ChatRequestStatus.none,
+        unreadCount: 0,
+      );
+      const disconnectedDirect = ChatConversation(
+        id: 'direct-disconnected',
+        type: ChatConversationType.direct,
+        requestStatus: ChatRequestStatus.none,
+        unreadCount: 0,
+        canSendMessages: false,
+      );
+      const pendingRequest = ChatConversation(
+        id: 'direct-request',
+        type: ChatConversationType.direct,
+        requestStatus: ChatRequestStatus.pending,
+        unreadCount: 0,
+      );
+      const group = ChatConversation(
+        id: 'group',
+        type: ChatConversationType.group,
+        requestStatus: ChatRequestStatus.none,
+        unreadCount: 0,
+      );
+
+      final result = ChatRepository.postShareEligibleConversations(const [
+        disconnectedDirect,
+        pendingRequest,
+        group,
+        eligibleDirect,
+      ]);
+
+      expect(
+        result.map((conversation) => conversation.id),
+        ['group', 'direct-eligible'],
+      );
+    });
+
+    test('post share reloads live permissions before sending', () {
+      final source = File(
+        'lib/src/features/posts/presentation/post_share_sheet.dart',
+      ).readAsStringSync();
+
+      final sendStart = source.indexOf('Future<void> _sendSharedPost()');
+      final feedbackStart = source.indexOf(
+        'void _showShareSnackBar',
+        sendStart,
+      );
+      expect(sendStart, greaterThanOrEqualTo(0));
+      expect(feedbackStart, greaterThan(sendStart));
+
+      final sendSource = source.substring(sendStart, feedbackStart);
+      expect(sendSource, contains('fetchConversations()'));
+      expect(
+        sendSource,
+        contains('postShareEligibleConversations'),
+      );
+    });
+
     test('exposes stable RPC names', () {
       expect(
         ChatRepository.createDirectConversationRpc,

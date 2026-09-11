@@ -110,6 +110,18 @@ class ChatRepository {
     return term.trim().toLowerCase().split(RegExp(r'\s+')).join(' ');
   }
 
+  static List<ChatConversation> postShareEligibleConversations(
+    Iterable<ChatConversation> conversations,
+  ) {
+    return conversations
+        .where(
+          (conversation) =>
+              !conversation.isRequest &&
+              (conversation.isGroup || conversation.canSendMessages),
+        )
+        .toList();
+  }
+
   static List<ChatNotification> visibleNewFollowerNotifications(
     List<ChatNotification> notifications, {
     DateTime? now,

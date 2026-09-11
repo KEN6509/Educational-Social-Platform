@@ -624,7 +624,9 @@ void main() {
     expect(source, contains('_isSheetExpanded = shouldExpand'));
     expect(source, contains('int get _recentContactRows'));
     expect(source, contains('height: gridHeight'));
-    expect(source, contains('_recentShareContactsCache'));
+    expect(source, isNot(contains('_recentShareContactsCache')));
+    expect(source, contains('postShareEligibleConversations'));
+    expect(source, contains('await _chatRepository.fetchConversations()'));
   });
 
   testWidgets('ChatMessageBubble highlights selected message row',

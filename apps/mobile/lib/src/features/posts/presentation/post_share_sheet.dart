@@ -24,9 +24,6 @@ class _ShareSheet extends StatefulWidget {
 }
 
 class _ShareSheetState extends State<_ShareSheet> {
-  static List<ChatConversation> _recentShareContactsCache =
-      const <ChatConversation>[];
-
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   late final ChatRepository _chatRepository;
@@ -48,12 +45,6 @@ class _ShareSheetState extends State<_ShareSheet> {
     _chatRepository = ChatRepository(Supabase.instance.client);
     _scrollController = ScrollController();
     _searchFocusNode.addListener(_onSearchFocusChange);
-    if (_recentShareContactsCache.isNotEmpty) {
-      _allContacts = List<ChatConversation>.from(_recentShareContactsCache);
-      _selectedContacts = _allContacts.take(9).toList();
-      _searchResults = List.from(_allContacts);
-      _isLoadingContacts = false;
-    }
     _loadRecentContacts();
   }
 
@@ -62,20 +53,15 @@ class _ShareSheetState extends State<_ShareSheet> {
       final conversations = await _chatRepository.fetchConversations();
       if (!mounted) return;
       setState(() {
-        _allContacts = conversations
-            .where((conversation) => !conversation.isRequest)
-            .toList();
-        _recentShareContactsCache = List<ChatConversation>.from(_allContacts);
+        _allContacts = ChatRepository.postShareEligibleConversations(
+          conversations,
+        );
         _selectedContacts = _allContacts.take(9).toList();
         _searchResults = List.from(_allContacts);
         _isLoadingContacts = false;
       });
     } catch (_) {
       if (!mounted) return;
-      if (_recentShareContactsCache.isNotEmpty) {
-        setState(() => _isLoadingContacts = false);
-        return;
-      }
       setState(() {
         _allContacts = const [];
         _selectedContacts = const [];
@@ -163,9 +149,37 @@ class _ShareSheetState extends State<_ShareSheet> {
     );
 
     try {
-      for (final conversationId in _tickedConversationIds) {
+      final latestConversations = ChatRepository.postShareEligibleConversations(
+        await _chatRepository.fetchConversations(),
+      );
+      final latestById = {
+        for (final conversation in latestConversations)
+          conversation.id: conversation,
+      };
+      final selectedConversations = _tickedConversationIds
+          .map((conversationId) => latestById[conversationId])
+          .whereType<ChatConversation>()
+          .toList();
+
+      if (selectedConversations.length != _tickedConversationIds.length) {
+        if (!mounted) return;
+        setState(() {
+          _allContacts = latestConversations;
+          _selectedContacts = latestConversations.take(9).toList();
+          _searchResults = List.from(latestConversations);
+          _tickedConversationIds.removeWhere(
+            (conversationId) => !latestById.containsKey(conversationId),
+          );
+        });
+        _showShareSnackBar(
+          'Follow this user before sending them a post.',
+        );
+        return;
+      }
+
+      for (final conversation in selectedConversations) {
         await _chatRepository.sendMessage(
-          conversationId: conversationId,
+          conversationId: conversation.id,
           body: body,
         );
       }
@@ -175,9 +189,15 @@ class _ShareSheetState extends State<_ShareSheet> {
       if (!mounted) return;
       Navigator.pop(context);
       _showShareSnackBar('Post sent.', success: true);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      _showShareSnackBar('No internet connection');
+      final relationshipRequired =
+          error.toString().contains('Follow relationship required');
+      _showShareSnackBar(
+        relationshipRequired
+            ? 'Follow this user before sending them a post.'
+            : 'No internet connection',
+      );
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
