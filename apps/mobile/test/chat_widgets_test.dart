@@ -602,7 +602,7 @@ void main() {
 
   test('share sheet reuses Message page group avatar styling', () {
     final source =
-        File('lib/src/features/posts/presentation/post_detail_page.dart')
+        File('lib/src/features/posts/presentation/post_share_sheet.dart')
             .readAsStringSync();
 
     expect(source, contains('GroupAvatar('));

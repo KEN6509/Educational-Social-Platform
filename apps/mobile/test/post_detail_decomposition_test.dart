@@ -23,4 +23,21 @@ void main() {
     expect(media, contains('class _PostDetailImageLoadError'));
     expect(page, isNot(contains('class _PostDetailImagePreviewPage')));
   });
+
+  test('post share sheet lives in its feature-local part', () {
+    final page =
+        File('$presentationPath/post_detail_page.dart').readAsStringSync();
+    final shareFile = File('$presentationPath/post_share_sheet.dart');
+
+    expect(page, contains("part 'post_share_sheet.dart';"));
+    expect(shareFile.existsSync(), isTrue);
+    if (!shareFile.existsSync()) return;
+
+    final share = shareFile.readAsStringSync();
+    expect(share, startsWith("part of 'post_detail_page.dart';"));
+    expect(share, contains('class _ShareSheet'));
+    expect(share, contains('class _ShareContactAvatar'));
+    expect(share, contains('class _ActionGridItem'));
+    expect(page, isNot(contains('class _ShareSheet')));
+  });
 }
