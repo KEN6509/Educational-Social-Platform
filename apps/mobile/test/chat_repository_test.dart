@@ -507,7 +507,7 @@ void main() {
         'Future<List<ChatParticipant>> fetchSuggestedGroupMembers',
       );
       final end = source.indexOf(
-        'RealtimeChannel subscribeToChatChanges',
+        'RealtimeChannel subscribeToChatHomeChanges',
         start,
       );
 

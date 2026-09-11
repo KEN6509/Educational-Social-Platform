@@ -855,8 +855,48 @@ class ChatRepository {
         .subscribe();
   }
 
-  RealtimeChannel subscribeToNotificationChanges({
+  RealtimeChannel subscribeToChatHomeChanges({
     required String channelName,
+    required void Function(PostgresChangePayload payload) onChange,
+  }) {
+    final currentUserId = _requireCurrentUserId();
+    return _client
+        .channel(channelName)
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'chat_conversations',
+          callback: onChange,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'chat_conversation_members',
+          callback: onChange,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'chat_messages',
+          callback: onChange,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: currentUserId,
+          ),
+          callback: onChange,
+        )
+        .subscribe();
+  }
+
+  RealtimeChannel subscribeToConversationChanges({
+    required String channelName,
+    required String conversationId,
     required void Function(PostgresChangePayload payload) onChange,
   }) {
     return _client
@@ -864,7 +904,55 @@ class ChatRepository {
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
+          table: 'chat_conversations',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: conversationId,
+          ),
+          callback: onChange,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'chat_conversation_members',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: conversationId,
+          ),
+          callback: onChange,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'chat_messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: conversationId,
+          ),
+          callback: onChange,
+        )
+        .subscribe();
+  }
+
+  RealtimeChannel subscribeToNotificationChanges({
+    required String channelName,
+    required void Function(PostgresChangePayload payload) onChange,
+  }) {
+    final currentUserId = _requireCurrentUserId();
+    return _client
+        .channel(channelName)
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
           table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: currentUserId,
+          ),
           callback: onChange,
         )
         .subscribe();
