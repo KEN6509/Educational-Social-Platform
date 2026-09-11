@@ -535,15 +535,19 @@ void main() {
 
   test('post detail image preview uses preview transition and download action',
       () {
-    final source =
+    final pageSource =
         File('lib/src/features/posts/presentation/post_detail_page.dart')
             .readAsStringSync();
-    final carouselStart = source.indexOf('PageView.builder');
-    final carouselEnd = source.indexOf('if (visibleImageUrls.length > 1)');
+    final mediaSource =
+        File('lib/src/features/posts/presentation/post_detail_media.dart')
+            .readAsStringSync();
+    final source = '$pageSource\n$mediaSource';
+    final carouselStart = pageSource.indexOf('PageView.builder');
+    final carouselEnd = pageSource.indexOf('if (visibleImageUrls.length > 1)');
     expect(carouselStart, greaterThanOrEqualTo(0));
     expect(carouselEnd, greaterThan(carouselStart));
 
-    final carouselSource = source.substring(carouselStart, carouselEnd);
+    final carouselSource = pageSource.substring(carouselStart, carouselEnd);
     expect(carouselSource, isNot(contains('InteractiveViewer')));
     expect(carouselSource, contains('Listener('));
     expect(carouselSource, contains('_handleImagePointerDown'));
