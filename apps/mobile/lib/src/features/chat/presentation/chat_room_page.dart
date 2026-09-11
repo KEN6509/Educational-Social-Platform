@@ -15,7 +15,7 @@ import '../../profile/presentation/profile_page.dart';
 import '../data/chat_models.dart';
 import '../data/chat_mention.dart';
 import '../data/chat_repository.dart';
-import '../application/chat_refresh_coordinator.dart';
+import '../../../core/application/async_refresh_coordinator.dart';
 import 'chat_details_page.dart';
 import 'chat_widgets.dart';
 import 'chat_mention_controller.dart';
@@ -67,7 +67,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
 
   ChatRepository? _repository;
   RealtimeChannel? _channel;
-  late final ChatRefreshCoordinator _refreshCoordinator;
+  late final AsyncRefreshCoordinator _refreshCoordinator;
   late Future<List<ChatMessage>> _messagesFuture;
   late ChatConversation _conversation = widget.conversation;
   final _controller = TextEditingController();
@@ -102,7 +102,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     WidgetsBinding.instance.addObserver(this);
     _messageScrollController.addListener(_handleMessageScrollChanged);
     _inputFocusNode.addListener(_handleInputFocusChanged);
-    _refreshCoordinator = ChatRefreshCoordinator(
+    _refreshCoordinator = AsyncRefreshCoordinator(
       refresh: _refreshMessages,
       onError: (error, _) {
         assert(() {

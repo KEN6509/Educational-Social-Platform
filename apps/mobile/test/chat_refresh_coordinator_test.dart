@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:cyanzone_mobile/src/features/chat/application/chat_refresh_coordinator.dart';
+import 'package:cyanzone_mobile/src/core/application/async_refresh_coordinator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('coalesces scheduled requests inside the debounce window', () async {
     var refreshCount = 0;
-    final coordinator = ChatRefreshCoordinator(
+    final coordinator = AsyncRefreshCoordinator(
       debounce: const Duration(milliseconds: 10),
       refresh: () async {
         refreshCount += 1;
@@ -27,7 +27,7 @@ void main() {
     var refreshCount = 0;
     var activeRefreshes = 0;
     var maximumActiveRefreshes = 0;
-    final coordinator = ChatRefreshCoordinator(
+    final coordinator = AsyncRefreshCoordinator(
       debounce: Duration.zero,
       refresh: () async {
         refreshCount += 1;
@@ -59,7 +59,7 @@ void main() {
     var refreshCount = 0;
     var activeRefreshes = 1;
     var maximumActiveRefreshes = 1;
-    final coordinator = ChatRefreshCoordinator(
+    final coordinator = AsyncRefreshCoordinator(
       refresh: () async {
         refreshCount += 1;
         activeRefreshes += 1;
@@ -87,7 +87,7 @@ void main() {
 
   test('immediate refresh cancels a pending debounce', () async {
     var refreshCount = 0;
-    final coordinator = ChatRefreshCoordinator(
+    final coordinator = AsyncRefreshCoordinator(
       debounce: const Duration(milliseconds: 20),
       refresh: () async {
         refreshCount += 1;
@@ -104,7 +104,7 @@ void main() {
 
   test('dispose cancels delayed and future refresh work', () async {
     var refreshCount = 0;
-    final coordinator = ChatRefreshCoordinator(
+    final coordinator = AsyncRefreshCoordinator(
       debounce: const Duration(milliseconds: 10),
       refresh: () async {
         refreshCount += 1;
@@ -122,7 +122,7 @@ void main() {
   test('a failed refresh does not prevent the next refresh', () async {
     var refreshCount = 0;
     final errors = <Object>[];
-    final coordinator = ChatRefreshCoordinator(
+    final coordinator = AsyncRefreshCoordinator(
       refresh: () async {
         refreshCount += 1;
         if (refreshCount == 1) throw StateError('temporary failure');

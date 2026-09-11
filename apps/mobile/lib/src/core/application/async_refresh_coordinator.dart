@@ -1,21 +1,21 @@
 import 'dart:async';
 
-typedef ChatRefreshTask = Future<void> Function();
-typedef ChatRefreshErrorHandler = void Function(
+typedef AsyncRefreshTask = Future<void> Function();
+typedef AsyncRefreshErrorHandler = void Function(
   Object error,
   StackTrace stackTrace,
 );
 
-final class ChatRefreshCoordinator {
-  ChatRefreshCoordinator({
-    required ChatRefreshTask refresh,
+final class AsyncRefreshCoordinator {
+  AsyncRefreshCoordinator({
+    required AsyncRefreshTask refresh,
     this.debounce = const Duration(milliseconds: 120),
-    ChatRefreshErrorHandler? onError,
+    AsyncRefreshErrorHandler? onError,
   })  : _refresh = refresh,
         _onError = onError;
 
-  final ChatRefreshTask _refresh;
-  final ChatRefreshErrorHandler? _onError;
+  final AsyncRefreshTask _refresh;
+  final AsyncRefreshErrorHandler? _onError;
   final Duration debounce;
 
   Timer? _timer;
@@ -78,7 +78,7 @@ final class ChatRefreshCoordinator {
     }
   }
 
-  Future<void> _runRefresh(ChatRefreshTask refresh) async {
+  Future<void> _runRefresh(AsyncRefreshTask refresh) async {
     try {
       await refresh();
     } catch (error, stackTrace) {

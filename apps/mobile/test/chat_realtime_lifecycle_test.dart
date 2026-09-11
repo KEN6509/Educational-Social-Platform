@@ -91,7 +91,7 @@ void main() {
 
     expect(
       source,
-      contains('late final ChatRefreshCoordinator _refreshCoordinator;'),
+      contains('late final AsyncRefreshCoordinator _refreshCoordinator;'),
     );
     expect(source, contains('_repo.subscribeToConversationChanges('));
     expect(source, contains('conversationId: _conversation.id'));
@@ -102,7 +102,7 @@ void main() {
     expect(source, contains('_refreshCoordinator.dispose();'));
     expect(source, contains('_refreshCoordinator.trackInitialRefresh('));
     expect(
-      source.indexOf('_refreshCoordinator = ChatRefreshCoordinator('),
+      source.indexOf('_refreshCoordinator = AsyncRefreshCoordinator('),
       lessThan(source.indexOf('_messagesFuture = _load();')),
     );
     expect(
@@ -120,13 +120,13 @@ void main() {
 
     expect(
       source,
-      contains('late final ChatRefreshCoordinator _refreshCoordinator;'),
+      contains('late final AsyncRefreshCoordinator _refreshCoordinator;'),
     );
     expect(source, contains('onChange: (_) => _refreshCoordinator.schedule()'));
     expect(source, contains('_refreshCoordinator.dispose();'));
     expect(source, contains('_refreshCoordinator.trackInitialRefresh('));
     expect(
-      source.indexOf('_refreshCoordinator = ChatRefreshCoordinator('),
+      source.indexOf('_refreshCoordinator = AsyncRefreshCoordinator('),
       lessThan(source.indexOf('_future = _load();')),
     );
     expect(
@@ -159,7 +159,7 @@ void main() {
       contains('_refreshCoordinator.trackInitialRefresh('),
     );
     expect(
-      chatSource.indexOf('_refreshCoordinator = ChatRefreshCoordinator('),
+      chatSource.indexOf('_refreshCoordinator = AsyncRefreshCoordinator('),
       lessThan(chatSource.indexOf('_future = _load();')),
     );
     expect(

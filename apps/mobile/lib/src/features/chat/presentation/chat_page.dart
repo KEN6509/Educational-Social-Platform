@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
-import '../application/chat_refresh_coordinator.dart';
+import '../../../core/application/async_refresh_coordinator.dart';
 import 'chat_room_page.dart';
 import 'chat_widgets.dart';
 import 'create_group_chat_page.dart';
@@ -50,7 +50,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   ChatRepository? _repository;
   RealtimeChannel? _channel;
-  late final ChatRefreshCoordinator _refreshCoordinator;
+  late final AsyncRefreshCoordinator _refreshCoordinator;
   late Future<_ChatHomeState> _future;
   late Future<List<ChatParticipant>> _eligiblePeopleFuture;
   final _searchController = TextEditingController();
@@ -66,7 +66,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _searchFocusNode.addListener(_handleSearchFocusChanged);
-    _refreshCoordinator = ChatRefreshCoordinator(
+    _refreshCoordinator = AsyncRefreshCoordinator(
       refresh: _performHomeRefresh,
     );
     _future = _load();
