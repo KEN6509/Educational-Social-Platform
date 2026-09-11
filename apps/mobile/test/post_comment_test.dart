@@ -91,6 +91,6 @@ void main() {
     expect(pendingIndex, greaterThan(createIndex));
     expect(moderateIndex, greaterThan(pendingIndex));
     expect(source, contains('AppFeedback.show('));
-    expect(source, contains('pageContext,'));
+    expect(source, contains('context,'));
   });
 }

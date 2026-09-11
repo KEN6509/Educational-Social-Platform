@@ -903,7 +903,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
         onSend: () async {
           final content = _commentController.text.trim();
           if (content.isNotEmpty) {
-            final pageContext = this.context;
             final navigator = Navigator.of(context);
             if (!await _ensureInteractionAllowed()) return;
             _commentController.clear();
@@ -923,23 +922,22 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     ? replyTo!.authorName
                     : null,
               );
-              if (!mounted) return;
+              if (!context.mounted) return;
               AppFeedback.show(
-                pageContext,
+                context,
                 message: 'Comment submitted. AI moderation is checking it.',
                 kind: AppFeedbackKind.warning,
               );
               await _moderateComment(commentId);
             } catch (e) {
-              if (mounted) {
-                if (friendlyErrorTitle(e) == 'No internet connection') {
-                  _showNoInternetMessage();
-                } else {
-                  AppFeedback.showError(
-                    pageContext,
-                    friendlyErrorMessage(e),
-                  );
-                }
+              if (!context.mounted) return;
+              if (friendlyErrorTitle(e) == 'No internet connection') {
+                _showNoInternetMessage();
+              } else {
+                AppFeedback.showError(
+                  context,
+                  friendlyErrorMessage(e),
+                );
               }
             }
           }
