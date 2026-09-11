@@ -39,4 +39,24 @@ void main() {
     expect(widgetSource, contains('class _ActiveLinkRow'));
     expect(widgetSource, contains('class _ChildScreenTimeRow'));
   });
+
+  test('Safety Records separates list widgets and Check-In detail route', () {
+    final page = File(
+      'lib/src/features/parent_child/presentation/safety_records_page.dart',
+    ).readAsStringSync();
+    final widgets = File(
+      'lib/src/features/parent_child/presentation/safety_record_widgets.dart',
+    );
+    final detail = File(
+      'lib/src/features/parent_child/presentation/check_in_detail_page.dart',
+    );
+
+    expect(page, contains("part 'safety_record_widgets.dart';"));
+    expect(page, contains("import 'check_in_detail_page.dart';"));
+    expect(widgets.existsSync(), isTrue);
+    expect(detail.existsSync(), isTrue);
+    expect(page, isNot(contains('class CheckInDetailPage')));
+    expect(detail.readAsStringSync(), contains('class CheckInDetailPage'));
+    expect(widgets.readAsStringSync(), contains('class _RecordTile'));
+  });
 }

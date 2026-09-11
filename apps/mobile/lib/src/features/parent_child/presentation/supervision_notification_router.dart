@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
+import 'check_in_detail_page.dart';
 import 'family_links_page.dart';
 import 'safety_records_page.dart';
 import 'sos_page.dart';

@@ -7,6 +7,7 @@ import 'package:cyanzone_mobile/src/features/parent_child/presentation/check_in_
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/family_links_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/link_candidates_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/parent_child_page.dart';
+import 'package:cyanzone_mobile/src/features/parent_child/presentation/check_in_detail_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/safety_records_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/sos_page.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/sos_tracking_scope.dart';
