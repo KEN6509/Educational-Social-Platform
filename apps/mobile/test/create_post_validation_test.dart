@@ -2,6 +2,7 @@ import 'package:cyanzone_mobile/src/features/posts/presentation/create_post_vali
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cyanzone_mobile/src/core/theme/app_design_tokens.dart';
 
 void main() {
   test('create post attachment grid crops thumbnails to square cover', () {
@@ -15,6 +16,13 @@ void main() {
     expect(gridSource, contains('childAspectRatio: 1'));
     expect(gridSource, contains('fit: BoxFit.cover'));
     expect(gridSource, isNot(contains('fit: BoxFit.contain')));
+    expect(gridSource, contains('padding: EdgeInsets.zero'));
+    expect(
+      source,
+      contains('withNavigationClearance('),
+    );
+    expect(source, contains('additionalBottom: AppSpacing.lg'));
+    expect(source, contains('const SizedBox(height: AppSpacing.section)'));
   });
 
   test('requires either content or an image', () {

@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
 import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/navigation_clearance.dart';
 import '../data/feed_post.dart';
 import '../data/posts_repository.dart';
 import '../domain/content_moderation.dart';
@@ -399,7 +401,16 @@ class _CreatePostPageState extends State<CreatePostPage> {
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+          padding: withNavigationClearance(
+            context,
+            const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              0,
+              AppSpacing.page,
+              40,
+            ),
+            additionalBottom: AppSpacing.lg,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -443,7 +454,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 onRemove: _removeImage,
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: AppSpacing.section),
 
               // Form Section
               Form(
@@ -658,6 +669,7 @@ class _ModernImageGrid extends StatelessWidget {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         crossAxisSpacing: 10,

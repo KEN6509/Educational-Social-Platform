@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
+import '../../../core/widgets/navigation_clearance.dart';
 import '../data/parent_supervision_models.dart';
 import 'supervision_dashboard_cards.dart';
 
@@ -51,11 +53,20 @@ abstract class _DashboardBase extends StatelessWidget {
   Widget list(List<Widget> Function(double cardHeight) childrenBuilder) =>
       LayoutBuilder(
         builder: (context, constraints) {
-          const horizontalPadding = 8.0;
+          const horizontalPadding = AppSpacing.page;
           final availableWidth = constraints.maxWidth - horizontalPadding * 2;
           final cardHeight = availableWidth / 2;
           return ListView(
-            padding: const EdgeInsets.fromLTRB(8, 10, 8, 32),
+            padding: withNavigationClearance(
+              context,
+              const EdgeInsets.fromLTRB(
+                AppSpacing.page,
+                10,
+                AppSpacing.page,
+                AppSpacing.xl,
+              ),
+              additionalBottom: AppSpacing.lg,
+            ),
             children: childrenBuilder(cardHeight),
           );
         },

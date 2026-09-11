@@ -1,6 +1,7 @@
 import 'package:cyanzone_mobile/src/features/parent_child/data/parent_child_repository.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/data/parent_supervision_models.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/parent_child_page.dart';
+import 'package:cyanzone_mobile/src/core/theme/app_design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,8 +13,8 @@ void main() {
     final appBar = tester.widget<AppBar>(find.byType(AppBar));
     expect(find.text('Parent Supervision'), findsOneWidget);
     expect(find.text('Family Connection'), findsNothing);
-    expect(scaffold.backgroundColor, const Color(0xFFF1F5F9));
-    expect(appBar.backgroundColor, const Color(0xFFFAFCFC));
+    expect(scaffold.backgroundColor, AppColors.background);
+    expect(appBar.backgroundColor, AppColors.background);
     expect(appBar.titleSpacing, 16);
     expect(appBar.elevation, 0);
     expect(appBar.scrolledUnderElevation, 0);
@@ -31,7 +32,7 @@ void main() {
 
     final hero = tester.getRect(find.byKey(const Key('screen-time-hero')));
     final family = tester.getRect(find.byKey(const Key('family-links-card')));
-    expect(hero.left, 8);
+    expect(hero.left, AppSpacing.page);
     expect(family.top - hero.bottom, 12);
     final screenTimeLabel = tester.getRect(
       find.text('My screen time · Today'),
@@ -73,7 +74,7 @@ void main() {
                 .first,
           )
           .padding,
-      const EdgeInsets.all(16),
+      const EdgeInsets.all(12),
     );
     final familyIconFinder = find.byIcon(Icons.people_outline_rounded);
     final familyIcon = tester.widget<Icon>(familyIconFinder);
@@ -239,6 +240,22 @@ void main() {
       lessThanOrEqualTo(58),
     );
   });
+
+  testWidgets('reserves extra room above the floating navigation',
+      (tester) async {
+    _usePhoneViewport(tester);
+    await _pump(
+      tester,
+      _state(role: null, activeLinks: 0),
+      bottomPadding: 86,
+    );
+
+    final list = tester.widget<ListView>(find.byType(ListView).first);
+    expect(
+      list.padding,
+      const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 102),
+    );
+  });
 }
 
 void _usePhoneViewport(WidgetTester tester) {
@@ -248,16 +265,21 @@ void _usePhoneViewport(WidgetTester tester) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
-Future<void> _pump(
-  WidgetTester tester,
-  SupervisionDashboardState state,
-) async {
-  await tester.pumpWidget(MaterialApp(
-    home: ParentChildPage(
-      repository: FakeParentChildRepository(state),
-      subscribeToRealtime: false,
+Future<void> _pump(WidgetTester tester, SupervisionDashboardState state,
+    {double bottomPadding = 0}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(
+          padding: EdgeInsets.only(bottom: bottomPadding),
+        ),
+        child: ParentChildPage(
+          repository: FakeParentChildRepository(state),
+          subscribeToRealtime: false,
+        ),
+      ),
     ),
-  ));
+  );
   await tester.pumpAndSettle();
 }
 

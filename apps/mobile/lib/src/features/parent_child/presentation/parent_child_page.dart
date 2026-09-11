@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import 'check_in_page.dart';
@@ -155,9 +156,9 @@ class _ParentChildPageState extends State<ParentChildPage>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF1F5F9),
+        backgroundColor: AppColors.background,
         appBar: AppBar(
-          backgroundColor: Color(0xFFFAFCFC),
+          backgroundColor: AppColors.background,
           elevation: 0,
           scrolledUnderElevation: 0,
           centerTitle: false,
