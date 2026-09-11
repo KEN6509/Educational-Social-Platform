@@ -59,4 +59,23 @@ void main() {
     expect(detail.readAsStringSync(), contains('class CheckInDetailPage'));
     expect(widgets.readAsStringSync(), contains('class _RecordTile'));
   });
+
+  test('SOS page keeps workflow state and delegates presentation widgets', () {
+    final page = File(
+      'lib/src/features/parent_child/presentation/sos_page.dart',
+    ).readAsStringSync();
+    final widgets = File(
+      'lib/src/features/parent_child/presentation/sos_widgets.dart',
+    );
+
+    expect(page, contains("part 'sos_widgets.dart';"));
+    expect(widgets.existsSync(), isTrue);
+    final widgetSource = widgets.readAsStringSync();
+    expect(page, contains('class _SosPageState'));
+    expect(page, isNot(contains('class _BottomSosAction')));
+    expect(widgetSource, contains('class _BottomSosAction'));
+    expect(widgetSource, contains('class _TimelineCard'));
+    expect(widgetSource, contains('class _TimelineEventRow'));
+    expect(widgetSource, contains('class _DetailCard'));
+  });
 }
