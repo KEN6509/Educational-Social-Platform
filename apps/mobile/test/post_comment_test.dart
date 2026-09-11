@@ -70,4 +70,27 @@ void main() {
     );
     expect(source, contains('Scrollable.ensureVisible'));
   });
+
+  test('comment submission shows pending feedback before moderation', () {
+    final source = File(
+      'lib/src/features/posts/presentation/post_detail_page.dart',
+    ).readAsStringSync();
+
+    final createIndex =
+        source.indexOf('final commentId = await repo.createComment');
+    final pendingIndex = source.indexOf(
+      'Comment submitted. AI moderation is checking it.',
+      createIndex,
+    );
+    final moderateIndex = source.indexOf(
+      'await _moderateComment(commentId',
+      createIndex,
+    );
+
+    expect(createIndex, greaterThanOrEqualTo(0));
+    expect(pendingIndex, greaterThan(createIndex));
+    expect(moderateIndex, greaterThan(pendingIndex));
+    expect(source, contains('AppFeedback.show('));
+    expect(source, contains('pageContext,'));
+  });
 }

@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../chat/data/chat_models.dart';
 import '../../chat/data/chat_repository.dart';
 import '../../chat/presentation/chat_widgets.dart' show ChatAvatar, GroupAvatar;
@@ -902,7 +903,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         onSend: () async {
           final content = _commentController.text.trim();
           if (content.isNotEmpty) {
-            final messenger = ScaffoldMessenger.of(context);
+            final pageContext = this.context;
             final navigator = Navigator.of(context);
             if (!await _ensureInteractionAllowed()) return;
             _commentController.clear();
@@ -922,14 +923,21 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     ? replyTo!.authorName
                     : null,
               );
-              await _moderateComment(commentId, messenger);
+              if (!mounted) return;
+              AppFeedback.show(
+                pageContext,
+                message: 'Comment submitted. AI moderation is checking it.',
+                kind: AppFeedbackKind.warning,
+              );
+              await _moderateComment(commentId);
             } catch (e) {
               if (mounted) {
                 if (friendlyErrorTitle(e) == 'No internet connection') {
                   _showNoInternetMessage();
                 } else {
-                  messenger.showSnackBar(
-                    SnackBar(content: Text(friendlyErrorMessage(e))),
+                  AppFeedback.showError(
+                    pageContext,
+                    friendlyErrorMessage(e),
                   );
                 }
               }
@@ -940,67 +948,64 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Future<void> _moderateComment(
-    String commentId,
-    ScaffoldMessengerState messenger,
-  ) async {
+  Future<void> _moderateComment(String commentId) async {
     try {
       final result =
           await ContentModerationScope.of(context).moderateComment(commentId);
       if (!mounted) return;
       switch (result.state) {
         case ContentModerationState.approved:
-          messenger
-              .showSnackBar(const SnackBar(content: Text('Comment posted!')));
+          AppFeedback.showSuccess(context, 'Comment posted!');
           await _refreshPostState(updateCommentCount: false);
           await _fetchComments();
         case ContentModerationState.adminReview:
-          messenger.showSnackBar(
-            const SnackBar(
-                content: Text('Comment sent for administrator review.')),
+          AppFeedback.show(
+            context,
+            message: 'Comment sent for administrator review.',
+            kind: AppFeedbackKind.warning,
           );
         case ContentModerationState.processing:
-          messenger.showSnackBar(
-            const SnackBar(
-                content: Text('Comment moderation is still processing.')),
+          AppFeedback.show(
+            context,
+            message: 'Comment moderation is still processing.',
+            kind: AppFeedbackKind.warning,
           );
         case ContentModerationState.rejected:
-          messenger.showSnackBar(
-            SnackBar(content: Text(result.reason ?? 'Comment was not posted.')),
+          AppFeedback.showError(
+            context,
+            result.reason ?? 'Comment was not posted.',
           );
         case ContentModerationState.superseded:
-          messenger.showSnackBar(
-            const SnackBar(
-                content: Text('This comment changed. Please submit it again.')),
+          AppFeedback.show(
+            context,
+            message: 'This comment changed. Please submit it again.',
+            kind: AppFeedbackKind.warning,
           );
         case ContentModerationState.failed:
-          _showCommentModerationRetry(commentId, messenger);
+          _showCommentModerationRetry(commentId);
       }
     } on ContentModerationFailure catch (error) {
       if (!mounted) return;
       if (error.retryAllowed) {
-        _showCommentModerationRetry(commentId, messenger);
+        _showCommentModerationRetry(commentId);
       } else {
-        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+        AppFeedback.showError(context, error.message);
       }
     }
   }
 
-  void _showCommentModerationRetry(
-    String commentId,
-    ScaffoldMessengerState messenger,
-  ) {
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: const Text('Comment moderation could not complete.'),
-          action: SnackBarAction(
-            label: 'Retry moderation',
-            onPressed: () => _moderateComment(commentId, messenger),
-          ),
+  void _showCommentModerationRetry(String commentId) {
+    AppFeedback.show(
+      context,
+      message: 'Comment moderation could not complete.',
+      kind: AppFeedbackKind.error,
+      actions: [
+        AppFeedbackAction(
+          label: 'Retry moderation',
+          onPressed: () => _moderateComment(commentId),
         ),
-      );
+      ],
+    );
   }
 
   Map<String, dynamic> _getUpdateResult() {
