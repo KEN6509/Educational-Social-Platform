@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/widgets/shimmer_skeleton.dart';
 import '../../posts/data/feed_post.dart';
+import '../../posts/data/post_collection_order.dart';
 import '../../posts/data/post_interaction_sync.dart';
 import '../../posts/data/post_image_disk_cache.dart';
 import '../../posts/data/posts_repository.dart';
@@ -797,7 +798,7 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
   void initState() {
     super.initState();
     if (widget.mode == _ProfilePostGridMode.posted) {
-      _posts = _approvedPostedPostsFromMemoryCache();
+      _posts = _orderedPostedPostsFromMemoryCache();
       _restoreCachedPostedPosts();
     }
     _future = _fetchPostsWithRatios();
@@ -826,13 +827,16 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
       insertIfMissing: insertIfMissing,
     );
     if (updatedPosts == _posts) return;
+    final orderedPosts = widget.mode == _ProfilePostGridMode.posted
+        ? orderProfilePosts(updatedPosts)
+        : updatedPosts;
 
     setState(() {
-      _posts = updatedPosts;
+      _posts = orderedPosts;
     });
     if (widget.mode == _ProfilePostGridMode.posted && update.isDeleted) {
-      _postedPostsCache[widget.profileUserId] = List<FeedPost>.of(updatedPosts);
-      unawaited(_cachePostedPosts(updatedPosts));
+      _postedPostsCache[widget.profileUserId] = List<FeedPost>.of(orderedPosts);
+      unawaited(_cachePostedPosts(orderedPosts));
       if (hadPost) widget.onPostDeleted?.call();
     }
   }
@@ -843,27 +847,32 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
     if (oldWidget.fetcher != widget.fetcher ||
         oldWidget.refreshVersion != widget.refreshVersion) {
       if (widget.mode == _ProfilePostGridMode.posted) {
-        _posts = _approvedPostedPostsFromMemoryCache(fallback: _posts);
+        _posts = _orderedPostedPostsFromMemoryCache(fallback: _posts);
       }
       _future = _fetchPostsWithRatios();
       _appliedFuture = null;
     }
   }
 
-  List<FeedPost> _approvedPostedPostsFromMemoryCache({
+  List<FeedPost> _orderedPostedPostsFromMemoryCache({
     List<FeedPost> fallback = const <FeedPost>[],
   }) {
     final cached = _postedPostsCache[widget.profileUserId] ?? fallback;
-    return cached.where((post) => post.isApproved).toList();
+    return orderProfilePosts(
+      cached.where((post) => post.moderationStatus != 'removed'),
+    );
   }
 
   Future<List<FeedPost>> _fetchPostsWithRatios() async {
     if (!await _hasInternetConnection()) {
       throw const SocketException('No internet connection');
     }
-    final posts = await widget.fetcher().timeout(
+    var posts = await widget.fetcher().timeout(
           const Duration(seconds: 5),
         );
+    if (widget.mode == _ProfilePostGridMode.posted) {
+      posts = orderProfilePosts(posts);
+    }
     await PostCardRatioPreloader.preload(posts);
     unawaited(
       PostImageDiskCache.cacheUrls(
@@ -895,12 +904,12 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
       final rows = (jsonDecode(raw) as List<dynamic>)
           .map((row) => Map<String, dynamic>.from(row as Map))
           .map(FeedPost.fromCacheMap)
-          .where((post) => post.isApproved)
-          .toList();
-      _postedPostsCache[widget.profileUserId] = rows;
+          .where((post) => post.moderationStatus != 'removed');
+      final orderedRows = orderProfilePosts(rows);
+      _postedPostsCache[widget.profileUserId] = orderedRows;
       if (mounted && _posts.isEmpty) {
         setState(() {
-          _posts = rows;
+          _posts = orderedRows;
         });
       }
     } catch (_) {
@@ -909,16 +918,17 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
   }
 
   Future<void> _cachePostedPosts(List<FeedPost> posts) async {
-    final approvedPosts = posts.where((post) => post.isApproved).toList();
+    final visiblePosts =
+        posts.where((post) => post.moderationStatus != 'removed').toList();
     await PostImageDiskCache.cacheUrls(
-      approvedPosts
+      visiblePosts
           .map((post) => post.imageUrls.firstOrNull)
           .whereType<String>(),
     );
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       _postedPostsCacheKey,
-      jsonEncode(approvedPosts.map((post) => post.toCacheMap()).toList()),
+      jsonEncode(visiblePosts.map((post) => post.toCacheMap()).toList()),
     );
   }
 

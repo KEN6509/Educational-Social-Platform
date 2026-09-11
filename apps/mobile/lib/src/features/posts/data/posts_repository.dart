@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'feed_post.dart';
 import 'post_comment.dart';
+import 'post_collection_order.dart';
 import '../domain/post_submission_repository.dart';
 
 class PickedPostImage {
@@ -273,13 +274,15 @@ class PostsRepository implements PostSubmissionRepository {
         .select(feedSelectColumns)
         .inFilter('author_id', followingIds)
         .eq('moderation_status', 'approved')
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .order('id', ascending: false);
 
-    return postsResponse
+    final posts = postsResponse
         .cast<Map<String, dynamic>>()
         .map((m) => FeedPost.fromMap(m, userId))
         .where((post) => !post.isHiddenFromDiscovery)
         .toList();
+    return orderNewestPosts(posts);
   }
 
   Future<List<FeedPost>> fetchUserPosts(String userId) async {
@@ -310,7 +313,8 @@ class PostsRepository implements PostSubmissionRepository {
         .from('saves')
         .select(savedPostsSelectColumns)
         .eq('user_id', targetUserId)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .order('id', ascending: false);
 
     return response
         .cast<Map<String, dynamic>>()
@@ -331,7 +335,8 @@ class PostsRepository implements PostSubmissionRepository {
         .select(likedPostsSelectColumns)
         .eq('user_id', targetUserId)
         .eq('reaction_type', 'like')
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .order('id', ascending: false);
 
     return response
         .cast<Map<String, dynamic>>()

@@ -9,6 +9,7 @@ import '../../../core/widgets/navigation_clearance.dart';
 import '../data/feed_mode.dart';
 import '../data/feed_post.dart';
 import '../data/post_interaction_sync.dart';
+import '../data/post_collection_order.dart';
 import '../data/post_image_disk_cache.dart';
 import '../data/posts_repository.dart';
 import 'feed_card.dart';
@@ -66,32 +67,35 @@ class HomeFeedPageState extends State<HomeFeedPage> {
     });
   }
 
-  Future<List<FeedPost>> _fetchPosts() async {
+  Future<List<FeedPost>> _fetchPosts({bool rearrangeFollowing = false}) async {
     final posts = switch (widget.feedMode) {
       FeedMode.feeds => await _repository.fetchFeed(),
       FeedMode.following => await _repository.fetchFollowingPosts(),
       FeedMode.saves => await _repository.fetchSavedPosts(),
     };
 
-    if (widget.feedMode == FeedMode.feeds) {
-      posts.shuffle(Random());
-    }
-    unawaited(PostCardRatioPreloader.preload(posts));
+    final arrangedPosts = arrangeHomePosts(
+      posts,
+      mode: widget.feedMode,
+      rearrangeFollowing: rearrangeFollowing,
+      random: Random(),
+    );
+    unawaited(PostCardRatioPreloader.preload(arrangedPosts));
     unawaited(
       PostImageDiskCache.cacheUrls(
-        posts.take(12).expand((post) => post.imageUrls),
+        arrangedPosts.take(12).expand((post) => post.imageUrls),
       ),
     );
-    return posts;
+    return arrangedPosts;
   }
 
-  Future<void> refresh() async {
+  Future<void> refresh({bool rearrangeFollowing = true}) async {
     if (_isRefreshing) {
       return;
     }
     setState(() {
       _isRefreshing = true;
-      _future = _fetchPosts();
+      _future = _fetchPosts(rearrangeFollowing: rearrangeFollowing);
     });
     try {
       final posts = await _future;
@@ -119,7 +123,7 @@ class HomeFeedPageState extends State<HomeFeedPage> {
   void didUpdateWidget(covariant HomeFeedPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.feedMode != widget.feedMode) {
-      refresh();
+      refresh(rearrangeFollowing: false);
     }
   }
 
