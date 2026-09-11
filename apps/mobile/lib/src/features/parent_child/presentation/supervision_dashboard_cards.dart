@@ -353,36 +353,28 @@ class SupervisionNotificationsCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 18, 16, 16),
-          child: Row(children: [
-            Expanded(
-              child: Text(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
                 'Supervision notifications',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: _text,
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
-            SizedBox(width: 8),
-            Flexible(
-              fit: FlexFit.loose,
-              child: FittedBox(
-                alignment: Alignment.centerRight,
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  'Only 10 latest be displayed',
-                  style: TextStyle(
-                    color: _secondary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                  ),
+              SizedBox(height: 4),
+              Text(
+                'Only 10 latest be displayed',
+                style: TextStyle(
+                  color: _secondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
                 ),
               ),
-            ),
-          ]),
+            ],
+          ),
         ),
         if (latest.isEmpty)
           Padding(

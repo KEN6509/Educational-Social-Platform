@@ -227,8 +227,14 @@ void main() {
     expect(find.text('Open request'), findsNothing);
     final notificationsTitle =
         tester.widget<Text>(find.text('Supervision notifications'));
-    expect(notificationsTitle.maxLines, 1);
+    expect(notificationsTitle.maxLines, isNull);
+    expect(notificationsTitle.overflow, isNot(TextOverflow.ellipsis));
     expect(notificationsTitle.style?.fontSize, 15);
+    final notificationsTitleRect =
+        tester.getRect(find.text('Supervision notifications'));
+    final notificationsLimitRect =
+        tester.getRect(find.text('Only 10 latest be displayed'));
+    expect(notificationsLimitRect.top, greaterThan(notificationsTitleRect.top));
     expect(
       tester
           .getRect(
