@@ -89,4 +89,56 @@ void main() {
     expect(source, contains('_refreshCoordinator.dispose();'));
     expect(source, contains('Future<void> _performRefresh()'));
   });
+
+  test(
+      'chat home owns continuous badge realtime and shell does not duplicate it',
+      () {
+    final chatSource = File(
+      'lib/src/features/chat/presentation/chat_page.dart',
+    ).readAsStringSync();
+    final shellSource = File(
+      'lib/src/features/shell/presentation/main_shell.dart',
+    ).readAsStringSync();
+
+    expect(chatSource, contains('with WidgetsBindingObserver'));
+    expect(chatSource, contains('_repo.subscribeToChatHomeChanges('));
+    expect(
+      chatSource,
+      contains('onChange: (_) => _refreshCoordinator.schedule()'),
+    );
+    expect(chatSource, contains('void didChangeAppLifecycleState('));
+    expect(chatSource, contains('_refreshCoordinator.dispose();'));
+    expect(shellSource, isNot(contains('_notificationBadgeChannel')));
+    expect(
+      shellSource,
+      isNot(contains("channelName: 'main-shell-notification-badge'")),
+    );
+  });
+
+  test('legacy broad chat subscription is removed after both callers migrate',
+      () {
+    final repositorySource = File(
+      'lib/src/features/chat/data/chat_repository.dart',
+    ).readAsStringSync();
+
+    expect(
+      repositorySource,
+      isNot(contains('RealtimeChannel subscribeToChatChanges')),
+    );
+  });
+
+  test('chat realtime refresh does not reload eligible people', () {
+    final source = File(
+      'lib/src/features/chat/presentation/chat_page.dart',
+    ).readAsStringSync();
+    final start = source.indexOf('Future<void> _performHomeRefresh()');
+    final end = source.indexOf('Future<void> _refresh(', start);
+
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      source.substring(start, end),
+      isNot(contains('_loadEligiblePeople')),
+    );
+  });
 }

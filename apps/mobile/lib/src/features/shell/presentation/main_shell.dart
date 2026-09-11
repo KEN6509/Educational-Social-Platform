@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/shimmer_skeleton.dart';
-import '../../chat/data/chat_repository.dart';
 import '../../chat/presentation/chat_page.dart';
 import '../../posts/data/aspect_ratio_cache.dart';
 import '../../posts/application/moderation_submission_coordinator.dart';
@@ -53,12 +52,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   FeedMode _feedMode = FeedMode.feeds;
   Set<String> _selectedFilterTags = {};
   late final TagsRepository _tagsRepository;
-  late final ChatRepository _chatRepository;
   late final SearchRepository _searchRepository;
   late Future<List<TagCategory>> _tagsFuture;
   bool _isInitialized = false;
   int _chatBadgeCount = 0;
-  RealtimeChannel? _notificationBadgeChannel;
   ForegroundScreenTimeTracker? _screenTimeTracker;
   StreamSubscription<PushDestination>? _pushDestinationSubscription;
 
@@ -77,15 +74,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _tagsRepository = TagsRepository(Supabase.instance.client);
-    _chatRepository = ChatRepository(Supabase.instance.client);
     _tagsFuture = _tagsRepository.fetchCatalog();
     // Pre-initialize cache for smoother layout
     AspectRatioCache.init();
-    _refreshChatBadge();
-    _notificationBadgeChannel = _chatRepository.subscribeToNotificationChanges(
-      channelName: 'main-shell-notification-badge',
-      onChange: (_) => _refreshChatBadge(),
-    );
     _initAsync();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -132,7 +123,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _screenTimeTracker?.onResumed();
       unawaited(_screenTimeTracker?.flush());
-      _refreshChatBadge();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
@@ -146,10 +136,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     unawaited(_screenTimeTracker?.onPaused());
     _screenTimeTracker?.dispose();
     unawaited(_pushDestinationSubscription?.cancel());
-    final channel = _notificationBadgeChannel;
-    if (channel != null) {
-      _chatRepository.unsubscribe(channel);
-    }
     super.dispose();
   }
 
@@ -184,15 +170,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     _homeKey.currentState?.refresh();
   }
 
-  Future<void> _refreshChatBadge() async {
-    try {
-      final count = await _chatRepository.fetchUnreadChatTabBadgeCount();
-      if (mounted) setState(() => _chatBadgeCount = count);
-    } catch (_) {
-      // Keep the last confirmed count when a refresh temporarily fails.
-    }
-  }
-
   void _handleChatBadgeCountChanged(int count) {
     if (!mounted || _chatBadgeCount == count) return;
     setState(() => _chatBadgeCount = count);
@@ -214,9 +191,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         _profileRefreshSignal += 1;
       }
     });
-    if (value == 3) {
-      _refreshChatBadge();
-    }
   }
 
   Future<void> _openFilterPage() async {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
+import '../application/chat_refresh_coordinator.dart';
 import 'chat_room_page.dart';
 import 'chat_widgets.dart';
 import 'create_group_chat_page.dart';
@@ -33,7 +35,7 @@ class ChatPage extends StatefulWidget {
   State<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends State<ChatPage> {
+class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   static const _conversationsCacheKey = 'chat.cached_conversations.v1';
   static const _countsCacheKey = 'chat.cached_counts.v1';
   static const _eligiblePeopleCacheKey = 'chat.cached_eligible_people.v1';
@@ -48,6 +50,7 @@ class _ChatPageState extends State<ChatPage> {
 
   ChatRepository? _repository;
   RealtimeChannel? _channel;
+  late final ChatRefreshCoordinator _refreshCoordinator;
   late Future<_ChatHomeState> _future;
   late Future<List<ChatParticipant>> _eligiblePeopleFuture;
   final _searchController = TextEditingController();
@@ -61,14 +64,18 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _searchFocusNode.addListener(_handleSearchFocusChanged);
     _future = _load();
+    _refreshCoordinator = ChatRefreshCoordinator(
+      refresh: _performHomeRefresh,
+    );
     _eligiblePeopleFuture =
         _shouldUseInjectedData ? Future.value(const []) : _loadEligiblePeople();
     if (!_shouldUseInjectedData) {
-      _channel = _repo.subscribeToChatChanges(
+      _channel = _repo.subscribeToChatHomeChanges(
         channelName: 'chat-home',
-        onChange: (_) => _refresh(),
+        onChange: (_) => _refreshCoordinator.schedule(),
       );
     }
   }
@@ -78,6 +85,8 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshCoordinator.dispose();
     final channel = _channel;
     if (channel != null) {
       _repo.unsubscribe(channel);
@@ -88,26 +97,19 @@ class _ChatPageState extends State<ChatPage> {
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshCoordinator.refreshNow());
+    }
+  }
+
   Future<_ChatHomeState> _load() async {
     await _restoreCachedHome();
-    var conversations = _cachedConversations;
-    var counts = _cachedCounts;
-
-    try {
-      conversations = await (widget.loadConversations?.call() ??
-          _repo.fetchConversations());
-      _cachedConversations = conversations.take(10).toList();
-      await _saveConversationCache(
-        _conversationsCacheKey,
-        _cachedConversations,
-      );
-    } catch (_) {}
-    try {
-      counts = await (widget.loadCounts?.call() ??
-          _repo.fetchUnreadNotificationCounts());
-      _cachedCounts = counts;
-      await _saveCountsCache(counts);
-    } catch (_) {}
+    final conversationsFuture = _loadConversations();
+    final countsFuture = _loadCounts();
+    final conversations = await conversationsFuture;
+    final counts = await countsFuture;
 
     final homeState = _ChatHomeState(
       conversations: conversations,
@@ -120,6 +122,33 @@ class _ChatPageState extends State<ChatPage> {
       ),
     );
     return homeState;
+  }
+
+  Future<List<ChatConversation>> _loadConversations() async {
+    try {
+      final conversations = await (widget.loadConversations?.call() ??
+          _repo.fetchConversations());
+      _cachedConversations = conversations.take(10).toList();
+      await _saveConversationCache(
+        _conversationsCacheKey,
+        _cachedConversations,
+      );
+      return conversations;
+    } catch (_) {
+      return _cachedConversations;
+    }
+  }
+
+  Future<Map<NotificationSection, int>> _loadCounts() async {
+    try {
+      final counts = await (widget.loadCounts?.call() ??
+          _repo.fetchUnreadNotificationCounts());
+      _cachedCounts = counts;
+      await _saveCountsCache(counts);
+      return counts;
+    } catch (_) {
+      return _cachedCounts;
+    }
   }
 
   Future<void> _restoreCachedHome() async {
@@ -248,13 +277,22 @@ class _ChatPageState extends State<ChatPage> {
     };
   }
 
-  void _refresh() {
+  Future<void> _performHomeRefresh() async {
+    if (!mounted) return;
+    final next = _load();
     setState(() {
-      _future = _load();
-      _eligiblePeopleFuture = _shouldUseInjectedData
-          ? Future.value(const [])
-          : _loadEligiblePeople();
+      _future = next;
     });
+    await next;
+  }
+
+  Future<void> _refresh({bool includeEligiblePeople = true}) async {
+    if (includeEligiblePeople && !_shouldUseInjectedData && mounted) {
+      setState(() {
+        _eligiblePeopleFuture = _loadEligiblePeople();
+      });
+    }
+    await _refreshCoordinator.refreshNow();
   }
 
   Future<List<ChatParticipant>> _loadEligiblePeople() async {
@@ -347,7 +385,7 @@ class _ChatPageState extends State<ChatPage> {
                   MaterialPageRoute(
                       builder: (_) => const CreateGroupChatPage()),
                 );
-                if (mounted) _refresh();
+                if (mounted) unawaited(_refresh());
               },
             ),
             const SizedBox(width: 8),
@@ -370,7 +408,7 @@ class _ChatPageState extends State<ChatPage> {
             final searching =
                 ChatRepository.normalizeSearchTerm(_query).isNotEmpty;
             return RefreshIndicator(
-              onRefresh: () async => _refresh(),
+              onRefresh: _refresh,
               child: ListView(
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
@@ -573,9 +611,7 @@ class _ChatPageState extends State<ChatPage> {
       ),
     );
     if (!mounted) return;
-    setState(() {
-      _future = _load();
-    });
+    await _refresh(includeEligiblePeople: false);
   }
 
   Future<void> _openRoom(ChatConversation conversation) async {
@@ -583,7 +619,7 @@ class _ChatPageState extends State<ChatPage> {
       MaterialPageRoute(
           builder: (_) => ChatRoomPage(conversation: conversation)),
     );
-    if (mounted) _refresh();
+    if (mounted) unawaited(_refresh());
   }
 }
 

@@ -822,39 +822,6 @@ class ChatRepository {
     return _fetchParticipantsByIds(suggestionIds.toList());
   }
 
-  RealtimeChannel subscribeToChatChanges({
-    required String channelName,
-    required void Function(PostgresChangePayload payload) onChange,
-  }) {
-    return _client
-        .channel(channelName)
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'chat_conversations',
-          callback: onChange,
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'chat_conversation_members',
-          callback: onChange,
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'chat_messages',
-          callback: onChange,
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'notifications',
-          callback: onChange,
-        )
-        .subscribe();
-  }
-
   RealtimeChannel subscribeToChatHomeChanges({
     required String channelName,
     required void Function(PostgresChangePayload payload) onChange,

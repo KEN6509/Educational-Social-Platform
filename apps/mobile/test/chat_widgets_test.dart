@@ -1003,6 +1003,66 @@ void main() {
     expect(find.text('No chats yet'), findsOneWidget);
   });
 
+  testWidgets('ChatPage starts conversation and count reads concurrently',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final releaseConversations = Completer<void>();
+    var conversationStarted = false;
+    var countsStarted = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async {
+            conversationStarted = true;
+            await releaseConversations.future;
+            return const <ChatConversation>[];
+          },
+          loadCounts: () async {
+            countsStarted = true;
+            return const <NotificationSection, int>{};
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(conversationStarted, isTrue);
+    expect(countsStarted, isTrue);
+
+    releaseConversations.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('ChatPage refreshes home data when the app resumes',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    var conversationLoads = 0;
+    var countLoads = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async {
+            conversationLoads += 1;
+            return const <ChatConversation>[];
+          },
+          loadCounts: () async {
+            countLoads += 1;
+            return const <NotificationSection, int>{};
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(conversationLoads, 2);
+    expect(countLoads, 2);
+  });
+
   testWidgets('ChatPage exposes only All, Unread, and Groups filters',
       (tester) async {
     await tester.pumpWidget(

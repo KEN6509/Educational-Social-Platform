@@ -530,18 +530,20 @@ void main() {
       expect(source, contains("enriched['can_send_messages']"));
     });
 
-    test('main shell uses total chat badge count instead of chat message only',
+    test('chat page uses total chat badge count instead of chat message only',
         () {
-      final source = File('lib/src/features/shell/presentation/main_shell.dart')
-          .readAsStringSync();
+      final source = File(
+        'lib/src/features/chat/presentation/chat_page.dart',
+      ).readAsStringSync();
 
-      expect(source, contains('fetchUnreadChatTabBadgeCount'));
+      expect(source, contains('ChatRepository.bottomChatBadgeCount'));
       expect(source, isNot(contains('fetchUnreadChatCount();')));
     });
 
     test('main shell preserves the last known chat badge while refreshing', () {
-      final source = File('lib/src/features/shell/presentation/main_shell.dart')
-          .readAsStringSync();
+      final source = File(
+        'lib/src/features/shell/presentation/main_shell.dart',
+      ).readAsStringSync();
 
       expect(source, contains('onTap: _handleNavigationTap'));
       expect(source, contains('chatBadgeCount: _chatBadgeCount'));
@@ -557,43 +559,27 @@ void main() {
         isNot(contains('_chatBadgeCount = 0')),
       );
 
-      final refreshStart = source.indexOf('Future<void> _refreshChatBadge()');
-      final refreshEnd =
-          source.indexOf('void _handleChatBadgeCountChanged', refreshStart);
-      expect(refreshStart, greaterThanOrEqualTo(0));
-      expect(refreshEnd, greaterThan(refreshStart));
-      final refreshSource = source.substring(refreshStart, refreshEnd);
       expect(
-        refreshSource,
+        source,
         isNot(contains('setState(() => _chatBadgeCount = 0)')),
       );
     });
 
-    test('main shell owns foreground notification badge realtime lifecycle',
-        () {
-      final repositorySource =
-          File('lib/src/features/chat/data/chat_repository.dart')
-              .readAsStringSync();
-      final shellSource =
-          File('lib/src/features/shell/presentation/main_shell.dart')
-              .readAsStringSync();
-      final sectionSource = File(
-        'lib/src/features/chat/presentation/notification_sections_page.dart',
+    test('chat page owns continuous badge realtime lifecycle', () {
+      final chatSource = File(
+        'lib/src/features/chat/presentation/chat_page.dart',
+      ).readAsStringSync();
+      final shellSource = File(
+        'lib/src/features/shell/presentation/main_shell.dart',
       ).readAsStringSync();
 
-      expect(
-        repositorySource,
-        contains('RealtimeChannel subscribeToNotificationChanges'),
-      );
-      expect(shellSource, contains('with WidgetsBindingObserver'));
-      expect(shellSource,
-          contains("channelName: 'main-shell-notification-badge'"));
-      expect(shellSource, contains('AppLifecycleState.resumed'));
-      expect(shellSource, contains('_chatRepository.unsubscribe(channel)'));
-      expect(
-        sectionSource,
-        contains("channelName: 'notification-section-\${_section.name}'"),
-      );
+      expect(chatSource, contains('with WidgetsBindingObserver'));
+      expect(chatSource, contains('subscribeToChatHomeChanges'));
+      expect(chatSource, contains('AppLifecycleState.resumed'));
+      expect(chatSource, contains('_repo.unsubscribe(channel)'));
+      expect(shellSource, isNot(contains('subscribeToNotificationChanges')));
+      expect(shellSource, contains('chatBadgeCount: _chatBadgeCount'));
+      expect(shellSource, contains('_handleChatBadgeCountChanged'));
     });
   });
 }
