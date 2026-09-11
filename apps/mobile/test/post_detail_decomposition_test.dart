@@ -40,4 +40,22 @@ void main() {
     expect(share, contains('class _ActionGridItem'));
     expect(page, isNot(contains('class _ShareSheet')));
   });
+
+  test('post detail comment widgets live in their feature-local part', () {
+    final page =
+        File('$presentationPath/post_detail_page.dart').readAsStringSync();
+    final commentsFile = File('$presentationPath/post_detail_comments.dart');
+
+    expect(page, contains("part 'post_detail_comments.dart';"));
+    expect(commentsFile.existsSync(), isTrue);
+    if (!commentsFile.existsSync()) return;
+
+    final comments = commentsFile.readAsStringSync();
+    expect(comments, startsWith("part of 'post_detail_page.dart';"));
+    expect(comments, contains('class _CommentsLoadError'));
+    expect(comments, contains('class _CommentInputModal'));
+    expect(comments, contains('class _CommentItem'));
+    expect(comments, contains('class _CommentLikeButton'));
+    expect(page, isNot(contains('class _CommentItem')));
+  });
 }

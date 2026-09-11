@@ -52,9 +52,13 @@ void main() {
 
   test('post detail supports initial comment focus and unavailable snackbar',
       () {
-    final source = File(
+    final pageSource = File(
       'lib/src/features/posts/presentation/post_detail_page.dart',
     ).readAsStringSync();
+    final commentsSource = File(
+      'lib/src/features/posts/presentation/post_detail_comments.dart',
+    ).readAsStringSync();
+    final source = '$pageSource\n$commentsSource';
 
     expect(source, contains('initialCommentId'));
     expect(source, contains('_focusInitialComment'));
