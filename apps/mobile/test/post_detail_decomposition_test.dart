@@ -58,4 +58,20 @@ void main() {
     expect(comments, contains('class _CommentLikeButton'));
     expect(page, isNot(contains('class _CommentItem')));
   });
+
+  test('post detail visual actions live in their feature-local part', () {
+    final page =
+        File('$presentationPath/post_detail_page.dart').readAsStringSync();
+    final actionsFile = File('$presentationPath/post_detail_actions.dart');
+
+    expect(page, contains("part 'post_detail_actions.dart';"));
+    expect(actionsFile.existsSync(), isTrue);
+    if (!actionsFile.existsSync()) return;
+
+    final actions = actionsFile.readAsStringSync();
+    expect(actions, startsWith("part of 'post_detail_page.dart';"));
+    expect(actions, contains('class _ActionButton'));
+    expect(actions, contains('class _FollowButton'));
+    expect(page, isNot(contains('class _ActionButton')));
+  });
 }
