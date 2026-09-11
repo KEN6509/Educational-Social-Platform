@@ -15,6 +15,7 @@ import '../../profile/presentation/profile_page.dart';
 import '../data/chat_models.dart';
 import '../data/chat_mention.dart';
 import '../data/chat_repository.dart';
+import '../application/chat_refresh_coordinator.dart';
 import 'chat_details_page.dart';
 import 'chat_widgets.dart';
 import 'chat_mention_controller.dart';
@@ -66,6 +67,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
 
   ChatRepository? _repository;
   RealtimeChannel? _channel;
+  late final ChatRefreshCoordinator _refreshCoordinator;
   late Future<List<ChatMessage>> _messagesFuture;
   late ChatConversation _conversation = widget.conversation;
   final _controller = TextEditingController();
@@ -101,6 +103,15 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     _messageScrollController.addListener(_handleMessageScrollChanged);
     _inputFocusNode.addListener(_handleInputFocusChanged);
     _messagesFuture = _load();
+    _refreshCoordinator = ChatRefreshCoordinator(
+      refresh: _refreshMessages,
+      onError: (error, _) {
+        assert(() {
+          debugPrint('Chat room refresh failed: $error');
+          return true;
+        }());
+      },
+    );
     _canSendMessages = _conversation.isGroup
         ? true
         : widget.loadSendPermission != null || widget.loadMessages == null
@@ -119,15 +130,10 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     }
     (widget.markRead ?? _repo.markConversationRead)(_conversation.id);
     if (widget.loadMessages == null) {
-      _channel = _repo.subscribeToChatChanges(
+      _channel = _repo.subscribeToConversationChanges(
         channelName: 'chat-room-${_conversation.id}',
-        onChange: (_) {
-          if (mounted) {
-            setState(() {
-              _messagesFuture = _load();
-            });
-          }
-        },
+        conversationId: _conversation.id,
+        onChange: (_) => _refreshCoordinator.schedule(),
       );
     }
   }
@@ -135,6 +141,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _refreshCoordinator.dispose();
     final channel = _channel;
     if (channel != null) {
       _repo.unsubscribe(channel);
@@ -340,6 +347,15 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     }
   }
 
+  Future<void> _refreshMessages() async {
+    if (!mounted) return;
+    final nextMessages = _load();
+    setState(() {
+      _messagesFuture = nextMessages;
+    });
+    await nextMessages;
+  }
+
   Future<void> _loadMentionParticipants() async {
     try {
       final participants =
@@ -520,13 +536,8 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       _mentionController.clear();
       _previousComposerText = '';
       _mentionQuery = null;
-      final nextMessages = _load();
-      if (mounted) {
-        setState(() {
-          _messagesFuture = nextMessages;
-        });
-        _pinToBottomAfterLayout();
-      }
+      unawaited(_refreshCoordinator.refreshNow());
+      _pinToBottomAfterLayout();
     } catch (error) {
       assert(() {
         debugPrint('Chat send failed: $error');
@@ -620,13 +631,8 @@ class _ChatRoomPageState extends State<ChatRoomPage>
         conversationId: _conversation.id,
         images: uploads,
       );
-      final nextMessages = _load();
-      if (mounted) {
-        setState(() {
-          _messagesFuture = nextMessages;
-        });
-        _pinToBottomAfterLayout();
-      }
+      unawaited(_refreshCoordinator.refreshNow());
+      _pinToBottomAfterLayout();
     } catch (error) {
       assert(() {
         debugPrint('Chat image send failed: $error');

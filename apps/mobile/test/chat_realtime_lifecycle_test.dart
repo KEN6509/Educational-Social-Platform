@@ -55,4 +55,23 @@ void main() {
     expect(source, contains("column: 'user_id'"));
     expect(source, contains('value: currentUserId'));
   });
+
+  test('chat room owns one scoped channel and one refresh coordinator', () {
+    final source = File(
+      'lib/src/features/chat/presentation/chat_room_page.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains('late final ChatRefreshCoordinator _refreshCoordinator;'),
+    );
+    expect(source, contains('_repo.subscribeToConversationChanges('));
+    expect(source, contains('conversationId: _conversation.id'));
+    expect(
+      source,
+      contains('onChange: (_) => _refreshCoordinator.schedule()'),
+    );
+    expect(source, contains('_refreshCoordinator.dispose();'));
+    expect(source, isNot(contains('_repo.subscribeToChatChanges(')));
+  });
 }
