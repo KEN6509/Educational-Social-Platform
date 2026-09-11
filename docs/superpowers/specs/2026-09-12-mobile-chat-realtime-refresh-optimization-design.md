@@ -1,7 +1,7 @@
 # Mobile Chat Realtime and Refresh Optimization Design
 
 Date: 2026-09-12  
-Status: Approved approach; awaiting written-spec review
+Status: Approved for implementation
 
 ## Purpose
 
