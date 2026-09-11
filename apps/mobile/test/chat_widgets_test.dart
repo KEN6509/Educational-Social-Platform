@@ -728,8 +728,13 @@ void main() {
 
   test('chat preview downloads real images and keeps thumbnail errors quiet',
       () {
-    final source = File('lib/src/features/chat/presentation/chat_widgets.dart')
-        .readAsStringSync();
+    final widgetSource =
+        File('lib/src/features/chat/presentation/chat_widgets.dart')
+            .readAsStringSync();
+    final mediaSource =
+        File('lib/src/features/chat/presentation/chat_message_media.dart')
+            .readAsStringSync();
+    final source = '$widgetSource\n$mediaSource';
     final roomSource =
         File('lib/src/features/chat/presentation/chat_room_page.dart')
             .readAsStringSync();

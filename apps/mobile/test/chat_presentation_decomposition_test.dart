@@ -24,4 +24,24 @@ void main() {
     expect(root, isNot(contains('class ChatMessageBubble')));
     expect(root, isNot(contains('class _InlineBubbleTextWithTime')));
   });
+
+  test('chat message media lives in its feature-local part', () {
+    final root = File('$path/chat_widgets.dart').readAsStringSync();
+    final mediaFile = File('$path/chat_message_media.dart');
+
+    expect(root, contains("part 'chat_message_media.dart';"));
+    expect(mediaFile.existsSync(), isTrue);
+    if (!mediaFile.existsSync()) return;
+
+    final media = mediaFile.readAsStringSync();
+    expect(media, startsWith("part of 'chat_widgets.dart';"));
+    expect(media, contains('class _ImageBubbleContent'));
+    expect(media, contains('class _SingleImageBubbleThumbnail'));
+    expect(media, contains('class _ChatImagePreviewPage'));
+    expect(media, contains('class _ChatImageLoadError'));
+    expect(media, contains('class _ImageBubbleGrid'));
+    expect(media, contains('class _ChatImageThumbnailLoadError'));
+    expect(root, isNot(contains('class _ImageBubbleContent')));
+    expect(root, isNot(contains('class _ChatImagePreviewPage')));
+  });
 }
