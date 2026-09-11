@@ -71,26 +71,42 @@ void main() {
     expect(source, contains('Scrollable.ensureVisible'));
   });
 
-  test('comment submission shows pending feedback before moderation', () {
+  test('comment submission keeps page context after closing the modal', () {
     final source = File(
       'lib/src/features/posts/presentation/post_detail_page.dart',
     ).readAsStringSync();
 
+    final modalStart = source.indexOf('showModalBottomSheet(');
+    final moderationMethodStart = source.indexOf(
+      'Future<void> _moderateComment',
+      modalStart,
+    );
+    final submissionSource = source.substring(
+      modalStart,
+      moderationMethodStart,
+    );
+
     final createIndex =
-        source.indexOf('final commentId = await repo.createComment');
-    final pendingIndex = source.indexOf(
+        submissionSource.indexOf('final commentId = await repo.createComment');
+    final pendingIndex = submissionSource.indexOf(
       'Comment submitted. AI moderation is checking it.',
       createIndex,
     );
-    final moderateIndex = source.indexOf(
+    final moderateIndex = submissionSource.indexOf(
       'await _moderateComment(commentId',
       createIndex,
     );
 
+    expect(modalStart, greaterThanOrEqualTo(0));
+    expect(moderationMethodStart, greaterThan(modalStart));
     expect(createIndex, greaterThanOrEqualTo(0));
     expect(pendingIndex, greaterThan(createIndex));
     expect(moderateIndex, greaterThan(pendingIndex));
-    expect(source, contains('AppFeedback.show('));
-    expect(source, contains('context,'));
+    expect(submissionSource, contains('builder: (sheetContext)'));
+    expect(submissionSource, contains('Navigator.of(sheetContext)'));
+    expect(submissionSource, contains('if (!mounted) return;'));
+    expect(submissionSource, contains('AppFeedback.show('));
+    expect(submissionSource, contains('context,'));
+    expect(submissionSource, isNot(contains('context.mounted')));
   });
 }

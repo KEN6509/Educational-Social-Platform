@@ -890,7 +890,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _CommentInputModal(
+      builder: (sheetContext) => _CommentInputModal(
         controller: _commentController,
         focusNode: _commentFocusNode,
         replyToName: replyTo?.authorName,
@@ -898,12 +898,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
             ? null
             : () {
                 _commentController.clear();
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
               },
         onSend: () async {
           final content = _commentController.text.trim();
           if (content.isNotEmpty) {
-            final navigator = Navigator.of(context);
+            final navigator = Navigator.of(sheetContext);
             if (!await _ensureInteractionAllowed()) return;
             _commentController.clear();
             navigator.pop();
@@ -922,7 +922,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     ? replyTo!.authorName
                     : null,
               );
-              if (!context.mounted) return;
+              if (!mounted) return;
               AppFeedback.show(
                 context,
                 message: 'Comment submitted. AI moderation is checking it.',
@@ -930,7 +930,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
               );
               await _moderateComment(commentId);
             } catch (e) {
-              if (!context.mounted) return;
+              if (!mounted) return;
               if (friendlyErrorTitle(e) == 'No internet connection') {
                 _showNoInternetMessage();
               } else {
