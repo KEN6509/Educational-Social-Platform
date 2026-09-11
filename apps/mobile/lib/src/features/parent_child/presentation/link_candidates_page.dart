@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 
-const _navy = Color(0xFF0B1F3E);
+const _navy = AppColors.navy;
 const _cyan = Color(0xFF4490AD);
-const _softGrey = Color(0xFFF1F5F9);
-const _divider = Color(0xFFE2E8F0);
+const _softGrey = AppColors.surfaceMuted;
+const _divider = AppColors.border;
 
 class LinkCandidatesPage extends StatefulWidget {
   const LinkCandidatesPage({
@@ -57,15 +59,13 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
         _locallyPendingCandidateIds.add(candidate.profile.id);
       });
       widget.onRequestCreated?.call();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Link request sent to ${candidate.profile.name}.')),
+      AppFeedback.showSuccess(
+        context,
+        'Link request sent to ${candidate.profile.name}.',
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to send link request: $error')),
-      );
+      AppFeedback.showError(context, 'Unable to send link request: $error');
     } finally {
       if (mounted) setState(() => _busyCandidateId = null);
     }

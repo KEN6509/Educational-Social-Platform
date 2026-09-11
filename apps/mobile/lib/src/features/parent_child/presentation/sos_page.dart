@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_location_map.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
@@ -65,13 +67,13 @@ class _SosPageState extends State<SosPage> {
     final confirmed = await showAppConfirmationDialog(
       context: context,
       icon: Icons.sos_rounded,
-      iconColor: const Color(0xFFE11D48),
+      iconColor: AppColors.error,
       iconBackgroundColor: const Color(0xFFFFE4E6),
       title: 'Share location and alert parents?',
       message:
           'CyanZone will try to share your current location with all linked parents. The SOS will still send if location is unavailable.',
       primaryLabel: 'Send SOS',
-      primaryColor: const Color(0xFFE11D48),
+      primaryColor: AppColors.error,
     );
     if (confirmed != true || !mounted) return;
     setState(() {
@@ -168,13 +170,13 @@ class _SosPageState extends State<SosPage> {
     final confirmed = await showAppConfirmationDialog(
       context: context,
       icon: Icons.check_circle_outline_rounded,
-      iconColor: const Color(0xFFE11D48),
+      iconColor: AppColors.error,
       iconBackgroundColor: const Color(0xFFFFE4E6),
       title: 'Resolve this SOS?',
       message:
           'Resolving stops the child’s live location updates for this alert. This action applies to every linked parent.',
       primaryLabel: 'Resolve SOS',
-      primaryColor: const Color(0xFFE11D48),
+      primaryColor: AppColors.error,
     );
     if (confirmed == true && mounted) {
       await _updateAlert(() => widget.repository.resolveSos(_alert!.id));
@@ -201,9 +203,7 @@ class _SosPageState extends State<SosPage> {
       if (widget.subscribeToRealtime) await _refreshDetail();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to update SOS: $error')),
-      );
+      AppFeedback.showError(context, 'Unable to update SOS: $error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -265,7 +265,7 @@ class _SosPageState extends State<SosPage> {
               borderRadius: BorderRadius.circular(22),
             ),
             child: const Column(children: [
-              Icon(Icons.sos_rounded, size: 58, color: Color(0xFFE11D48)),
+              Icon(Icons.sos_rounded, size: 58, color: AppColors.error),
               SizedBox(height: 14),
               Text(
                 'Send an urgent alert',
@@ -293,7 +293,7 @@ class _SosPageState extends State<SosPage> {
             height: 54,
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFE11D48),
+                backgroundColor: AppColors.error,
               ),
               onPressed: _busy
                   ? null
@@ -366,7 +366,7 @@ class _SosPageState extends State<SosPage> {
               _locationFreshness(latest),
               textAlign: TextAlign.right,
               style: const TextStyle(
-                color: Color(0xFF64748B),
+                color: AppColors.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),

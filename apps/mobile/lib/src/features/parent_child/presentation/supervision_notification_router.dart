@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import 'check_in_detail_page.dart';
@@ -137,10 +138,9 @@ final class SupervisionNotificationRouter {
   }
 
   static void _showUnavailable(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('This supervision record is no longer available.'),
-      ),
+    AppFeedback.showError(
+      context,
+      'This supervision record is no longer available.',
     );
   }
 }

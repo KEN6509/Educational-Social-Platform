@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/application/async_refresh_coordinator.dart';
 import '../../../core/theme/app_design_tokens.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import 'check_in_page.dart';
@@ -104,10 +105,9 @@ class _ParentChildPageState extends State<ParentChildPage>
       if (changed) await _refresh();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to open family link requests right now.'),
-        ),
+      AppFeedback.showError(
+        context,
+        'Unable to open family link requests right now.',
       );
     }
   }
@@ -180,7 +180,7 @@ class _ParentChildPageState extends State<ParentChildPage>
           title: const Text(
             'Parent Supervision',
             style: TextStyle(
-              color: Color(0xFF0B1F3E),
+              color: AppColors.navy,
               fontSize: 24,
               fontWeight: FontWeight.w800,
             ),
@@ -190,7 +190,7 @@ class _ParentChildPageState extends State<ParentChildPage>
               tooltip: 'Add family link',
               icon: const Icon(
                 Icons.person_add_alt_1_rounded,
-                color: Color(0xFF0B1F3E),
+                color: AppColors.navy,
                 size: 28,
               ),
               onPressed: _openCandidates,

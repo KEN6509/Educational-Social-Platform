@@ -20,7 +20,7 @@ final class _BottomSosAction extends StatelessWidget {
             key: const Key('sos-bottom-action'),
             style: FilledButton.styleFrom(
               backgroundColor: action == SosParentAction.resolve
-                  ? const Color(0xFFE11D48)
+                  ? AppColors.error
                   : const Color(0xFF087F8C),
             ),
             onPressed: busy ? null : onPressed,
@@ -51,7 +51,7 @@ final class _TimelineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         key: const Key('sos-timeline'),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: const Color(0xFFF6F8FA),
           borderRadius: BorderRadius.circular(16),
@@ -91,7 +91,7 @@ final class _TimelineEventRow extends StatelessWidget {
             child: Text(
               _formatTime(event.createdAt),
               style: const TextStyle(
-                color: Color(0xFF64748B),
+                color: AppColors.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -133,7 +133,7 @@ final class _DetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: const Color(0xFFF6F8FA),
           borderRadius: BorderRadius.circular(16),

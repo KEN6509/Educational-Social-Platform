@@ -208,7 +208,7 @@ class _TypeChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
         decoration: BoxDecoration(
           color: color.withValues(alpha: .12),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadii.compact),
         ),
         child: Text(
           label,
@@ -293,7 +293,7 @@ class _LegacyRecordTile extends StatelessWidget {
         ),
       SosRecordItem(:final alert) => (
           Icons.sos_rounded,
-          const Color(0xFFE11D48),
+          AppColors.error,
           'SOS · ${_sosStatus(alert.status)}',
           alert.child?.name ?? 'Linked child',
         ),

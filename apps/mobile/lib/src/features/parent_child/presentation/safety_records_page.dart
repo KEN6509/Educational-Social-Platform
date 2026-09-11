@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import 'check_in_detail_page.dart';
@@ -9,7 +10,7 @@ part 'safety_record_widgets.dart';
 
 const _pageBg = Color(0xFFF8FAFC);
 const _text = Color(0xFF0D2344);
-const _secondary = Color(0xFF64748B);
+const _secondary = AppColors.textSecondary;
 const _muted = Color(0xFF98A3B6);
 const _checkIn = Color(0xFF16A34A);
 const _sos = Color(0xFFEF4444);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
 import '../../../core/widgets/app_confirmation_dialog.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
@@ -7,10 +8,10 @@ import '../../profile/presentation/profile_page.dart';
 
 part 'family_links_widgets.dart';
 
-const _pageBg = Color(0xFFF1F5F9);
-const _text = Color(0xFF0D2344);
-const _secondary = Color(0xFF7A879B);
-const _border = Color(0xFFE2E8F0);
+const _pageBg = AppColors.surfaceMuted;
+const _text = AppColors.navy;
+const _secondary = AppColors.textSecondary;
+const _border = AppColors.border;
 const _familyBlue = Color(0xFF4F7DF3);
 
 typedef FamilyProfilePageBuilder = Widget Function(ProfileSummary profile);

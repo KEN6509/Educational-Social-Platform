@@ -78,4 +78,22 @@ void main() {
     expect(widgetSource, contains('class _TimelineEventRow'));
     expect(widgetSource, contains('class _DetailCard'));
   });
+
+  test('parent-child presentation uses the shared feedback facade', () {
+    final directory = Directory(
+      'lib/src/features/parent_child/presentation',
+    );
+    final offenders = <String>[];
+
+    for (final entity in directory.listSync()) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final source = entity.readAsStringSync();
+      if (source.contains('ScaffoldMessenger.of(') ||
+          source.contains('SnackBar(')) {
+        offenders.add(entity.path);
+      }
+    }
+
+    expect(offenders, isEmpty);
+  });
 }

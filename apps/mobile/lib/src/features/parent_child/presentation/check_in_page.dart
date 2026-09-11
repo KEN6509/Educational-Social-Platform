@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import '../services/location_service.dart';
@@ -78,17 +80,13 @@ class _CheckInPageState extends State<CheckInPage> {
         ),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Safety Check-In sent.')),
-      );
+      AppFeedback.showSuccess(context, 'Safety Check-In sent.');
       if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop(true);
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to send Check-In: $error')),
-      );
+      AppFeedback.showError(context, 'Unable to send Check-In: $error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -170,7 +168,7 @@ class _CheckInPageState extends State<CheckInPage> {
               if (_failedCapture != null) ...[
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF7ED),
                     borderRadius: BorderRadius.circular(16),
@@ -202,7 +200,8 @@ class _CheckInPageState extends State<CheckInPage> {
                                     vertical: 12,
                                   ),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadii.compact),
                                   ),
                                 ),
                                 onPressed: _busy ? null : _captureLocation,
@@ -226,7 +225,8 @@ class _CheckInPageState extends State<CheckInPage> {
                                     vertical: 12,
                                   ),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadii.compact),
                                   ),
                                 ),
                                 onPressed: _busy
