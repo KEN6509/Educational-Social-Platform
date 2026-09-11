@@ -2379,9 +2379,13 @@ void main() {
 
   test('chat room supports initial unread target and jump to bottom button',
       () {
-    final source =
+    final pageSource =
         File('lib/src/features/chat/presentation/chat_room_page.dart')
             .readAsStringSync();
+    final widgetSource =
+        File('lib/src/features/chat/presentation/chat_room_widgets.dart')
+            .readAsStringSync();
+    final source = '$pageSource\n$widgetSource';
 
     expect(source, contains('_initialScrollDone'));
     expect(source, contains('_scrollToUnreadDividerOrLatest'));

@@ -66,4 +66,25 @@ void main() {
     expect(root, isNot(contains('class ChatAvatar')));
     expect(root, isNot(contains('class ConversationTile')));
   });
+
+  test('chat room visual widgets live in their feature-local part', () {
+    final root = File('$path/chat_room_page.dart').readAsStringSync();
+    final roomFile = File('$path/chat_room_widgets.dart');
+
+    expect(root, contains("part 'chat_room_widgets.dart';"));
+    expect(roomFile.existsSync(), isTrue);
+    if (!roomFile.existsSync()) return;
+
+    final room = roomFile.readAsStringSync();
+    expect(room, startsWith("part of 'chat_room_page.dart';"));
+    expect(room, contains('class _MessageList'));
+    expect(room, contains('class _JumpToBottomButton'));
+    expect(room, contains('class _MentionSuggestionsPanel'));
+    expect(room, contains('class _DateSeparator'));
+    expect(room, contains('class _UnreadMessagesDivider'));
+    expect(room, contains('class _WhatsAppRoomBackground'));
+    expect(room, contains('class _ChatWallpaperPainter'));
+    expect(root, isNot(contains('class _MessageList')));
+    expect(root, isNot(contains('class _ChatWallpaperPainter')));
+  });
 }
