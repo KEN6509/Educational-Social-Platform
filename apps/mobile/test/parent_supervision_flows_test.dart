@@ -256,6 +256,30 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('dashboard serializes resume refresh behind initial load',
+      (tester) async {
+    final initial = Completer<SupervisionDashboardState>();
+    final repository = FlowFakeRepository(pendingDashboard: initial);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ParentChildPage(
+          repository: repository,
+          subscribeToRealtime: false,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(repository.dashboardFetchCalls, 1);
+
+    initial.complete(repository.dashboardState(DateTime(2026, 9, 12)));
+    await tester.pumpAndSettle();
+    expect(repository.dashboardFetchCalls, 2);
+  });
+
   testWidgets('check in requires a message and skips unselected location',
       (tester) async {
     final repository = FlowFakeRepository();
@@ -1352,6 +1376,7 @@ void _usePhoneViewport(WidgetTester tester) {
 final class FlowFakeRepository implements ParentChildRepositoryContract {
   FlowFakeRepository({
     this.dashboardRole,
+    this.pendingDashboard,
     this.pendingCandidates,
     this.pendingSos,
     this.checkInFailures = 0,
@@ -1374,6 +1399,7 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
   });
 
   final FamilyRole? dashboardRole;
+  final Completer<SupervisionDashboardState>? pendingDashboard;
   final Completer<List<LinkCandidate>>? pendingCandidates;
   final Completer<SosAlert>? pendingSos;
   int checkInFailures;
@@ -1407,6 +1433,16 @@ final class FlowFakeRepository implements ParentChildRepositoryContract {
     required DateTime localDay,
   }) async {
     dashboardFetchCalls += 1;
+    if (pendingDashboard != null && !_pendingDashboardReturned) {
+      _pendingDashboardReturned = true;
+      return pendingDashboard!.future;
+    }
+    return dashboardState(localDay);
+  }
+
+  bool _pendingDashboardReturned = false;
+
+  SupervisionDashboardState dashboardState(DateTime localDay) {
     return SupervisionDashboardState.fromParts(
       currentUserId: 'user-1',
       links: dashboardRole == null
