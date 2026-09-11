@@ -503,6 +503,19 @@ void main() {
     expect(find.text('Chan'), findsOneWidget);
     expect(find.byType(Card), findsOneWidget);
     expect(find.textContaining(ChatMessage.sharedPostPrefix), findsNothing);
+
+    final bubble = tester.widget<Container>(
+      find.byKey(const ValueKey('chat-message-bubble')),
+    );
+    final bubbleDecoration = bubble.decoration! as BoxDecoration;
+    final bubbleRadius = bubbleDecoration.borderRadius! as BorderRadius;
+    expect(bubbleRadius.topLeft, const Radius.circular(16));
+
+    final card = tester.widget<Card>(find.byType(Card));
+    final cardShape = card.shape! as RoundedRectangleBorder;
+    final cardRadius = cardShape.borderRadius.resolve(TextDirection.ltr);
+    expect(cardRadius.topLeft, const Radius.circular(12));
+    expect(cardRadius.topRight, const Radius.circular(12));
   });
 
   testWidgets('ChatMessageBubble opens shared post through tap callback',

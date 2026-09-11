@@ -342,7 +342,7 @@ class _SharedPostBubbleContent extends StatelessWidget {
             margin: EdgeInsets.zero,
             color: Colors.white,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               side: const BorderSide(color: Color(0xFFE6F0F1)),
             ),
             child: hasImage
