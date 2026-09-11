@@ -2360,8 +2360,9 @@ void main() {
   });
 
   test('conversation rows place unread badge on preview line', () {
-    final source = File('lib/src/features/chat/presentation/chat_widgets.dart')
-        .readAsStringSync();
+    final source =
+        File('lib/src/features/chat/presentation/chat_list_widgets.dart')
+            .readAsStringSync();
     final start = source.indexOf('class _ConversationTileState');
     final end = source.indexOf('class _ConversationPreviewLine', start);
     expect(start, greaterThanOrEqualTo(0));

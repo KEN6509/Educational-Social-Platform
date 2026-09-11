@@ -44,4 +44,26 @@ void main() {
     expect(root, isNot(contains('class _ImageBubbleContent')));
     expect(root, isNot(contains('class _ChatImagePreviewPage')));
   });
+
+  test('chat list widgets live in their feature-local part', () {
+    final root = File('$path/chat_widgets.dart').readAsStringSync();
+    final listFile = File('$path/chat_list_widgets.dart');
+
+    expect(root, contains("part 'chat_list_widgets.dart';"));
+    expect(listFile.existsSync(), isTrue);
+    if (!listFile.existsSync()) return;
+
+    final list = listFile.readAsStringSync();
+    expect(list, startsWith("part of 'chat_widgets.dart';"));
+    expect(list, contains('class ChatAvatar'));
+    expect(list, contains('class GroupAvatar'));
+    expect(list, contains('class ChatSearchField'));
+    expect(list, contains('class ConversationTile'));
+    expect(list, contains('class ChatParticipantRow'));
+    expect(list, contains('class ChatNoResultsState'));
+    expect(list, contains('class ChatEmptyState'));
+    expect(list, contains('class NotificationEntryCard'));
+    expect(root, isNot(contains('class ChatAvatar')));
+    expect(root, isNot(contains('class ConversationTile')));
+  });
 }
