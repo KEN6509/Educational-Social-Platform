@@ -24,6 +24,8 @@ class HomeFeedPage extends StatefulWidget {
     this.tagFilters,
     this.onClearFilters,
     this.onCreatePost,
+    this.postsFetcher,
+    this.random,
     super.key,
   });
 
@@ -31,13 +33,15 @@ class HomeFeedPage extends StatefulWidget {
   final List<String>? tagFilters;
   final VoidCallback? onClearFilters;
   final VoidCallback? onCreatePost;
+  final Future<List<FeedPost>> Function(FeedMode mode)? postsFetcher;
+  final Random? random;
 
   @override
   State<HomeFeedPage> createState() => HomeFeedPageState();
 }
 
 class HomeFeedPageState extends State<HomeFeedPage> {
-  late PostsRepository _repository;
+  PostsRepository? _repository;
   Future<List<FeedPost>>? _future;
   List<FeedPost> _allPosts = [];
   bool _isRefreshing = false;
@@ -46,7 +50,9 @@ class HomeFeedPageState extends State<HomeFeedPage> {
   @override
   void initState() {
     super.initState();
-    _repository = PostsRepository(Supabase.instance.client);
+    if (widget.postsFetcher == null) {
+      _repository = PostsRepository(Supabase.instance.client);
+    }
     _future = _fetchPosts();
     PostInteractionSync.latest.addListener(_handlePostInteractionUpdate);
   }
@@ -68,17 +74,21 @@ class HomeFeedPageState extends State<HomeFeedPage> {
   }
 
   Future<List<FeedPost>> _fetchPosts({bool rearrangeFollowing = false}) async {
-    final posts = switch (widget.feedMode) {
-      FeedMode.feeds => await _repository.fetchFeed(),
-      FeedMode.following => await _repository.fetchFollowingPosts(),
-      FeedMode.saves => await _repository.fetchSavedPosts(),
-    };
+    final mode = widget.feedMode;
+    final fetcher = widget.postsFetcher;
+    final posts = fetcher != null
+        ? await fetcher(mode)
+        : switch (mode) {
+            FeedMode.feeds => await _repository!.fetchFeed(),
+            FeedMode.following => await _repository!.fetchFollowingPosts(),
+            FeedMode.saves => await _repository!.fetchSavedPosts(),
+          };
 
     final arrangedPosts = arrangeHomePosts(
       posts,
-      mode: widget.feedMode,
+      mode: mode,
       rearrangeFollowing: rearrangeFollowing,
-      random: Random(),
+      random: widget.random ?? Random(),
     );
     unawaited(PostCardRatioPreloader.preload(arrangedPosts));
     unawaited(
@@ -89,17 +99,23 @@ class HomeFeedPageState extends State<HomeFeedPage> {
     return arrangedPosts;
   }
 
-  Future<void> refresh({bool rearrangeFollowing = true}) async {
-    if (_isRefreshing) {
+  Future<void> refresh({
+    bool rearrangeFollowing = false,
+    bool supersede = false,
+  }) async {
+    if (_isRefreshing && !supersede) {
       return;
     }
+    final request = _fetchPosts(
+      rearrangeFollowing: rearrangeFollowing,
+    );
     setState(() {
       _isRefreshing = true;
-      _future = _fetchPosts(rearrangeFollowing: rearrangeFollowing);
+      _future = request;
     });
     try {
-      final posts = await _future;
-      if (mounted && posts != null) {
+      final posts = await request;
+      if (mounted && identical(_future, request)) {
         setState(() {
           _allPosts = posts;
         });
@@ -107,23 +123,27 @@ class HomeFeedPageState extends State<HomeFeedPage> {
     } catch (_) {
       // FutureBuilder renders the offline/error state for the failed fetch.
     } finally {
-      if (mounted) {
+      if (mounted && identical(_future, request)) {
         setState(() => _isRefreshing = false);
       }
     }
   }
 
+  Future<void> _refreshFromUser() {
+    return refresh(rearrangeFollowing: true);
+  }
+
   Future<void> revealRefreshAndRefresh() async {
     if (_isRefreshing) return;
     await Future<void>.delayed(const Duration(milliseconds: 260));
-    await refresh();
+    await _refreshFromUser();
   }
 
   @override
   void didUpdateWidget(covariant HomeFeedPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.feedMode != widget.feedMode) {
-      refresh(rearrangeFollowing: false);
+      refresh(supersede: true);
     }
   }
 
@@ -163,8 +183,8 @@ class HomeFeedPageState extends State<HomeFeedPage> {
             message: friendlyErrorMessage(snapshot.error),
             actionLabel: 'Try again',
             actionIcon: Icons.refresh_rounded,
-            onAction: refresh,
-            onRefresh: refresh,
+            onAction: _refreshFromUser,
+            onRefresh: _refreshFromUser,
           );
         }
 
@@ -179,7 +199,7 @@ class HomeFeedPageState extends State<HomeFeedPage> {
             onAction: () {
               widget.onClearFilters?.call();
             },
-            onRefresh: refresh,
+            onRefresh: _refreshFromUser,
           );
         }
 
@@ -220,13 +240,13 @@ class HomeFeedPageState extends State<HomeFeedPage> {
             message: message,
             actionLabel: actionLabel,
             actionIcon: actionIcon,
-            onAction: onActionOverride ?? refresh,
-            onRefresh: refresh,
+            onAction: onActionOverride ?? _refreshFromUser,
+            onRefresh: _refreshFromUser,
           );
         }
 
         return RefreshIndicator(
-          onRefresh: refresh,
+          onRefresh: _refreshFromUser,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [

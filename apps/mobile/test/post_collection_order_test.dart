@@ -1,8 +1,20 @@
+import 'dart:math';
+
 import 'package:cyanzone_mobile/src/features/posts/data/feed_post.dart';
 import 'package:cyanzone_mobile/src/features/posts/data/feed_mode.dart';
 import 'package:cyanzone_mobile/src/features/posts/data/post_collection_order.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'dart:math';
+
+final class _ZeroRandom implements Random {
+  @override
+  bool nextBool() => false;
+
+  @override
+  double nextDouble() => 0;
+
+  @override
+  int nextInt(int max) => 0;
+}
 
 FeedPost _post(
   String id, {
@@ -62,6 +74,7 @@ void main() {
   test('following stays newest first until a manual rearrangement', () {
     final posts = [
       _post('newest', status: 'approved', createdAt: newest),
+      _post('middle', status: 'approved', createdAt: older),
       _post('older', status: 'approved', createdAt: older),
     ];
 
@@ -69,16 +82,48 @@ void main() {
       arrangeHomePosts(posts, mode: FeedMode.following)
           .map((post) => post.id)
           .toList(),
-      ['newest', 'older'],
+      ['newest', 'middle', 'older'],
     );
+    final rearranged = arrangeHomePosts(
+      posts,
+      mode: FeedMode.following,
+      rearrangeFollowing: true,
+      random: _ZeroRandom(),
+    ).map((post) => post.id).toList();
+    expect(
+      rearranged,
+      isNot(['newest', 'middle', 'older']),
+    );
+  });
+
+  test('saved posts preserve repository interaction order', () {
+    final posts = [
+      _post('saved-latest', status: 'approved', createdAt: older),
+      _post('saved-earlier', status: 'approved', createdAt: newest),
+    ];
+
+    expect(
+      arrangeHomePosts(posts, mode: FeedMode.saves)
+          .map((post) => post.id)
+          .toList(),
+      ['saved-latest', 'saved-earlier'],
+    );
+  });
+
+  test('Feeds retain their existing shuffle behavior', () {
+    final posts = [
+      _post('one', status: 'approved', createdAt: newest),
+      _post('two', status: 'approved', createdAt: newest),
+      _post('three', status: 'approved', createdAt: newest),
+    ];
+
     expect(
       arrangeHomePosts(
         posts,
-        mode: FeedMode.following,
-        rearrangeFollowing: true,
-        random: Random(1),
-      ).map((post) => post.id).toSet(),
-      {'newest', 'older'},
+        mode: FeedMode.feeds,
+        random: _ZeroRandom(),
+      ).map((post) => post.id).toList(),
+      isNot(['one', 'two', 'three']),
     );
   });
 }

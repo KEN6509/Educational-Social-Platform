@@ -2,7 +2,6 @@ import 'package:cyanzone_mobile/src/features/posts/presentation/create_post_vali
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:cyanzone_mobile/src/core/theme/app_design_tokens.dart';
 
 void main() {
   test('create post attachment grid crops thumbnails to square cover', () {

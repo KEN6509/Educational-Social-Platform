@@ -181,12 +181,12 @@ class PostsRepository implements PostSubmissionRepository {
         // Different reaction, update it
         await _client
             .from('likes')
-            .update({
-              'reaction_type': reactionType,
-              'hidden_until': reactionType == 'dislike'
-                  ? _dislikeHiddenUntil().toIso8601String()
-                  : null,
-            })
+            .update(
+              buildReactionUpdate(
+                reactionType: reactionType,
+                occurredAt: DateTime.now().toUtc(),
+              ),
+            )
             .eq('post_id', postId)
             .eq('user_id', userId);
       }
@@ -204,6 +204,20 @@ class PostsRepository implements PostSubmissionRepository {
 
   DateTime _dislikeHiddenUntil() {
     return DateTime.now().toUtc().add(const Duration(days: 14));
+  }
+
+  static Map<String, dynamic> buildReactionUpdate({
+    required String reactionType,
+    required DateTime occurredAt,
+  }) {
+    final interactionTime = occurredAt.toUtc();
+    return {
+      'reaction_type': reactionType,
+      'hidden_until': reactionType == 'dislike'
+          ? interactionTime.add(const Duration(days: 14)).toIso8601String()
+          : null,
+      'created_at': interactionTime.toIso8601String(),
+    };
   }
 
   Future<void> toggleSave(String postId) async {
