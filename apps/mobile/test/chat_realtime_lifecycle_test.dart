@@ -74,4 +74,19 @@ void main() {
     expect(source, contains('_refreshCoordinator.dispose();'));
     expect(source, isNot(contains('_repo.subscribeToChatChanges(')));
   });
+
+  test('notification page coalesces realtime refreshes and disposes its owner',
+      () {
+    final source = File(
+      'lib/src/features/chat/presentation/notification_sections_page.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains('late final ChatRefreshCoordinator _refreshCoordinator;'),
+    );
+    expect(source, contains('onChange: (_) => _refreshCoordinator.schedule()'));
+    expect(source, contains('_refreshCoordinator.dispose();'));
+    expect(source, contains('Future<void> _performRefresh()'));
+  });
 }

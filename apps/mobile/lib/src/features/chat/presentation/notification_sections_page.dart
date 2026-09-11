@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,6 +9,7 @@ import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_page.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
+import '../application/chat_refresh_coordinator.dart';
 import 'chat_room_page.dart';
 import 'chat_widgets.dart';
 import 'system_notification_widgets.dart';
@@ -68,6 +71,7 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
   late NotificationSection _section;
   ChatRepository? _repository;
   RealtimeChannel? _notificationChannel;
+  late final ChatRefreshCoordinator _refreshCoordinator;
   late Future<List<ChatNotification>> _future;
   NotificationActivityFilter _activityFilter = NotificationActivityFilter.all;
   bool _showActivityFilters = false;
@@ -86,10 +90,13 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     WidgetsBinding.instance.addObserver(this);
     _section = widget.initialSection;
     _future = _load();
+    _refreshCoordinator = ChatRefreshCoordinator(
+      refresh: _performRefresh,
+    );
     if (widget.loadNotifications == null) {
       _notificationChannel = _repo.subscribeToNotificationChanges(
         channelName: 'notification-section-${_section.name}',
-        onChange: (_) => _refreshNotifications(),
+        onChange: (_) => _refreshCoordinator.schedule(),
       );
     }
   }
@@ -97,6 +104,7 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _refreshCoordinator.dispose();
     final channel = _notificationChannel;
     if (channel != null) {
       _repo.unsubscribe(channel);
@@ -116,12 +124,22 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
         _repo.fetchNotifications(_section);
   }
 
-  void _refreshNotifications() {
+  Future<void> _performRefresh() async {
     if (!mounted) return;
+    final next = _load();
     setState(() {
       _refreshGeneration += 1;
-      _future = _load();
+      _future = next;
     });
+    try {
+      await next;
+    } catch (_) {
+      // FutureBuilder retains the existing visible error behavior.
+    }
+  }
+
+  void _refreshNotifications() {
+    unawaited(_refreshCoordinator.refreshNow());
   }
 
   String get _title {
