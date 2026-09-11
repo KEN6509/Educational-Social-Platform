@@ -2350,9 +2350,13 @@ void main() {
   });
 
   test('notification divider aligns with notification row text', () {
-    final source = File(
+    final pageSource = File(
       'lib/src/features/chat/presentation/notification_sections_page.dart',
     ).readAsStringSync();
+    final widgetSource = File(
+      'lib/src/features/chat/presentation/notification_section_widgets.dart',
+    ).readAsStringSync();
+    final source = '$pageSource\n$widgetSource';
 
     expect(source, contains('indent: 62'));
     expect(source, isNot(contains('indent: 78')));
@@ -2409,9 +2413,13 @@ void main() {
   });
 
   test('notification page refresh resets follower action state', () {
-    final source = File(
+    final pageSource = File(
       'lib/src/features/chat/presentation/notification_sections_page.dart',
     ).readAsStringSync();
+    final widgetSource = File(
+      'lib/src/features/chat/presentation/notification_section_widgets.dart',
+    ).readAsStringSync();
+    final source = '$pageSource\n$widgetSource';
 
     expect(source, contains('int _refreshGeneration = 0;'));
     expect(source, contains('_refreshGeneration += 1;'));
@@ -2423,7 +2431,7 @@ void main() {
 
   test('follow back uses follow-only profile flow and not toggle helper', () {
     final source = File(
-      'lib/src/features/chat/presentation/notification_sections_page.dart',
+      'lib/src/features/chat/presentation/notification_section_widgets.dart',
     ).readAsStringSync();
     final start = source.indexOf('Future<void> _follow()');
     final end = source.indexOf('Future<void> _message()', start);

@@ -87,4 +87,25 @@ void main() {
     expect(root, isNot(contains('class _MessageList')));
     expect(root, isNot(contains('class _ChatWallpaperPainter')));
   });
+
+  test('notification section widgets live in their feature-local part', () {
+    final root =
+        File('$path/notification_sections_page.dart').readAsStringSync();
+    final widgetFile = File('$path/notification_section_widgets.dart');
+
+    expect(root, contains("part 'notification_section_widgets.dart';"));
+    expect(widgetFile.existsSync(), isTrue);
+    if (!widgetFile.existsSync()) return;
+
+    final widgets = widgetFile.readAsStringSync();
+    expect(widgets, startsWith("part of 'notification_sections_page.dart';"));
+    expect(widgets, contains('class _FollowerOrGenericNotificationTile'));
+    expect(widgets, contains('class _ActivityFilterDropdown'));
+    expect(widgets, contains('class _ActivityNotificationTile'));
+    expect(widgets, contains('class _ActivityPostPreview'));
+    expect(widgets, contains('class _FollowerActionButton'));
+    expect(widgets, contains('String _formatNotificationTime'));
+    expect(root, isNot(contains('class _ActivityNotificationTile')));
+    expect(root, isNot(contains('class _FollowerActionButton')));
+  });
 }
