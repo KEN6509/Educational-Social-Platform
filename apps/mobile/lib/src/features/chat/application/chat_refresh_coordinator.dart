@@ -32,6 +32,17 @@ final class ChatRefreshCoordinator {
     });
   }
 
+  void trackInitialRefresh(Future<void> refresh) {
+    if (_disposed) return;
+    if (_cycleCompleter != null) {
+      throw StateError('A refresh cycle is already active.');
+    }
+
+    final cycle = Completer<void>();
+    _cycleCompleter = cycle;
+    unawaited(_drain(cycle, initialRefresh: refresh));
+  }
+
   Future<void> refreshNow() {
     if (_disposed) return Future<void>.value();
     _timer?.cancel();
@@ -47,21 +58,31 @@ final class ChatRefreshCoordinator {
     return cycle.future;
   }
 
-  Future<void> _drain(Completer<void> cycle) async {
+  Future<void> _drain(
+    Completer<void> cycle, {
+    Future<void>? initialRefresh,
+  }) async {
     try {
+      if (initialRefresh != null) {
+        await _runRefresh(() => initialRefresh);
+      }
       while (_pending && !_disposed) {
         _pending = false;
-        try {
-          await _refresh();
-        } catch (error, stackTrace) {
-          _onError?.call(error, stackTrace);
-        }
+        await _runRefresh(_refresh);
       }
     } finally {
       if (identical(_cycleCompleter, cycle)) {
         _cycleCompleter = null;
       }
       if (!cycle.isCompleted) cycle.complete();
+    }
+  }
+
+  Future<void> _runRefresh(ChatRefreshTask refresh) async {
+    try {
+      await refresh();
+    } catch (error, stackTrace) {
+      _onError?.call(error, stackTrace);
     }
   }
 

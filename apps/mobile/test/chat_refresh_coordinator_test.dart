@@ -54,6 +54,37 @@ void main() {
     coordinator.dispose();
   });
 
+  test('serializes a refresh request behind the initial page load', () async {
+    final initialRefresh = Completer<void>();
+    var refreshCount = 0;
+    var activeRefreshes = 1;
+    var maximumActiveRefreshes = 1;
+    final coordinator = ChatRefreshCoordinator(
+      refresh: () async {
+        refreshCount += 1;
+        activeRefreshes += 1;
+        maximumActiveRefreshes = activeRefreshes > maximumActiveRefreshes
+            ? activeRefreshes
+            : maximumActiveRefreshes;
+        activeRefreshes -= 1;
+      },
+    );
+
+    coordinator.trackInitialRefresh(initialRefresh.future.whenComplete(() {
+      activeRefreshes -= 1;
+    }));
+    final cycle = coordinator.refreshNow();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(refreshCount, 0);
+    initialRefresh.complete();
+    await cycle;
+
+    expect(refreshCount, 1);
+    expect(maximumActiveRefreshes, 1);
+    coordinator.dispose();
+  });
+
   test('immediate refresh cancels a pending debounce', () async {
     var refreshCount = 0;
     final coordinator = ChatRefreshCoordinator(

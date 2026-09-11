@@ -102,7 +102,6 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     WidgetsBinding.instance.addObserver(this);
     _messageScrollController.addListener(_handleMessageScrollChanged);
     _inputFocusNode.addListener(_handleInputFocusChanged);
-    _messagesFuture = _load();
     _refreshCoordinator = ChatRefreshCoordinator(
       refresh: _refreshMessages,
       onError: (error, _) {
@@ -111,6 +110,10 @@ class _ChatRoomPageState extends State<ChatRoomPage>
           return true;
         }());
       },
+    );
+    _messagesFuture = _load();
+    _refreshCoordinator.trackInitialRefresh(
+      _messagesFuture.then<void>((_) {}),
     );
     _canSendMessages = _conversation.isGroup
         ? true

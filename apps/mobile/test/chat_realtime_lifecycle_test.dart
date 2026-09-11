@@ -44,6 +44,34 @@ void main() {
     expect(source, isNot(contains("table: 'notifications'")));
   });
 
+  test('room subscription still observes hard-deleted chat messages', () {
+    final source = _methodSource(
+      repositorySource,
+      'RealtimeChannel subscribeToConversationChanges',
+      'RealtimeChannel subscribeToNotificationChanges',
+    );
+    final deleteListenerStart = source.indexOf(
+      'event: PostgresChangeEvent.delete',
+    );
+
+    expect(deleteListenerStart, greaterThanOrEqualTo(0));
+    final deleteListener = source.substring(deleteListenerStart);
+    final callbackIndex = deleteListener.indexOf('callback: onChange');
+    expect(callbackIndex, greaterThan(0));
+    expect(
+      deleteListener.substring(0, callbackIndex),
+      contains("table: 'chat_messages'"),
+    );
+    expect(
+      deleteListener.substring(0, callbackIndex),
+      isNot(contains('filter:')),
+      reason:
+          'Supabase hard DELETE payloads cannot use conversation_id filters',
+    );
+    expect(source, contains('event: PostgresChangeEvent.insert'));
+    expect(source, contains('event: PostgresChangeEvent.update'));
+  });
+
   test('notification subscription filters rows to current user', () {
     final source = _methodSource(
       repositorySource,
@@ -72,6 +100,15 @@ void main() {
       contains('onChange: (_) => _refreshCoordinator.schedule()'),
     );
     expect(source, contains('_refreshCoordinator.dispose();'));
+    expect(source, contains('_refreshCoordinator.trackInitialRefresh('));
+    expect(
+      source.indexOf('_refreshCoordinator = ChatRefreshCoordinator('),
+      lessThan(source.indexOf('_messagesFuture = _load();')),
+    );
+    expect(
+      source.indexOf('_messagesFuture = _load();'),
+      lessThan(source.indexOf('_refreshCoordinator.trackInitialRefresh(')),
+    );
     expect(source, isNot(contains('_repo.subscribeToChatChanges(')));
   });
 
@@ -87,6 +124,15 @@ void main() {
     );
     expect(source, contains('onChange: (_) => _refreshCoordinator.schedule()'));
     expect(source, contains('_refreshCoordinator.dispose();'));
+    expect(source, contains('_refreshCoordinator.trackInitialRefresh('));
+    expect(
+      source.indexOf('_refreshCoordinator = ChatRefreshCoordinator('),
+      lessThan(source.indexOf('_future = _load();')),
+    );
+    expect(
+      source.indexOf('_future = _load();'),
+      lessThan(source.indexOf('_refreshCoordinator.trackInitialRefresh(')),
+    );
     expect(source, contains('Future<void> _performRefresh()'));
   });
 
@@ -108,6 +154,20 @@ void main() {
     );
     expect(chatSource, contains('void didChangeAppLifecycleState('));
     expect(chatSource, contains('_refreshCoordinator.dispose();'));
+    expect(
+      chatSource,
+      contains('_refreshCoordinator.trackInitialRefresh('),
+    );
+    expect(
+      chatSource.indexOf('_refreshCoordinator = ChatRefreshCoordinator('),
+      lessThan(chatSource.indexOf('_future = _load();')),
+    );
+    expect(
+      chatSource.indexOf('_future = _load();'),
+      lessThan(
+        chatSource.indexOf('_refreshCoordinator.trackInitialRefresh('),
+      ),
+    );
     expect(shellSource, isNot(contains('_notificationBadgeChannel')));
     expect(
       shellSource,

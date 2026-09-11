@@ -66,10 +66,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _searchFocusNode.addListener(_handleSearchFocusChanged);
-    _future = _load();
     _refreshCoordinator = ChatRefreshCoordinator(
       refresh: _performHomeRefresh,
     );
+    _future = _load();
+    _refreshCoordinator.trackInitialRefresh(_future.then<void>((_) {}));
     _eligiblePeopleFuture =
         _shouldUseInjectedData ? Future.value(const []) : _loadEligiblePeople();
     if (!_shouldUseInjectedData) {

@@ -89,10 +89,11 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _section = widget.initialSection;
-    _future = _load();
     _refreshCoordinator = ChatRefreshCoordinator(
       refresh: _performRefresh,
     );
+    _future = _load();
+    _refreshCoordinator.trackInitialRefresh(_future.then<void>((_) {}));
     if (widget.loadNotifications == null) {
       _notificationChannel = _repo.subscribeToNotificationChanges(
         channelName: 'notification-section-${_section.name}',
