@@ -19,4 +19,24 @@ void main() {
       lessThan(source.indexOf('_dashboardFuture =')),
     );
   });
+
+  test('Family Links page keeps coordination and delegates private widgets',
+      () {
+    final page = File(
+      'lib/src/features/parent_child/presentation/family_links_page.dart',
+    ).readAsStringSync();
+    final widgets = File(
+      'lib/src/features/parent_child/presentation/family_links_widgets.dart',
+    );
+
+    expect(page, contains("part 'family_links_widgets.dart';"));
+    expect(widgets.existsSync(), isTrue);
+    final widgetSource = widgets.readAsStringSync();
+    expect(widgetSource, contains("part of 'family_links_page.dart';"));
+    expect(page, contains('class _FamilyLinksPageState'));
+    expect(page, isNot(contains('class _PendingLinkRow')));
+    expect(widgetSource, contains('class _PendingLinkRow'));
+    expect(widgetSource, contains('class _ActiveLinkRow'));
+    expect(widgetSource, contains('class _ChildScreenTimeRow'));
+  });
 }
