@@ -131,4 +131,47 @@ void main() {
     expect(find.byKey(const ValueKey('creator-application-statement')),
         findsNothing);
   });
+
+  testWidgets('empty verification statement shows validation feedback',
+      (tester) async {
+    await pumpPage(
+      tester,
+      state: const CreatorVerificationState(),
+    );
+
+    await tester
+        .tap(find.widgetWithText(FilledButton, 'Apply for verification'));
+    await tester.pump();
+
+    expect(
+      find.text('Tell us why you would like to be verified.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('failed verification submission keeps the application available',
+      (tester) async {
+    await pumpPage(
+      tester,
+      state: const CreatorVerificationState(),
+      submitApplication: (_) async => throw StateError('offline'),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('creator-application-statement')),
+      'I publish original science lessons.',
+    );
+
+    await tester
+        .tap(find.widgetWithText(FilledButton, 'Apply for verification'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Could not submit your request. Please try again.'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(FilledButton, 'Apply for verification'),
+      findsOneWidget,
+    );
+  });
 }
