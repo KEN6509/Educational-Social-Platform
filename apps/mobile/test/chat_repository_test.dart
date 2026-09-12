@@ -52,19 +52,16 @@ void main() {
       ).readAsStringSync();
 
       final sendStart = source.indexOf('Future<void> _sendSharedPost()');
-      final feedbackStart = source.indexOf(
-        'void _showShareSnackBar',
-        sendStart,
-      );
       expect(sendStart, greaterThanOrEqualTo(0));
-      expect(feedbackStart, greaterThan(sendStart));
-
-      final sendSource = source.substring(sendStart, feedbackStart);
+      final sendSource = source.substring(sendStart);
       expect(sendSource, contains('fetchConversations()'));
       expect(
         sendSource,
         contains('postShareEligibleConversations'),
       );
+      expect(
+          source, contains("AppFeedback.showSuccess(context, 'Post sent.')"));
+      expect(source, contains('AppFeedback.showWarning'));
     });
 
     test('exposes stable RPC names', () {
