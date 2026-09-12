@@ -8,6 +8,8 @@ import 'verified_badge_page.dart';
 import '../../notifications/application/push_notification_coordinator.dart';
 import '../../notifications/presentation/push_notification_scope.dart';
 
+part 'settings_widgets.dart';
+
 typedef SignOutAction = Future<void> Function();
 
 class SettingsPage extends StatefulWidget {

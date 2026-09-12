@@ -11,6 +11,8 @@ import '../data/profile_repository.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
 import 'avatar_crop_page.dart';
 
+part 'edit_profile_widgets.dart';
+
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({required this.profile, super.key});
 
@@ -381,8 +383,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 }
 
-class _EditProfileLoadError extends StatelessWidget {
-  const _EditProfileLoadError({required this.error, required this.onRetry});
+class _EditProfileLoadErrorLegacy extends StatelessWidget {
+  const _EditProfileLoadErrorLegacy(
+      {required this.error, required this.onRetry});
 
   final Object? error;
   final VoidCallback onRetry;

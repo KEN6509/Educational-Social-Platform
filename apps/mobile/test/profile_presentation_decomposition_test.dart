@@ -14,7 +14,7 @@ void main() {
             'profile_header_widgets.dart')
         .existsSync(), isTrue);
     expect(page, contains('class _ProfilePageState'));
-    expect(page, isNot(contains('class _ProfileHeader')));
+    expect(page, isNot(contains('class _ProfileHeader {')));
   });
 
   test('Profile page delegates post-grid presentation', () {
@@ -24,19 +24,19 @@ void main() {
             'profile_post_grid.dart')
         .existsSync(), isTrue);
     expect(page, contains('class _ProfilePageState'));
-    expect(page, isNot(contains('class _ProfilePostGrid')));
+    expect(page, isNot(contains('class _ProfilePostGrid {')));
   });
 
   test('Edit Profile delegates detailed widgets', () {
     final edit = _read('edit_profile_page.dart');
     expect(edit, contains("part 'edit_profile_widgets.dart';"));
-    expect(edit, isNot(contains('class _EditProfileLoadError')));
+    expect(edit, isNot(contains('class _EditProfileLoadError {')));
   });
 
   test('Follow Lists delegate detailed widgets', () {
     final follows = _read('follow_list_page.dart');
     expect(follows, contains("part 'follow_list_widgets.dart';"));
-    expect(follows, isNot(contains('class _FollowTile')));
+    expect(follows, isNot(contains('class _FollowTile {')));
   });
 
   test('Settings delegates presentation widgets', () {

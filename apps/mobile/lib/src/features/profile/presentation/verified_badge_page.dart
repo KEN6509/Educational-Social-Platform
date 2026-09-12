@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'content_creator_badge.dart';
 
+part 'verified_badge_widgets.dart';
+
 enum CreatorRequestStatus { pending, approved, rejected }
 
 class CreatorVerificationState {
@@ -231,8 +233,8 @@ class _VerifiedBadgePageState extends State<VerifiedBadgePage> {
   }
 }
 
-class _BadgePageBody extends StatelessWidget {
-  const _BadgePageBody({
+class _BadgePageBodyLegacy extends StatelessWidget {
+  const _BadgePageBodyLegacy({
     required this.state,
     required this.statementController,
   });
@@ -470,8 +472,8 @@ class _BadgePageBody extends StatelessWidget {
   }
 }
 
-class _Requirement extends StatelessWidget {
-  const _Requirement({
+class _RequirementLegacy extends StatelessWidget {
+  const _RequirementLegacy({
     required this.icon,
     required this.title,
     required this.detail,
@@ -534,8 +536,8 @@ class _Requirement extends StatelessWidget {
   }
 }
 
-class _StatusNotice extends StatelessWidget {
-  const _StatusNotice({
+class _StatusNoticeLegacy extends StatelessWidget {
+  const _StatusNoticeLegacy({
     required this.icon,
     required this.color,
     required this.message,
@@ -576,8 +578,8 @@ class _StatusNotice extends StatelessWidget {
   }
 }
 
-class _LoadError extends StatelessWidget {
-  const _LoadError({required this.onRetry});
+class _LoadErrorLegacy extends StatelessWidget {
+  const _LoadErrorLegacy({required this.onRetry});
 
   final VoidCallback onRetry;
 

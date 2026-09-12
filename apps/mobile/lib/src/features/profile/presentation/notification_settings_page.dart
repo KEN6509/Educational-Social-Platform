@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../notifications/application/push_notification_coordinator.dart';
 
+part 'notification_settings_widgets.dart';
+
 typedef NotificationPreferenceLoader = Future<Map<String, bool>> Function();
 typedef NotificationPreferenceSaver = Future<void> Function(
   Map<String, bool> preferences,

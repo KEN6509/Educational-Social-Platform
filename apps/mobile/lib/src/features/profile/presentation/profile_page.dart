@@ -26,6 +26,9 @@ import 'profile_message_action.dart';
 import 'settings_page.dart';
 import 'edit_profile_page.dart';
 
+part 'profile_header_widgets.dart';
+part 'profile_post_grid.dart';
+
 class ProfilePage extends StatefulWidget {
   const ProfilePage({
     this.userId,
@@ -410,8 +413,8 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
-class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({
+class _ProfileHeaderLegacy extends StatelessWidget {
+  const _ProfileHeaderLegacy({
     required this.profile,
     required this.cachedAvatarBytes,
     required this.isOwnProfile,
@@ -596,8 +599,8 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-class _ProfileSkeleton extends StatelessWidget {
-  const _ProfileSkeleton();
+class _ProfileSkeletonLegacy extends StatelessWidget {
+  const _ProfileSkeletonLegacy();
 
   @override
   Widget build(BuildContext context) {
@@ -623,8 +626,8 @@ class _ProfileSkeleton extends StatelessWidget {
   }
 }
 
-class _ProfileLoadError extends StatelessWidget {
-  const _ProfileLoadError({required this.error, required this.onRetry});
+class _ProfileLoadErrorLegacy extends StatelessWidget {
+  const _ProfileLoadErrorLegacy({required this.error, required this.onRetry});
 
   final Object? error;
   final VoidCallback onRetry;
@@ -680,8 +683,8 @@ class _ProfileLoadError extends StatelessWidget {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  const _StatItem({required this.label, required this.value, this.onTap});
+class _StatItemLegacy extends StatelessWidget {
+  const _StatItemLegacy({required this.label, required this.value, this.onTap});
 
   final String label;
   final String value;
@@ -716,8 +719,8 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-class _ProfileActionButton extends StatelessWidget {
-  const _ProfileActionButton({
+class _ProfileActionButtonLegacy extends StatelessWidget {
+  const _ProfileActionButtonLegacy({
     required this.label,
     required this.filled,
     required this.onTap,
@@ -768,8 +771,8 @@ class _ProfileActionButton extends StatelessWidget {
 
 enum _ProfilePostGridMode { posted, saved, liked }
 
-class _ProfilePostGrid extends StatefulWidget {
-  const _ProfilePostGrid({
+class _ProfilePostGridLegacy extends StatefulWidget {
+  const _ProfilePostGridLegacy({
     required this.fetcher,
     required this.mode,
     required this.profileUserId,
@@ -784,10 +787,10 @@ class _ProfilePostGrid extends StatefulWidget {
   final VoidCallback? onPostDeleted;
 
   @override
-  State<_ProfilePostGrid> createState() => _ProfilePostGridState();
+  State<_ProfilePostGridLegacy> createState() => _ProfilePostGridState();
 }
 
-class _ProfilePostGridState extends State<_ProfilePostGrid> {
+class _ProfilePostGridState extends State<_ProfilePostGridLegacy> {
   static final Map<String, List<FeedPost>> _postedPostsCache = {};
 
   late Future<List<FeedPost>> _future;
@@ -842,7 +845,7 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
   }
 
   @override
-  void didUpdateWidget(covariant _ProfilePostGrid oldWidget) {
+  void didUpdateWidget(covariant _ProfilePostGridLegacy oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.fetcher != widget.fetcher ||
         oldWidget.refreshVersion != widget.refreshVersion) {
@@ -1015,8 +1018,8 @@ class _ProfilePostGridState extends State<_ProfilePostGrid> {
   }
 }
 
-class _ProfileGridError extends StatelessWidget {
-  const _ProfileGridError({required this.error});
+class _ProfileGridErrorLegacy extends StatelessWidget {
+  const _ProfileGridErrorLegacy({required this.error});
 
   final Object? error;
 

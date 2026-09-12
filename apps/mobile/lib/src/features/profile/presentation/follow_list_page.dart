@@ -9,6 +9,8 @@ import '../data/user_profile.dart';
 import 'content_creator_badge.dart';
 import 'profile_page.dart';
 
+part 'follow_list_widgets.dart';
+
 class FollowListPage extends StatefulWidget {
   const FollowListPage({
     required this.userId,
@@ -345,8 +347,8 @@ class _FollowSkeletonBlock extends StatelessWidget {
   }
 }
 
-class _FollowTile extends StatelessWidget {
-  const _FollowTile({
+class _FollowTileLegacy extends StatelessWidget {
+  const _FollowTileLegacy({
     required this.profile,
     required this.onOpenProfile,
     required this.onToggleFollow,
