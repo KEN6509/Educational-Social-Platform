@@ -70,6 +70,34 @@ void main() {
     expect(retried, isTrue);
   });
 
+  testWidgets('showWarning uses the shared warning presentation',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => AppFeedback.showWarning(
+                context,
+                'This item is no longer available.',
+              ),
+              child: const Text('Show'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Show'));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+    expect(find.text('This item is no longer available.'), findsOneWidget);
+    final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+    expect(snackBar.backgroundColor, AppColors.surface);
+  });
+
   testWidgets('two long actions do not overflow on a compact scaled screen',
       (tester) async {
     tester.view.physicalSize = const Size(320, 640);

@@ -52,6 +52,10 @@ abstract final class AppFeedback {
   static void showError(BuildContext context, String message) {
     show(context, message: message, kind: AppFeedbackKind.error);
   }
+
+  static void showWarning(BuildContext context, String message) {
+    show(context, message: message, kind: AppFeedbackKind.warning);
+  }
 }
 
 class _FeedbackContent extends StatelessWidget {
