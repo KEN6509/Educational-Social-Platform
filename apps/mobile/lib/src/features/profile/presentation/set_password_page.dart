@@ -119,6 +119,7 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
       final verifiedUserId =
           await (widget.reauthenticate ?? _defaultReauthenticate)
               .call(email, currentPassword);
+      if (!mounted) return;
       if (verifiedUserId != currentUserId) {
         _showError('Current password is incorrect.');
         return;

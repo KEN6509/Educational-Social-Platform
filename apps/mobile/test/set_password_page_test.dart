@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cyanzone_mobile/src/features/profile/presentation/set_password_page.dart';
 import 'package:cyanzone_mobile/src/core/theme/app_design_tokens.dart';
+import 'package:cyanzone_mobile/src/core/widgets/password_checklist.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -256,6 +257,57 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(reauthenticationCalls, 1);
+  });
+
+  testWidgets('leaving during reauthentication cancels the password update',
+      (tester) async {
+    final verification = Completer<String?>();
+    var updateCalls = 0;
+
+    await pumpPage(
+      tester,
+      reauthenticate: (_, __) => verification.future,
+      updatePassword: (_) async => updateCalls += 1,
+    );
+
+    await enterPasswords(
+      tester,
+      current: 'OldPassword12.',
+      password: 'StrongPass12_',
+      confirm: 'StrongPass12_',
+    );
+    final submitButton = find.widgetWithText(ElevatedButton, 'Done');
+    await tester.ensureVisible(submitButton);
+    await tester.tap(submitButton);
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+    verification.complete('user-1');
+    await tester.pumpAndSettle();
+
+    expect(updateCalls, 0);
+  });
+
+  testWidgets('preserves ten pixel gap before password guidance',
+      (tester) async {
+    await pumpPage(
+      tester,
+      reauthenticate: (_, __) async => 'user-1',
+      updatePassword: (_) async {},
+    );
+
+    final checklistBottom =
+        tester.getBottomLeft(find.byType(PasswordChecklist)).dy;
+    final guidanceTop = tester
+        .getTopLeft(
+          find.text(
+            'Your new password must be different from your current password.',
+          ),
+        )
+        .dy;
+
+    expect(guidanceTop - checklistBottom, 10);
   });
 
   testWidgets('shows every strong-password checklist rule', (tester) async {

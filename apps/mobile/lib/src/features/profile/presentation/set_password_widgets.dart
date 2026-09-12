@@ -51,7 +51,7 @@ class _SetPasswordBody extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.lg),
           PasswordChecklist(status: passwordStatus),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: 10),
           const _PasswordGuidance(),
           const SizedBox(height: AppSpacing.lg),
           _PasswordSubmitButton(
