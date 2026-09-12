@@ -4,7 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/security/password_policy.dart';
 import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/app_feedback.dart';
+import '../../../core/theme/app_design_tokens.dart';
 import '../../../core/widgets/password_checklist.dart';
+
+part 'set_password_widgets.dart';
 
 typedef PasswordReauthenticator = Future<String?> Function(
   String email,
@@ -170,130 +173,19 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Column(
-          children: [
-            _buildPasswordField(
-              fieldKey: const ValueKey('current-password-field'),
-              label: 'Current Password',
-              controller: _currentPasswordController,
-              hint: 'Enter current password',
-            ),
-            const SizedBox(height: 16),
-            _buildPasswordField(
-              fieldKey: const ValueKey('new-password-field'),
-              label: 'New Password',
-              controller: _passwordController,
-              hint: 'Enter new password',
-              onChanged: (value) {
-                setState(() {
-                  _passwordStatus = PasswordPolicy.evaluate(value);
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildPasswordField(
-              fieldKey: const ValueKey('confirm-password-field'),
-              label: 'Confirm New Password',
-              controller: _confirmController,
-              hint: 'Confirm new password',
-            ),
-            const SizedBox(height: 16),
-            PasswordChecklist(status: _passwordStatus),
-            const SizedBox(height: 10),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Your new password must be different from your current password.',
-                  style: TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isProcessing ? null : _updatePassword,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0B1F3E),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  disabledBackgroundColor:
-                      const Color(0xFF0B1F3E).withValues(alpha: 0.6),
-                ),
-                child: _isProcessing
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        'Done',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-              ),
-            ),
-          ],
-        ),
+      body: _SetPasswordBody(
+        currentPasswordController: _currentPasswordController,
+        passwordController: _passwordController,
+        confirmController: _confirmController,
+        passwordStatus: _passwordStatus,
+        isProcessing: _isProcessing,
+        onPasswordChanged: (value) {
+          setState(() {
+            _passwordStatus = PasswordPolicy.evaluate(value);
+          });
+        },
+        onSubmit: _updatePassword,
       ),
-    );
-  }
-
-  Widget _buildPasswordField({
-    required Key fieldKey,
-    required String label,
-    required TextEditingController controller,
-    required String hint,
-    ValueChanged<String>? onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF64748B),
-            ),
-          ),
-        ),
-        TextField(
-          key: fieldKey,
-          controller: controller,
-          obscureText: true,
-          onChanged: onChanged,
-          style: const TextStyle(
-            fontSize: 15,
-            color: Color(0xFF1E293B),
-            fontWeight: FontWeight.w500,
-          ),
-          decoration: appInputDecoration(
-            hintText: hint,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          ),
-        ),
-      ],
     );
   }
 }

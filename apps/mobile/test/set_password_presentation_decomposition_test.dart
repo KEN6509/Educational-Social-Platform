@@ -31,7 +31,8 @@ void main() {
     expect(page, contains('Future<void> _defaultUpdatePassword('));
   });
 
-  test('Password presentation has no service or direct snackbar dependency', () {
+  test('Password presentation has no service or direct snackbar dependency',
+      () {
     final page = _read('set_password_page.dart');
     final widgets = File('$_path/set_password_widgets.dart').existsSync()
         ? _read('set_password_widgets.dart')
