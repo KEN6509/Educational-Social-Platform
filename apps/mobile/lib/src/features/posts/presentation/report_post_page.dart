@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/widgets/app_feedback.dart';
 import '../data/posts_repository.dart';
 
 class ReportPostPage extends StatefulWidget {
@@ -51,8 +52,9 @@ class _ReportPostPageState extends State<ReportPostPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+        AppFeedback.showError(
+          context,
+          'Unable to submit this report. Please try again.',
         );
       }
     } finally {

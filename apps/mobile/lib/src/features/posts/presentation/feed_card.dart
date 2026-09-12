@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/errors/friendly_error.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../profile/data/profile_avatar_cache.dart';
 import '../data/feed_post.dart';
 import '../data/post_image_disk_cache.dart';
@@ -549,7 +551,6 @@ class _QuickActionsOverlayState extends State<_QuickActionsOverlay> {
       final freshPost = await repo.fetchPostById(widget.post.id);
 
       if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
         widget.onUpdate(
           isLiked: freshPost.isLiked,
           likeCount: freshPost.likeCount,
@@ -564,9 +565,7 @@ class _QuickActionsOverlayState extends State<_QuickActionsOverlay> {
               await widget.onCancelDislike();
             } catch (e) {
               if (!mounted) return;
-              messenger.showSnackBar(
-                SnackBar(content: Text('Error: ${e.toString()}')),
-              );
+              AppFeedback.showError(context, friendlyErrorMessage(e));
             }
           },
           onReport: widget.onReport,
@@ -582,9 +581,7 @@ class _QuickActionsOverlayState extends State<_QuickActionsOverlay> {
         dislikeCount: widget.post.dislikeCount,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
+        AppFeedback.showError(context, friendlyErrorMessage(e));
       }
     } finally {
       if (mounted) {
@@ -751,9 +748,7 @@ class _LikeButtonState extends State<_LikeButton> {
           _isDisliked = oldIsDisliked;
           _dislikeCount = oldDislikeCount;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
+        AppFeedback.showError(context, friendlyErrorMessage(e));
       }
     } finally {
       if (mounted) {

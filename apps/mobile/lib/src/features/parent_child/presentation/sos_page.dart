@@ -120,7 +120,7 @@ class _SosPageState extends State<SosPage> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _sendError = 'Unable to confirm SOS delivery: $error';
+        _sendError = 'Unable to confirm SOS delivery. Please try again.';
       });
     }
   }
@@ -203,7 +203,10 @@ class _SosPageState extends State<SosPage> {
       if (widget.subscribeToRealtime) await _refreshDetail();
     } catch (error) {
       if (!mounted) return;
-      AppFeedback.showError(context, 'Unable to update SOS: $error');
+      AppFeedback.showError(
+        context,
+        'Unable to update SOS. Please try again.',
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }

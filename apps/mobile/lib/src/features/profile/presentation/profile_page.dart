@@ -359,7 +359,10 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
       setState(() => _profile = profile);
       _profileMemoryCache[profile.id] = profile;
-      AppFeedback.showError(context, 'Error: ${e.toString()}');
+      AppFeedback.showError(
+        context,
+        'Unable to update follow status. Please try again.',
+      );
     }
   }
 

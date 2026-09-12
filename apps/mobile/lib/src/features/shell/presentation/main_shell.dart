@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/shimmer_skeleton.dart';
 import '../../chat/presentation/chat_page.dart';
 import '../../posts/data/aspect_ratio_cache.dart';
@@ -1018,8 +1019,9 @@ class _SearchPageState extends State<_SearchPage>
       if (currentResults != null) {
         setState(() => _results = currentResults.withProfileUpdate(profile));
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+      AppFeedback.showError(
+        context,
+        'Unable to update follow status. Please try again.',
       );
     }
   }

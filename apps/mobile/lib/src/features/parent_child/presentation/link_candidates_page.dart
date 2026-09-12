@@ -65,7 +65,10 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
       );
     } catch (error) {
       if (!mounted) return;
-      AppFeedback.showError(context, 'Unable to send link request: $error');
+      AppFeedback.showError(
+        context,
+        'Unable to send link request. Please try again.',
+      );
     } finally {
       if (mounted) setState(() => _busyCandidateId = null);
     }

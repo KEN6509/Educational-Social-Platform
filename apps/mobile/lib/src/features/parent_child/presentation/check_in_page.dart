@@ -86,7 +86,10 @@ class _CheckInPageState extends State<CheckInPage> {
       }
     } catch (error) {
       if (!mounted) return;
-      AppFeedback.showError(context, 'Unable to send Check-In: $error');
+      AppFeedback.showError(
+        context,
+        'Unable to send Check-In. Please try again.',
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
