@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cyanzone_mobile/src/features/profile/presentation/set_password_page.dart';
 import 'package:cyanzone_mobile/src/core/theme/app_design_tokens.dart';
 import 'package:flutter/material.dart';
@@ -193,6 +195,67 @@ void main() {
       ],
     );
     expect(find.text('Password updated successfully'), findsOneWidget);
+  });
+
+  testWidgets('failed password update keeps the page available',
+      (tester) async {
+    await pumpPage(
+      tester,
+      reauthenticate: (_, __) async => 'user-1',
+      updatePassword: (_) async => throw StateError('update failed'),
+    );
+
+    await enterPasswords(
+      tester,
+      current: 'OldPassword12.',
+      password: 'StrongPass12_',
+      confirm: 'StrongPass12_',
+    );
+    await submit(tester);
+
+    expect(
+      find.text('Could not update password. Please try again.'),
+      findsOneWidget,
+    );
+    expect(find.text('Change Password'), findsOneWidget);
+    final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    expect(button.onPressed, isNotNull);
+  });
+
+  testWidgets('processing disables duplicate password submission',
+      (tester) async {
+    final verification = Completer<String?>();
+    var reauthenticationCalls = 0;
+
+    await pumpPage(
+      tester,
+      reauthenticate: (_, __) {
+        reauthenticationCalls += 1;
+        return verification.future;
+      },
+      updatePassword: (_) async {},
+    );
+
+    await enterPasswords(
+      tester,
+      current: 'OldPassword12.',
+      password: 'StrongPass12_',
+      confirm: 'StrongPass12_',
+    );
+    final submitButton = find.widgetWithText(ElevatedButton, 'Done');
+    await tester.ensureVisible(submitButton);
+    await tester.tap(submitButton);
+    await tester.pump();
+
+    expect(reauthenticationCalls, 1);
+    final processingButton =
+        tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    expect(processingButton.onPressed, isNull);
+
+    verification.complete('different-user');
+    await tester.pumpAndSettle();
+
+    expect(reauthenticationCalls, 1);
   });
 
   testWidgets('shows every strong-password checklist rule', (tester) async {
