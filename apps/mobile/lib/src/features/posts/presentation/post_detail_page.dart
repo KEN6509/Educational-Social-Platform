@@ -238,11 +238,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
     if (target == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                Text('This comment was deleted or is no longer available.'),
-          ),
+        AppFeedback.showWarning(
+          context,
+          'This comment was deleted or is no longer available.',
         );
       });
       return;
@@ -486,14 +484,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         final message = _post.isRejected
             ? 'This post was rejected. Actions are unavailable.'
             : 'This post is still under review. Actions are unavailable.';
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              behavior: SnackBarBehavior.floating,
-              content: Text(message),
-            ),
-          );
+        AppFeedback.showWarning(context, message);
       }
       return false;
     }
@@ -511,14 +502,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   void _showNoInternetMessage() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('No internet connection'),
-        ),
-      );
+    AppFeedback.showError(context, 'No internet connection');
   }
 
   void _showActionError(Object error) {
@@ -526,11 +510,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       _showNoInternetMessage();
       return;
     }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(friendlyErrorMessage(error))),
-      );
+    AppFeedback.showError(context, friendlyErrorMessage(error));
   }
 
   @override
@@ -1543,14 +1523,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Future<void> _deleteComment(PostComment comment) async {
-    final messenger = ScaffoldMessenger.of(context);
     if (!await _ensureInteractionAllowed()) return;
     try {
       await PostsRepository(Supabase.instance.client).deleteComment(comment.id);
       if (!mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Comment deleted.')),
-      );
+      AppFeedback.showSuccess(context, 'Comment deleted.');
       await _fetchComments();
       await _refreshPostState(updateCommentCount: false);
     } catch (e) {
@@ -1560,7 +1537,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Future<void> _toggleCommentPin(PostComment comment) async {
-    final messenger = ScaffoldMessenger.of(context);
     if (!await _ensureInteractionAllowed()) return;
     try {
       await PostsRepository(Supabase.instance.client).toggleCommentPin(
@@ -1568,10 +1544,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
         pin: !comment.isPinned,
       );
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(
-            content: Text(
-                comment.isPinned ? 'Comment unpinned.' : 'Comment pinned.')),
+      AppFeedback.showSuccess(
+        context,
+        comment.isPinned ? 'Comment unpinned.' : 'Comment pinned.',
       );
       _fetchComments();
     } catch (e) {

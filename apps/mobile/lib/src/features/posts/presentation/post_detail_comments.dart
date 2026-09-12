@@ -296,14 +296,7 @@ class _CommentItemState extends State<_CommentItem> {
           _likeCount = widget.likeCount;
         });
         if (friendlyErrorTitle(e) == 'No internet connection') {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              const SnackBar(
-                behavior: SnackBarBehavior.floating,
-                content: Text('No internet connection'),
-              ),
-            );
+          AppFeedback.showError(context, 'No internet connection');
         }
       }
     } finally {

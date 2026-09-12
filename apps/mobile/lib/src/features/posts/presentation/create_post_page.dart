@@ -89,9 +89,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
     final remaining = 9 - _images.length;
     if (remaining <= 0) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Maximum 9 images allowed')),
-        );
+        AppFeedback.showWarning(context, 'Maximum 9 images allowed');
       }
       return;
     }
@@ -114,9 +112,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
         final message = _images.isEmpty
             ? 'Only 9 images can be selected'
             : 'Only $remaining more images can be added';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        AppFeedback.showWarning(context, message);
       }
     }
 

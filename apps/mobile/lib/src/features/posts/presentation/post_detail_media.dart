@@ -219,9 +219,7 @@ class _PostDetailImagePreviewPageState
 
   void _showPhotoCouldNotLoad() {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Photo could not load')),
-    );
+    AppFeedback.showError(context, 'Photo could not load');
   }
 
   Future<void> _downloadCurrentImage() async {
@@ -233,10 +231,9 @@ class _PostDetailImagePreviewPageState
       final permission = await PhotoManager.requestPermissionExtend();
       if (!permission.hasAccess) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Photo access is required to download images'),
-          ),
+        AppFeedback.showWarning(
+          context,
+          'Photo access is required to download images',
         );
         return;
       }
@@ -254,9 +251,7 @@ class _PostDetailImagePreviewPageState
         filename: _downloadFilenameFor(url),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Photo downloaded')),
-      );
+      AppFeedback.showSuccess(context, 'Photo downloaded');
     } catch (_) {
       _showPhotoCouldNotLoad();
     } finally {

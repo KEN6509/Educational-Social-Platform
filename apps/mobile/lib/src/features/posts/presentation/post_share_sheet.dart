@@ -171,7 +171,8 @@ class _ShareSheetState extends State<_ShareSheet> {
             (conversationId) => !latestById.containsKey(conversationId),
           );
         });
-        _showShareSnackBar(
+        AppFeedback.showWarning(
+          context,
           'Follow this user before sending them a post.',
         );
         return;
@@ -188,54 +189,25 @@ class _ShareSheetState extends State<_ShareSheet> {
       } catch (_) {}
       if (!mounted) return;
       Navigator.pop(context);
-      _showShareSnackBar('Post sent.', success: true);
+      AppFeedback.showSuccess(context, 'Post sent.');
     } catch (error) {
       if (!mounted) return;
       final relationshipRequired =
           error.toString().contains('Follow relationship required');
-      _showShareSnackBar(
-        relationshipRequired
+      AppFeedback.show(
+        context,
+        message: relationshipRequired
             ? 'Follow this user before sending them a post.'
             : 'No internet connection',
+        kind: relationshipRequired
+            ? AppFeedbackKind.warning
+            : AppFeedbackKind.error,
       );
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
       }
     }
-  }
-
-  void _showShareSnackBar(String message, {bool success = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.white,
-        elevation: 8,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        content: Row(
-          children: [
-            Icon(
-              success ? Icons.check_circle_rounded : Icons.wifi_off_rounded,
-              color:
-                  success ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              message,
-              style: const TextStyle(
-                color: Color(0xFF1E293B),
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
