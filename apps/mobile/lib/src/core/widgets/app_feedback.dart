@@ -18,6 +18,7 @@ abstract final class AppFeedback {
     AppFeedbackKind kind = AppFeedbackKind.neutral,
     List<AppFeedbackAction> actions = const [],
     bool showIcon = true,
+    Duration? duration,
   }) {
     assert(actions.length <= 2, 'App feedback supports at most two actions.');
     final messenger = ScaffoldMessenger.of(context);
@@ -29,7 +30,7 @@ abstract final class AppFeedback {
           backgroundColor: AppColors.surface,
           elevation: 10,
           margin: AppInsets.snackbar,
-          duration: Duration(seconds: actions.isEmpty ? 4 : 6),
+          duration: duration ?? Duration(seconds: actions.isEmpty ? 4 : 6),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.compact),
             side: const BorderSide(color: AppColors.border),
@@ -53,8 +54,17 @@ abstract final class AppFeedback {
     show(context, message: message, kind: AppFeedbackKind.error);
   }
 
-  static void showWarning(BuildContext context, String message) {
-    show(context, message: message, kind: AppFeedbackKind.warning);
+  static void showWarning(
+    BuildContext context,
+    String message, {
+    Duration? duration,
+  }) {
+    show(
+      context,
+      message: message,
+      kind: AppFeedbackKind.warning,
+      duration: duration,
+    );
   }
 }
 

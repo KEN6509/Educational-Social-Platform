@@ -33,7 +33,11 @@ class _FilterPageState extends State<FilterPage> {
         _selectedTags.remove(slug);
       } else {
         if (widget.isSelectionMode && _selectedTags.length >= 5) {
-          AppFeedback.showWarning(context, 'Maximum 5 tags allowed');
+          AppFeedback.showWarning(
+            context,
+            'Maximum 5 tags allowed',
+            duration: const Duration(seconds: 2),
+          );
           return;
         }
         _selectedTags.add(slug);

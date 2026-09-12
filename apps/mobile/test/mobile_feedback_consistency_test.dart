@@ -12,6 +12,21 @@ Iterable<File> _productionDartFiles() => Directory(_sourceRoot)
 
 String _portablePath(File file) => file.path.replaceAll('\\', '/');
 
+bool _containsRawVisibleError(String source) {
+  final patterns = [
+    RegExp(
+      r'''(?:Error:|Unable to [^'"\r\n]+:)\s*\$\{?(?:e|error|exception)\b''',
+    ),
+    RegExp(
+      r'\b(?:AppFeedback\.(?:show|showSuccess|showWarning|showError)|Text)\s*\([^;]*\b(?:e|error|exception)\.toString\s*\(',
+    ),
+    RegExp(
+      r'\b(?:AppFeedback\.(?:show|showSuccess|showWarning|showError)|Text)\s*\([^;]*\$\{?(?:e|error|exception)\b',
+    ),
+  ];
+  return patterns.any((pattern) => pattern.hasMatch(source));
+}
+
 void main() {
   test('only AppFeedback constructs temporary message surfaces', () {
     final violations = <String>[];
@@ -32,17 +47,30 @@ void main() {
 
   test('visible failure messages do not interpolate caught exceptions', () {
     final violations = <String>[];
-    final rawVisibleError = RegExp(
-      r'''(?:Error:|Unable to [^'"\r\n]+:)\s*\$\{?(?:e|error|exception)\b''',
-    );
 
     for (final file in _productionDartFiles()) {
       final source = file.readAsStringSync();
-      if (rawVisibleError.hasMatch(source)) {
+      if (_containsRawVisibleError(source)) {
         violations.add(_portablePath(file));
       }
     }
 
     expect(violations, isEmpty, reason: violations.join('\n'));
+  });
+
+  test('raw-error guard recognizes direct exception display sinks', () {
+    expect(
+      _containsRawVisibleError(
+        'AppFeedback.showError(context, error.toString());',
+      ),
+      isTrue,
+    );
+    expect(_containsRawVisibleError('Text(exception.toString())'), isTrue);
+    expect(
+      _containsRawVisibleError(
+        r"AppFeedback.show(context, message: '$error');",
+      ),
+      isTrue,
+    );
   });
 }
