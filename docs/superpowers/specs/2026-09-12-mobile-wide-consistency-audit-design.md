@@ -91,11 +91,12 @@ alternative production path.
 
 ## Feedback Facade
 
-Presentation code uses the existing semantic entry points:
+Presentation code uses the shared semantic entry points:
 
 - `AppFeedback.showSuccess` for completed operations;
 - `AppFeedback.showError` for recoverable failures;
-- `AppFeedback.showWarning` for cautionary state; and
+- `AppFeedback.showWarning` for cautionary state (added as the smallest
+  convenience wrapper during this phase); and
 - `AppFeedback.show` when an existing safe action such as Retry must be
   retained.
 
