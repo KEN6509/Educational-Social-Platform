@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
 import '../../posts/presentation/post_detail_page.dart';
 import '../../profile/presentation/profile_page.dart';
@@ -562,8 +563,13 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                     : message.contains('Conversation not found')
                         ? 'This chat no longer exists.'
                         : 'No internet connection';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(text)));
+        AppFeedback.show(
+          context,
+          message: text,
+          kind: text == 'No internet connection'
+              ? AppFeedbackKind.error
+              : AppFeedbackKind.warning,
+        );
       }
     } finally {
       if (mounted) setState(() => _isSending = false);
@@ -647,14 +653,14 @@ class _ChatRoomPageState extends State<ChatRoomPage>
         if (relationshipRequired) {
           setState(() => _canSendMessages = false);
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              relationshipRequired
-                  ? _followRequiredMessage
-                  : 'No internet connection',
-            ),
-          ),
+        AppFeedback.show(
+          context,
+          message: relationshipRequired
+              ? _followRequiredMessage
+              : 'No internet connection',
+          kind: relationshipRequired
+              ? AppFeedbackKind.warning
+              : AppFeedbackKind.error,
         );
       }
     } finally {
@@ -747,9 +753,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
     _clearSelectedMessages();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied')),
-    );
+    AppFeedback.showSuccess(context, 'Copied');
   }
 
   Future<void> _openSharedPost(ChatSharedPost sharedPost) async {
@@ -767,18 +771,13 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       );
     } on ChatNotificationPostUnavailableException {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "This post can't be viewed. It may be deleted or not approved yet.",
-          ),
-        ),
+      AppFeedback.showWarning(
+        context,
+        "This post can't be viewed. It may be deleted or not approved yet.",
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No internet connection')),
-      );
+      AppFeedback.showError(context, 'No internet connection');
     }
   }
 
@@ -802,22 +801,21 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       }
       if (!mounted) return;
       _clearSelectedMessages();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      AppFeedback.show(
+        context,
+        message:
             isPlural ? 'Messages deleted for me' : 'Message deleted for me',
-          ),
-          action: SnackBarAction(
+        kind: AppFeedbackKind.success,
+        actions: [
+          AppFeedbackAction(
             label: 'Undo',
             onPressed: () => _restoreDeletedForMe(messages),
           ),
-        ),
+        ],
       );
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
-        );
+        AppFeedback.showError(context, 'No internet connection');
       }
     }
   }
@@ -862,17 +860,14 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       if (!mounted) return;
       _clearSelectedMessages();
       if (storageCleanupFailed) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Photo cleanup failed. Please try again later.'),
-          ),
+        AppFeedback.showError(
+          context,
+          'Photo cleanup failed. Please try again later.',
         );
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No internet connection')),
-      );
+      AppFeedback.showError(context, 'No internet connection');
     }
   }
 
@@ -887,9 +882,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No internet connection')),
-      );
+      AppFeedback.showError(context, 'No internet connection');
     }
   }
 

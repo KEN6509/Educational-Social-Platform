@@ -7,6 +7,7 @@ import 'package:photo_manager/photo_manager.dart';
 
 import '../data/chat_models.dart';
 import '../data/chat_mention.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/unread_badge.dart';
 
 part 'chat_message_bubbles.dart';
