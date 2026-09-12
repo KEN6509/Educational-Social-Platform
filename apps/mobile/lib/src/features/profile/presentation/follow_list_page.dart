@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/shimmer_skeleton.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/theme/app_design_tokens.dart';
 import '../data/profile_repository.dart';
 import '../data/user_profile.dart';
 import 'content_creator_badge.dart';
@@ -68,7 +70,7 @@ class _FollowListPageState extends State<FollowListPage>
         title: Text(
           widget.userName,
           style: const TextStyle(
-            color: Color(0xFF0B1F3E),
+            color: AppColors.navy,
             fontSize: 17,
             fontWeight: FontWeight.w800,
           ),
@@ -77,9 +79,9 @@ class _FollowListPageState extends State<FollowListPage>
           controller: _tabController,
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           splashFactory: NoSplash.splashFactory,
-          labelColor: const Color(0xFF0B1F3E),
-          unselectedLabelColor: const Color(0xFF64748B),
-          indicatorColor: const Color(0xFF4490AD),
+          labelColor: AppColors.navy,
+          unselectedLabelColor: AppColors.textSecondary,
+          indicatorColor: AppColors.cyan,
           indicatorWeight: 3,
           tabs: const [
             Tab(text: 'Followers'),
@@ -95,7 +97,7 @@ class _FollowListPageState extends State<FollowListPage>
               height: 44,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: AppColors.surfaceMuted,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: TextField(
@@ -235,7 +237,6 @@ class _FollowListState extends State<_FollowList> {
                 );
               },
               onToggleFollow: () async {
-                final messenger = ScaffoldMessenger.of(context);
                 final current = profiles[index];
                 final optimistic = current.copyWith(
                   isFollowing: !current.isFollowing,
@@ -246,14 +247,12 @@ class _FollowListState extends State<_FollowList> {
                 setState(() => profiles[index] = optimistic);
                 try {
                   final updated = await widget.onToggleFollow(current);
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   setState(() => profiles[index] = updated);
                 } catch (e) {
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   setState(() => profiles[index] = current);
-                  messenger.showSnackBar(
-                    SnackBar(content: Text(friendlyErrorTitle(e))),
-                  );
+                  AppFeedback.showError(context, friendlyErrorTitle(e));
                 }
               },
             );

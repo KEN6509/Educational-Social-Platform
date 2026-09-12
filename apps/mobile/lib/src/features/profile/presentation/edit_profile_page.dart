@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/theme/app_design_tokens.dart';
 import '../data/user_profile.dart';
 import '../data/profile_repository.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
@@ -118,9 +120,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyErrorTitle(e))),
-        );
+        AppFeedback.showError(context, friendlyErrorTitle(e));
       }
     } finally {
       if (mounted) {
@@ -201,7 +201,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               child: const Text(
                 'Save',
                 style: TextStyle(
-                  color: Color(0xFF4490AD),
+                  color: AppColors.cyan,
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
                 ),
@@ -238,7 +238,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                     height: 100,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: const Color(0xFFF1F5F9),
+                                      color: AppColors.surfaceMuted,
                                     ),
                                     child: ClipOval(
                                       child: _selectedImage != null
@@ -335,7 +335,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
+                color: AppColors.textSecondary,
               ),
             ),
           ),
@@ -370,7 +370,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       '${value.text.length}/$maxLength',
                       style: const TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF94A3B8),
+                        color: AppColors.textMuted,
                       ),
                     );
                   },
@@ -402,7 +402,7 @@ class _EditProfileLoadErrorLegacy extends StatelessWidget {
           friendlyErrorTitle(error),
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: Color(0xFF0B1F3E),
+            color: AppColors.navy,
             fontSize: 17,
             fontWeight: FontWeight.w800,
           ),
@@ -412,7 +412,7 @@ class _EditProfileLoadErrorLegacy extends StatelessWidget {
           friendlyErrorMessage(error),
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: Color(0xFF64748B),
+            color: AppColors.textSecondary,
             fontSize: 14,
             height: 1.35,
           ),
@@ -424,7 +424,7 @@ class _EditProfileLoadErrorLegacy extends StatelessWidget {
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text('Try again'),
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF0B1F3E),
+              backgroundColor: AppColors.navy,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(999),

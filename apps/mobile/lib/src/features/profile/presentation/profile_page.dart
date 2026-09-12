@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/widgets/shimmer_skeleton.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/theme/app_design_tokens.dart';
 import '../../posts/data/feed_post.dart';
 import '../../posts/data/post_collection_order.dart';
 import '../../posts/data/post_interaction_sync.dart';
@@ -259,7 +261,7 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: _buildAppBar(),
       body: RefreshIndicator(
         onRefresh: _refreshProfile,
-        color: const Color(0xFF4490AD),
+        color: AppColors.cyan,
         notificationPredicate: (notification) {
           return notification.metrics.axis == Axis.vertical &&
               notification.metrics.pixels <= 0;
@@ -286,9 +288,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   delegate: _SliverAppBarDelegate(
                     const TabBar(
                       overlayColor: WidgetStatePropertyAll(Colors.transparent),
-                      labelColor: Color(0xFF0B1F3E),
-                      unselectedLabelColor: Color(0xFF64748B),
-                      indicatorColor: Color(0xFF4490AD),
+                      labelColor: AppColors.navy,
+                      unselectedLabelColor: AppColors.textSecondary,
+                      indicatorColor: AppColors.cyan,
                       indicatorWeight: 3,
                       tabs: [
                         Tab(icon: Icon(Icons.grid_view_rounded)),
@@ -357,9 +359,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
       setState(() => _profile = profile);
       _profileMemoryCache[profile.id] = profile;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
+      AppFeedback.showError(context, 'Error: ${e.toString()}');
     }
   }
 
@@ -452,7 +452,7 @@ class _ProfileHeaderLegacy extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: CircleAvatar(
                   radius: 40,
@@ -481,7 +481,7 @@ class _ProfileHeaderLegacy extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF0B1F3E),
+                          color: AppColors.navy,
                         ),
                       ),
                     ),
@@ -524,7 +524,7 @@ class _ProfileHeaderLegacy extends StatelessWidget {
                   height: 34,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: AppColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(17),
                   ),
                   child: InkWell(
@@ -648,7 +648,7 @@ class _ProfileLoadErrorLegacy extends StatelessWidget {
           friendlyErrorTitle(error),
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: Color(0xFF0B1F3E),
+            color: AppColors.navy,
             fontSize: 17,
             fontWeight: FontWeight.w800,
           ),
@@ -658,7 +658,7 @@ class _ProfileLoadErrorLegacy extends StatelessWidget {
           friendlyErrorMessage(error),
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: Color(0xFF64748B),
+            color: AppColors.textSecondary,
             fontSize: 14,
             height: 1.35,
           ),
@@ -670,7 +670,7 @@ class _ProfileLoadErrorLegacy extends StatelessWidget {
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text('Try again'),
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF0B1F3E),
+              backgroundColor: AppColors.navy,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(999),
@@ -702,14 +702,14 @@ class _StatItemLegacy extends StatelessWidget {
             style: const TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF0B1F3E),
+              color: AppColors.navy,
             ),
           ),
           Text(
             label,
             style: const TextStyle(
               fontSize: 12,
-              color: Color(0xFF64748B),
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -738,7 +738,7 @@ class _ProfileActionButtonLegacy extends StatelessWidget {
           ? FilledButton(
               onPressed: onTap,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF4490AD),
+                backgroundColor: AppColors.cyan,
                 textStyle: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -753,7 +753,7 @@ class _ProfileActionButtonLegacy extends StatelessWidget {
               onPressed: onTap,
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF334155),
-                backgroundColor: const Color(0xFFF1F5F9),
+                backgroundColor: AppColors.surfaceMuted,
                 side: BorderSide.none,
                 textStyle: const TextStyle(
                   fontSize: 14,

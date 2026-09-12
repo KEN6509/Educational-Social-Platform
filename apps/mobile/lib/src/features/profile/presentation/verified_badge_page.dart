@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'content_creator_badge.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/theme/app_design_tokens.dart';
 
 part 'verified_badge_widgets.dart';
 
@@ -95,10 +97,9 @@ class _VerifiedBadgePageState extends State<VerifiedBadgePage> {
 
     final statement = _statementController.text.trim();
     if (statement.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tell us why you would like to be verified.'),
-        ),
+      AppFeedback.showError(
+        context,
+        'Tell us why you would like to be verified.',
       );
       return;
     }
@@ -128,15 +129,12 @@ class _VerifiedBadgePageState extends State<VerifiedBadgePage> {
           ),
         );
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verification request submitted.')),
-      );
+      AppFeedback.showSuccess(context, 'Verification request submitted.');
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not submit your request. Please try again.'),
-        ),
+      AppFeedback.showError(
+        context,
+        'Could not submit your request. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -214,7 +212,7 @@ class _VerifiedBadgePageState extends State<VerifiedBadgePage> {
                 onPressed:
                     isVerified || isPending || _isSubmitting ? null : _submit,
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4490AD),
+                  backgroundColor: AppColors.cyan,
                   disabledBackgroundColor: const Color(0xFFCBD5E1),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -375,7 +373,7 @@ class _BadgePageBodyLegacy extends StatelessWidget {
           const Text(
             'These steps may improve your chances of receiving the verified badge.',
             style: TextStyle(
-              color: Color(0xFF64748B),
+              color: AppColors.textSecondary,
               fontSize: 13,
               height: 1.4,
             ),
@@ -444,7 +442,7 @@ class _BadgePageBodyLegacy extends StatelessWidget {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(
-                    color: Color(0xFF4490AD),
+                    color: AppColors.cyan,
                     width: 1.5,
                   ),
                 ),
@@ -459,7 +457,7 @@ class _BadgePageBodyLegacy extends StatelessWidget {
                   '${value.text.length} / 500',
                   textAlign: TextAlign.right,
                   style: const TextStyle(
-                    color: Color(0xFF64748B),
+                    color: AppColors.textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -522,7 +520,7 @@ class _RequirementLegacy extends StatelessWidget {
                 Text(
                   detail,
                   style: const TextStyle(
-                    color: Color(0xFF64748B),
+                    color: AppColors.textSecondary,
                     fontSize: 12,
                     height: 1.35,
                   ),
@@ -594,7 +592,7 @@ class _LoadErrorLegacy extends StatelessWidget {
             const Icon(
               Icons.cloud_off_rounded,
               size: 36,
-              color: Color(0xFF64748B),
+              color: AppColors.textSecondary,
             ),
             const SizedBox(height: 12),
             const Text(

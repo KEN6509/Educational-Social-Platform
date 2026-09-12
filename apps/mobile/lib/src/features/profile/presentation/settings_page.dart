@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/theme/app_design_tokens.dart';
 import 'notification_settings_page.dart';
 import 'set_password_page.dart';
 import 'verified_badge_page.dart';
@@ -41,12 +43,12 @@ class _SettingsPageState extends State<SettingsPage> {
     final shouldLogout = await showAppConfirmationDialog(
       context: context,
       icon: Icons.logout_rounded,
-      iconColor: const Color(0xFFE11D48),
+      iconColor: AppColors.error,
       iconBackgroundColor: const Color(0xFFFFE4E6),
       title: 'Log out?',
       message: 'Are you sure you want to log out of CyanZone?',
       primaryLabel: 'Log out',
-      primaryColor: const Color(0xFFE11D48),
+      primaryColor: AppColors.error,
     );
     if (shouldLogout != true || !mounted) return;
 
@@ -61,11 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not log out. Please try again.'),
-          ),
-        );
+        AppFeedback.showError(context, 'Could not log out. Please try again.');
       }
     } finally {
       if (mounted) {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../notifications/application/push_notification_coordinator.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/theme/app_design_tokens.dart';
 
 part 'notification_settings_widgets.dart';
 
@@ -76,21 +78,17 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           setState(() {
             _preferencesFuture = Future.value(current);
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Phone notifications were not enabled.'),
-            ),
-          );
+          AppFeedback.showError(
+              context, 'Phone notifications were not enabled.');
         }
       } catch (_) {
         if (mounted) {
           setState(() {
             _preferencesFuture = Future.value(current);
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Could not update phone notification setting.'),
-            ),
+          AppFeedback.showError(
+            context,
+            'Could not update phone notification setting.',
           );
         }
       }
@@ -126,11 +124,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       setState(() {
         _preferencesFuture = Future.value(current);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not update notification setting.'),
-        ),
-      );
+      AppFeedback.showError(context, 'Could not update notification setting.');
     }
   }
 
@@ -337,7 +331,7 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: const TextStyle(
-          color: Color(0xFF64748B),
+          color: AppColors.textSecondary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
@@ -416,7 +410,7 @@ class _PreferenceSwitch extends StatelessWidget {
           : Text(
               subtitle!,
               style: const TextStyle(
-                color: Color(0xFF64748B),
+                color: AppColors.textSecondary,
                 fontSize: 12,
                 height: 1.35,
               ),
@@ -424,9 +418,9 @@ class _PreferenceSwitch extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       value: value,
       activeThumbColor: Colors.white,
-      activeTrackColor: const Color(0xFF4490AD),
+      activeTrackColor: AppColors.cyan,
       inactiveThumbColor: Colors.white,
-      inactiveTrackColor: const Color(0xFFE2E8F0),
+      inactiveTrackColor: AppColors.border,
       onChanged: enabled ? onChanged : null,
     );
   }
