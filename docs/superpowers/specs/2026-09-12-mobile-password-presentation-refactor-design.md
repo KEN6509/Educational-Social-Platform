@@ -81,8 +81,8 @@ feedback, state updates, or navigation is performed after asynchronous work.
 
 Exact existing values are replaced only when a matching shared token already
 exists. This includes page horizontal padding, navy, secondary text, muted
-text, and the existing compact corner radius. Values without an exact token
-remain unchanged.
+text, and page vertical spacing. The existing 12px control radius remains
+unchanged because the current shared radius tokens do not have the same value.
 
 ## Testing
 
