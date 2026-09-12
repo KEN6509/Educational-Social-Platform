@@ -1,4 +1,5 @@
 import 'package:cyanzone_mobile/src/features/profile/presentation/set_password_page.dart';
+import 'package:cyanzone_mobile/src/core/theme/app_design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -106,6 +107,10 @@ void main() {
     await submit(tester);
 
     expect(find.text('New passwords do not match.'), findsOneWidget);
+    final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+    expect(snackBar.behavior, SnackBarBehavior.floating);
+    expect(snackBar.backgroundColor, AppColors.surface);
+    expect(snackBar.shape, isA<RoundedRectangleBorder>());
     expect(reauthenticationCalls, 0);
     expect(updateCalls, 0);
   });

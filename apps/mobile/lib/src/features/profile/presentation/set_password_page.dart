@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/security/password_policy.dart';
 import '../../../core/theme/app_input_decoration.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/password_checklist.dart';
 
 typedef PasswordReauthenticator = Future<String?> Function(
@@ -44,10 +45,12 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
     super.dispose();
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  void _showError(String message) {
+    AppFeedback.showError(context, message);
+  }
+
+  void _showSuccess(String message) {
+    AppFeedback.showSuccess(context, message);
   }
 
   Future<String?> _defaultReauthenticate(
@@ -73,23 +76,23 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
     final confirm = _confirmController.text;
 
     if (currentPassword.isEmpty || password.isEmpty || confirm.isEmpty) {
-      _showMessage('Please fill in all three password fields.');
+      _showError('Please fill in all three password fields.');
       return;
     }
 
     final policyError = PasswordPolicy.validationError(password);
     if (policyError != null) {
-      _showMessage(policyError);
+      _showError(policyError);
       return;
     }
 
     if (password != confirm) {
-      _showMessage('New passwords do not match.');
+      _showError('New passwords do not match.');
       return;
     }
 
     if (password == currentPassword) {
-      _showMessage(
+      _showError(
         'Choose a new password that differs from your current password.',
       );
       return;
@@ -103,7 +106,7 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
       currentUserId ??= auth.currentUser?.id;
     }
     if (email == null || currentUserId == null) {
-      _showMessage('Your session has expired. Please log in again.');
+      _showError('Your session has expired. Please log in again.');
       return;
     }
 
@@ -114,19 +117,19 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
           await (widget.reauthenticate ?? _defaultReauthenticate)
               .call(email, currentPassword);
       if (verifiedUserId != currentUserId) {
-        _showMessage('Current password is incorrect.');
+        _showError('Current password is incorrect.');
         return;
       }
 
       await (widget.updatePassword ?? _defaultUpdatePassword).call(password);
       if (mounted) {
-        _showMessage('Password updated successfully');
+        _showSuccess('Password updated successfully');
         Navigator.pop(context);
       }
     } on AuthException catch (error) {
       if (mounted) {
         final message = error.message.toLowerCase();
-        _showMessage(
+        _showError(
           message.contains('invalid login credentials') ||
                   message.contains('invalid credentials')
               ? 'Current password is incorrect.'
@@ -135,7 +138,7 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
       }
     } catch (_) {
       if (mounted) {
-        _showMessage('Could not update password. Please try again.');
+        _showError('Could not update password. Please try again.');
       }
     } finally {
       if (mounted) {
