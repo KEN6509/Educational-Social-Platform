@@ -5,7 +5,7 @@ import '../../../core/theme/app_design_tokens.dart';
 import '../../../core/widgets/app_location_map.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../data/parent_supervision_models.dart';
-import 'safety_records_page.dart';
+import 'supervision_formatters.dart';
 
 class CheckInDetailPage extends StatelessWidget {
   const CheckInDetailPage({super.key, required this.checkIn});

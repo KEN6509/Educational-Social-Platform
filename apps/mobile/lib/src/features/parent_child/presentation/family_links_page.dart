@@ -9,8 +9,8 @@ import '../../profile/presentation/profile_page.dart';
 part 'family_links_widgets.dart';
 
 const _pageBg = AppColors.surfaceMuted;
-const _text = AppColors.navy;
-const _secondary = AppColors.textSecondary;
+const _text = Color(0xFF0D2344);
+const _secondary = Color(0xFF7A879B);
 const _border = AppColors.border;
 const _familyBlue = Color(0xFF4F7DF3);
 

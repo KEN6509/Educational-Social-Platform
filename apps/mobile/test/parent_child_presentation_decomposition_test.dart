@@ -40,6 +40,15 @@ void main() {
     expect(widgetSource, contains('class _ChildScreenTimeRow'));
   });
 
+  test('Family Links preserves its existing approved text colours', () {
+    final page = File(
+      'lib/src/features/parent_child/presentation/family_links_page.dart',
+    ).readAsStringSync();
+
+    expect(page, contains('const _text = Color(0xFF0D2344);'));
+    expect(page, contains('const _secondary = Color(0xFF7A879B);'));
+  });
+
   test('Safety Records separates list widgets and Check-In detail route', () {
     final page = File(
       'lib/src/features/parent_child/presentation/safety_records_page.dart',
@@ -56,8 +65,29 @@ void main() {
     expect(widgets.existsSync(), isTrue);
     expect(detail.existsSync(), isTrue);
     expect(page, isNot(contains('class CheckInDetailPage')));
-    expect(detail.readAsStringSync(), contains('class CheckInDetailPage'));
-    expect(widgets.readAsStringSync(), contains('class _RecordTile'));
+    final detailSource = detail.readAsStringSync();
+    final widgetSource = widgets.readAsStringSync();
+    expect(detailSource, contains('class CheckInDetailPage'));
+    expect(page, isNot(contains('class _RecordsMessage')));
+    expect(widgetSource, contains('class _RecordTile'));
+    expect(widgetSource, contains('class _RecordsMessage'));
+  });
+
+  test('Check-In detail does not import its parent records page', () {
+    final page = File(
+      'lib/src/features/parent_child/presentation/safety_records_page.dart',
+    ).readAsStringSync();
+    final detail = File(
+      'lib/src/features/parent_child/presentation/check_in_detail_page.dart',
+    ).readAsStringSync();
+    final formatters = File(
+      'lib/src/features/parent_child/presentation/supervision_formatters.dart',
+    );
+
+    expect(detail, isNot(contains("import 'safety_records_page.dart';")));
+    expect(detail, contains("import 'supervision_formatters.dart';"));
+    expect(page, contains("import 'supervision_formatters.dart';"));
+    expect(formatters.existsSync(), isTrue);
   });
 
   test('SOS page keeps workflow state and delegates presentation widgets', () {

@@ -1,5 +1,30 @@
 part of 'safety_records_page.dart';
 
+class _RecordsMessage extends StatelessWidget {
+  const _RecordsMessage({
+    required this.icon,
+    required this.message,
+    this.action,
+  });
+
+  final IconData icon;
+  final String message;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 44, color: Colors.blueGrey),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            if (action case final action?) action,
+          ]),
+        ),
+      );
+}
+
 class _FilterBar extends StatelessWidget {
   const _FilterBar({required this.selected, required this.onSelected});
 

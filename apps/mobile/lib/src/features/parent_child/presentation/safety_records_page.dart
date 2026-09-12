@@ -5,6 +5,7 @@ import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import 'check_in_detail_page.dart';
 import 'sos_page.dart';
+import 'supervision_formatters.dart';
 
 part 'safety_record_widgets.dart';
 
@@ -202,31 +203,6 @@ class _SafetyRecordsPageState extends State<SafetyRecordsPage> {
   }
 }
 
-class _RecordsMessage extends StatelessWidget {
-  const _RecordsMessage({
-    required this.icon,
-    required this.message,
-    this.action,
-  });
-
-  final IconData icon;
-  final String message;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 44, color: Colors.blueGrey),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center),
-            if (action case final action?) action,
-          ]),
-        ),
-      );
-}
-
 String _initials(String name) {
   final parts = name.trim().split(RegExp(r'\s+'));
   if (parts.isEmpty || parts.first.isEmpty) return '?';
@@ -251,27 +227,4 @@ String _formatRecordDay(DateTime value) {
     'DEC',
   ];
   return '${months[value.month - 1]} ${value.day}, ${value.year}';
-}
-
-String formatSupervisionTime(DateTime value) {
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  final local = value.toLocal();
-  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-  final minute = local.minute.toString().padLeft(2, '0');
-  final period = local.hour < 12 ? 'AM' : 'PM';
-  return '${local.day} ${months[local.month - 1]} ${local.year}, '
-      '$hour:$minute $period';
 }
