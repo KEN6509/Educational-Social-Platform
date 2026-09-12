@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/widgets/app_feedback.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
 import '../../../core/application/async_refresh_coordinator.dart';
@@ -599,9 +600,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No internet connection')),
-      );
+      AppFeedback.showError(context, 'No internet connection');
     }
   }
 

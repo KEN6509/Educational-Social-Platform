@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../profile/presentation/profile_page.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
@@ -48,9 +49,7 @@ class _EditGroupPageState extends State<EditGroupPage> {
       if (mounted) Navigator.pop(context, title.isEmpty ? 'Group chat' : title);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
-        );
+        AppFeedback.showError(context, 'No internet connection');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -400,9 +399,7 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
       _refresh();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
-        );
+        AppFeedback.showError(context, 'No internet connection');
       }
     }
   }
@@ -467,9 +464,7 @@ class _AddGroupMembersPageState extends State<AddGroupMembersPage> {
       if (mounted) Navigator.pop(context, true);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
-        );
+        AppFeedback.showError(context, 'No internet connection');
       }
     } finally {
       if (mounted) setState(() => _isAdding = false);

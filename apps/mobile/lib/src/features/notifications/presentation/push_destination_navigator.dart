@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/widgets/app_feedback.dart';
 import '../../chat/data/chat_repository.dart';
 import '../../chat/data/chat_models.dart';
 import '../../chat/presentation/chat_room_page.dart';
@@ -49,9 +50,9 @@ class PushDestinationNavigator {
       }
     } catch (_) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('This notification is no longer available.')),
+      AppFeedback.showWarning(
+        context,
+        'This notification is no longer available.',
       );
     }
   }

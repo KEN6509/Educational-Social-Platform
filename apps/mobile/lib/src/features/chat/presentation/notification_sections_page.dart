@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../posts/presentation/post_detail_page.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/profile_page.dart';
@@ -248,18 +249,13 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
       _refreshNotifications();
     } on ChatNotificationPostUnavailableException {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "This post can't be viewed. It may be deleted or not approved yet.",
-          ),
-        ),
+      AppFeedback.showWarning(
+        context,
+        "This post can't be viewed. It may be deleted or not approved yet.",
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No internet connection')),
-      );
+      AppFeedback.showError(context, 'No internet connection');
     }
   }
 
@@ -311,10 +307,9 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
       _refreshNotifications();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not delete this notification. Please retry.'),
-        ),
+      AppFeedback.showError(
+        context,
+        'Could not delete this notification. Please retry.',
       );
     }
   }

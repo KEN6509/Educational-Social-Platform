@@ -508,9 +508,9 @@ class _FollowerActionButtonState extends State<_FollowerActionButton> {
     } catch (error) {
       debugPrint('Follow back failed: $error');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Could not follow back. Please try again.')),
+        AppFeedback.showError(
+          context,
+          'Could not follow back. Please try again.',
         );
       }
     } finally {
@@ -548,8 +548,12 @@ class _FollowerActionButtonState extends State<_FollowerActionButton> {
         final text = error.toString().contains('Follow relationship required')
             ? 'Follow this user before sending a message.'
             : 'No internet connection';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(text)),
+        AppFeedback.show(
+          context,
+          message: text,
+          kind: text == 'No internet connection'
+              ? AppFeedbackKind.error
+              : AppFeedbackKind.warning,
         );
       }
     } finally {
