@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
 import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/navigation_clearance.dart';
 import '../data/feed_post.dart';
 import '../data/posts_repository.dart';
 import '../domain/content_moderation.dart';
@@ -86,9 +89,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
     final remaining = 9 - _images.length;
     if (remaining <= 0) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Maximum 9 images allowed')),
-        );
+        AppFeedback.showWarning(context, 'Maximum 9 images allowed');
       }
       return;
     }
@@ -111,9 +112,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
         final message = _images.isEmpty
             ? 'Only 9 images can be selected'
             : 'Only $remaining more images can be added';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        AppFeedback.showWarning(context, message);
       }
     }
 
@@ -312,34 +311,25 @@ class _CreatePostPageState extends State<CreatePostPage> {
   }
 
   void _showModerationMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AppFeedback.show(context, message: message);
   }
 
   void _showModerationRetry(String postId) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: const Text('Moderation could not complete.'),
-          action: SnackBarAction(
-            label: 'Retry moderation',
-            onPressed: () => _moderatePost(postId),
-          ),
+    AppFeedback.show(
+      context,
+      message: 'Moderation could not complete.',
+      kind: AppFeedbackKind.warning,
+      actions: [
+        AppFeedbackAction(
+          label: 'Retry moderation',
+          onPressed: () => _moderatePost(postId),
         ),
-      );
+      ],
+    );
   }
 
   void _showSubmissionError(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(message),
-        ),
-      );
+    AppFeedback.showError(context, message);
   }
 
   String _contentTypeFor(_DraftImage image) {
@@ -407,7 +397,16 @@ class _CreatePostPageState extends State<CreatePostPage> {
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+          padding: withNavigationClearance(
+            context,
+            const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              0,
+              AppSpacing.page,
+              40,
+            ),
+            additionalBottom: AppSpacing.lg,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -451,7 +450,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 onRemove: _removeImage,
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: AppSpacing.section),
 
               // Form Section
               Form(
@@ -666,6 +665,7 @@ class _ModernImageGrid extends StatelessWidget {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         crossAxisSpacing: 10,

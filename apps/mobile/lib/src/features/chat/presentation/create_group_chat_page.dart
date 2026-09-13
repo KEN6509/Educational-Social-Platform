@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/widgets/app_feedback.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
 import 'chat_widgets.dart';
@@ -100,8 +101,10 @@ class _CreateGroupChatPageState extends State<CreateGroupChatPage> {
             : message.contains('Group title')
                 ? 'Could not create group because the group name is invalid.'
                 : 'No internet connection';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(text)));
+        final kind = text == 'No internet connection'
+            ? AppFeedbackKind.error
+            : AppFeedbackKind.warning;
+        AppFeedback.show(context, message: text, kind: kind);
       }
     } finally {
       if (mounted) setState(() => _isCreating = false);

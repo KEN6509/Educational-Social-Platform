@@ -15,6 +15,13 @@ void main() {
     expect(gridSource, contains('childAspectRatio: 1'));
     expect(gridSource, contains('fit: BoxFit.cover'));
     expect(gridSource, isNot(contains('fit: BoxFit.contain')));
+    expect(gridSource, contains('padding: EdgeInsets.zero'));
+    expect(
+      source,
+      contains('withNavigationClearance('),
+    );
+    expect(source, contains('additionalBottom: AppSpacing.lg'));
+    expect(source, contains('const SizedBox(height: AppSpacing.section)'));
   });
 
   test('requires either content or an image', () {

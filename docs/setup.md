@@ -45,17 +45,24 @@ by the current mobile app. At minimum, the live project should include:
 1. `supabase/search.sql`
 2. `supabase/tags.sql`
 3. `supabase/follow.sql`
-4. `supabase/post_interactions.sql`
-5. `supabase/post_editing.sql`
-6. `supabase/comment_moderation.sql`
-7. `supabase/comment_mentions.sql`
-8. `supabase/chat.sql`
-9. `supabase/parent_supervision.sql`
-10. `supabase/registration_consent_otp.sql`
-11. `supabase/admin_portal.sql`
-12. `supabase/report_flow_simplification.sql` for an existing database only
-13. `supabase/ai_moderation.sql`
-14. `supabase/fcm_push_notifications.sql`
+4. `supabase/creator_follower_gate.sql` for an existing database only
+5. `supabase/post_interactions.sql`
+6. `supabase/post_editing.sql`
+7. `supabase/comment_moderation.sql`
+8. `supabase/comment_mentions.sql`
+9. `supabase/chat.sql`
+10. `supabase/parent_supervision.sql`
+11. `supabase/registration_consent_otp.sql`
+12. `supabase/admin_portal.sql`
+13. `supabase/report_flow_simplification.sql` for an existing database only
+14. `supabase/ai_moderation.sql`
+15. `supabase/fcm_push_notifications.sql`
+
+Existing projects must run `supabase/creator_follower_gate.sql` after
+`follow.sql`. It preserves creator requests while adding the temporary
+2-follower MVP/UAT requirement to both the protected submission RPC and the
+direct-insert RLS policy. Fresh projects receive the same rule from
+`schema.sql`. Repository changes do not update the hosted project automatically.
 
 The latest `chat.sql` is required for group-chat mentions and current System
 notifications. Run it manually in the Supabase SQL Editor after updating the
@@ -65,6 +72,14 @@ moving specifically from `pending` to `approved`. The last transition sends the
 author a successful-publication notification without duplicating the separate
 approved-appeal notification. Inspect any SQL Editor error before rerunning the
 script.
+
+An existing project that already has the chat tables but was configured from
+an older `chat.sql` may run `supabase/chat_follow_gate_upgrade.sql` after its
+installed chat script. This focused upgrade adds the current direct-message
+permission RPC and replaces message sending with the final follow check. It
+preserves conversations and history. Fresh projects should use the complete
+current `supabase/chat.sql` and do not need the focused upgrade. SQL files are
+never applied automatically by GitHub, Vercel, or a mobile rebuild.
 
 `admin_portal.sql` must run after `chat.sql`. It creates the administrator audit
 table, duplicate unresolved-report guard, administrator appeal access, and the

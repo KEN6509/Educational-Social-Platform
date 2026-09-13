@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'feed_post.dart';
 import 'post_comment.dart';
+import 'post_collection_order.dart';
 import '../domain/post_submission_repository.dart';
 
 class PickedPostImage {
@@ -180,12 +181,12 @@ class PostsRepository implements PostSubmissionRepository {
         // Different reaction, update it
         await _client
             .from('likes')
-            .update({
-              'reaction_type': reactionType,
-              'hidden_until': reactionType == 'dislike'
-                  ? _dislikeHiddenUntil().toIso8601String()
-                  : null,
-            })
+            .update(
+              buildReactionUpdate(
+                reactionType: reactionType,
+                occurredAt: DateTime.now().toUtc(),
+              ),
+            )
             .eq('post_id', postId)
             .eq('user_id', userId);
       }
@@ -203,6 +204,20 @@ class PostsRepository implements PostSubmissionRepository {
 
   DateTime _dislikeHiddenUntil() {
     return DateTime.now().toUtc().add(const Duration(days: 14));
+  }
+
+  static Map<String, dynamic> buildReactionUpdate({
+    required String reactionType,
+    required DateTime occurredAt,
+  }) {
+    final interactionTime = occurredAt.toUtc();
+    return {
+      'reaction_type': reactionType,
+      'hidden_until': reactionType == 'dislike'
+          ? interactionTime.add(const Duration(days: 14)).toIso8601String()
+          : null,
+      'created_at': interactionTime.toIso8601String(),
+    };
   }
 
   Future<void> toggleSave(String postId) async {
@@ -273,13 +288,15 @@ class PostsRepository implements PostSubmissionRepository {
         .select(feedSelectColumns)
         .inFilter('author_id', followingIds)
         .eq('moderation_status', 'approved')
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .order('id', ascending: false);
 
-    return postsResponse
+    final posts = postsResponse
         .cast<Map<String, dynamic>>()
         .map((m) => FeedPost.fromMap(m, userId))
         .where((post) => !post.isHiddenFromDiscovery)
         .toList();
+    return orderNewestPosts(posts);
   }
 
   Future<List<FeedPost>> fetchUserPosts(String userId) async {
@@ -310,7 +327,8 @@ class PostsRepository implements PostSubmissionRepository {
         .from('saves')
         .select(savedPostsSelectColumns)
         .eq('user_id', targetUserId)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .order('id', ascending: false);
 
     return response
         .cast<Map<String, dynamic>>()
@@ -331,7 +349,8 @@ class PostsRepository implements PostSubmissionRepository {
         .select(likedPostsSelectColumns)
         .eq('user_id', targetUserId)
         .eq('reaction_type', 'like')
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .order('id', ascending: false);
 
     return response
         .cast<Map<String, dynamic>>()

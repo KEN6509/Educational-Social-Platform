@@ -318,6 +318,32 @@ when neither participant follows the other, history stays readable but new
 direct messages are rejected. Inspect and resolve any SQL Editor error before
 retrying.
 
+For an existing project that only needs the September 2026 direct-message
+follow-gate correction, run the complete `chat_follow_gate_upgrade.sql` after
+the previously installed `chat.sql`. This focused script replaces only the
+permission and message-send functions and their execution grants. It does not
+delete chat tables, conversations, messages, or history. Fresh projects do not
+need this extra step because the same functions are already included in the
+current `chat.sql`.
+
+After running the focused upgrade, its final two read-only queries must show
+both function signatures and `send_uses_follow_gate = true`. Git pulls, mobile
+builds, GitHub merges, and Vercel deployments do not apply Supabase SQL files;
+the file must be run manually in the hosted project's SQL Editor.
+
+## Creator application follower gate
+
+For an existing project, run `creator_follower_gate.sql` after `follow.sql`.
+It preserves all existing creator requests and installs the protected
+`submit_creator_verification_request` RPC plus an RLS fallback that requires at
+least 2 current followers. This is a temporary MVP/UAT threshold and should be
+reviewed after UAT. Fresh projects receive the same function and policy from
+`schema.sql` and do not need the focused migration.
+
+After running the migration, its final read-only queries should return the RPC
+and the `Users can request creator status` insert policy. Git, Vercel, and a
+mobile rebuild do not apply this SQL to Supabase.
+
 Verify the active and dormant chat functions:
 
 ```sql

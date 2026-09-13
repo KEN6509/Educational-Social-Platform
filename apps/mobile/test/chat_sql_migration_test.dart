@@ -256,6 +256,82 @@ void main() {
     );
   });
 
+  test('focused chat follow-gate upgrade is reproducible and non-destructive',
+      () {
+    final sql =
+        File('../../supabase/chat_follow_gate_upgrade.sql').readAsStringSync();
+    final canonical = File('../../supabase/chat.sql').readAsStringSync();
+    final readme = File('../../supabase/README.md').readAsStringSync();
+    final setup = File('../../docs/setup.md').readAsStringSync();
+
+    String normalizedBlock(String source, String start, String end) {
+      final startIndex = source.indexOf(start);
+      final endIndex = source.indexOf(end, startIndex);
+      expect(startIndex, greaterThanOrEqualTo(0));
+      expect(endIndex, greaterThan(startIndex));
+      return source
+          .substring(startIndex, endIndex)
+          .replaceAll(RegExp(r'\s'), '');
+    }
+
+    expect(
+      sql,
+      contains('create or replace function public.can_send_chat_message'),
+    );
+    expect(
+      sql,
+      contains('create or replace function public.send_chat_message'),
+    );
+    expect(sql, contains('public.can_send_chat_message(p_conversation_id)'));
+    expect(
+      sql,
+      contains("raise exception 'Follow relationship required'"),
+    );
+    expect(
+      sql,
+      contains(
+        'grant execute on function public.can_send_chat_message(uuid) to authenticated',
+      ),
+    );
+    expect(
+      sql,
+      contains(
+        'grant execute on function public.send_chat_message(uuid, text, jsonb) to authenticated',
+      ),
+    );
+    expect(
+        sql, contains("to_regprocedure('public.can_send_chat_message(uuid)')"));
+    expect(
+      sql,
+      contains("to_regprocedure('public.send_chat_message(uuid,text,jsonb)')"),
+    );
+    expect(sql.toLowerCase(), isNot(contains('drop table')));
+    expect(sql.toLowerCase(), isNot(contains('truncate table')));
+    expect(sql.toLowerCase(), isNot(contains('delete from public.chat_')));
+    expect(readme, contains('chat_follow_gate_upgrade.sql'));
+    expect(setup, contains('chat_follow_gate_upgrade.sql'));
+
+    const permissionStart =
+        'create or replace function public.can_send_chat_message';
+    const sendStart = 'create or replace function public.send_chat_message';
+    expect(
+      normalizedBlock(sql, permissionStart, sendStart),
+      normalizedBlock(canonical, permissionStart, sendStart),
+    );
+    expect(
+      normalizedBlock(
+        sql,
+        sendStart,
+        'revoke execute on function public.can_send_chat_message',
+      ),
+      normalizedBlock(
+        canonical,
+        sendStart,
+        'create or replace function public.fetch_unvisited_chat_mentions',
+      ),
+    );
+  });
+
   test('group member eligibility uses follows only', () {
     final sql = File('../../supabase/chat.sql').readAsStringSync();
     final start = sql.indexOf(

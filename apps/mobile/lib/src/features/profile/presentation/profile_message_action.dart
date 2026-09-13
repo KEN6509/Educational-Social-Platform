@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/errors/friendly_error.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../chat/data/chat_models.dart';
 import '../../chat/data/chat_repository.dart';
 import '../../chat/presentation/chat_room_page.dart';
@@ -50,8 +51,6 @@ Future<void> openProfileMessage({
     final text = error.toString().contains('Follow relationship required')
         ? 'Follow this user before sending a message.'
         : friendlyErrorMessage(error);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
+    AppFeedback.showError(context, text);
   }
 }

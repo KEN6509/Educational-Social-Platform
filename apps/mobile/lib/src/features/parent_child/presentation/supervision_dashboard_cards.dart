@@ -131,10 +131,10 @@ class SummaryActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const padding = EdgeInsets.all(16);
-    final iconExtent = wide ? 56.0 : 52.0;
+    const padding = EdgeInsets.all(12);
+    final iconExtent = wide ? 56.0 : 51.0;
     final iconSize = wide ? 32.0 : 30.0;
-    final titleGap = wide ? 6.0 : 5.0;
+    final titleGap = wide ? 3.0 : 5.0;
     const titleSize = 18.0;
     const subtitleSize = 14.0;
     const actionSize = 14.0;
@@ -244,7 +244,7 @@ class SafetyActionCard extends StatelessWidget {
         height: height,
         child: _Surface(
           onTap: enabled ? onTap : null,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,29 +353,28 @@ class SupervisionNotificationsCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 18, 16, 16),
-          child: Row(children: [
-            Expanded(
-              child: Text(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
                 'Supervision notifications',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: _text,
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
-            SizedBox(width: 8),
-            Text(
-              'Only 10 latest be displayed',
-              style: TextStyle(
-                color: _secondary,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
+              SizedBox(height: 4),
+              Text(
+                'Only 10 latest be displayed',
+                style: TextStyle(
+                  color: _secondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
               ),
-            ),
-          ]),
+            ],
+          ),
         ),
         if (latest.isEmpty)
           Padding(

@@ -107,7 +107,7 @@ Implemented:
 - Waterfall feed with Feeds, Following, and Saves modes, refresh, filtering, and image/text posts; moderation-status badges use the same top-left card placement for both post types.
 - Search across posts and profiles with local/server history.
 - Own/other profiles, follow graph, avatar editing/caching, post grids, and settings.
-- Settings includes a Verified Badge page with eligibility requirements, an application statement, direct submission through the existing protected creator-request table, and pending, rejected/reapply, and verified states. The current UI still displays an informational 10,000-follower threshold and does not enforce it. For the MVP/UAT population, the approved temporary target is **2 followers**; update both the display and authoritative submission enforcement before UAT. Rejected applicants are directed to System notifications for the administrator's reason.
+- Settings includes a Verified Badge page with eligibility requirements, current follower progress, an application statement, and pending, rejected/reapply, and verified states. The repository displays the temporary **2-follower MVP/UAT threshold**, disables ineligible applications, submits through a protected RPC, and applies the same rule to direct inserts through RLS. The focused `creator_follower_gate.sql` migration still requires live application and verification. Rejected applicants are directed to System notifications for the administrator's reason.
 - Verified creator identity uses the same CyanZone-cyan rosette with a white tick across mobile profile, follow, and search surfaces.
 - Post creation/editing with up to nine images, custom picker/camera, tags, and storage cleanup.
 - Post detail, like/dislike/save/share, comments/replies/mentions, comment likes, pinning, reporting, editing, and soft removal.
@@ -297,6 +297,7 @@ supabase/auth.sql
 supabase/search.sql
 supabase/tags.sql
 supabase/follow.sql
+supabase/creator_follower_gate.sql
 supabase/post_interactions.sql
 supabase/post_editing.sql
 supabase/comment_moderation.sql
@@ -363,7 +364,7 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] On approved appeal, publish the content; on rejected appeal, retain rejection; record an owner notification in both cases.
 - [x] Build user listing/search/detail with public profile, true published-post counts, latest-five horizontal carousel, See All grid, complete post media/content/status, and approved comment/reply review.
 - [x] Build confirmed assign/remove verified creator controls mapped consistently to `is_content_creator`.
-- [ ] Replace the current informational 10,000-follower creator requirement with the approved **2-follower MVP/UAT threshold** and enforce it at the authoritative submission boundary as well as in the mobile copy. Revisit the production threshold after UAT rather than hard-coding 2 as a permanent policy.
+- [x] Replace the informational 10,000-follower creator requirement with the approved **2-follower MVP/UAT threshold** in the mobile UI and authoritative RPC/RLS submission boundary. Live application of `creator_follower_gate.sql` remains a deployment step, and the production threshold must be revisited after UAT.
 - [x] Record creator assignment/removal, creator-request rejection with the administrator's reason, rejected-post, Pending-to-Approved publication, reported-content removal, and both appeal-outcome notifications; Retain intentionally sends none.
 - [x] Replace placeholder dashboard links/metrics with functional SRS pages; advanced analytics remain out of scope.
 - [x] Add administrator authorization, RLS, API, audit, component, and responsive browser workflow tests.
@@ -619,8 +620,8 @@ Not covered by this verification:
 - The Gemini moderation implementation has been hardened: database inserts cannot self-approve, shared image writes are owner-scoped, provider safety blocks are separated from ordinary errors, CORS/Vercel entry configuration is explicit, mobile retains same-record retries across restarts, and Admin cases show immutable submitted snapshots. The API uses `gemini-3.5-flash-lite` as primary with one bounded `gemini-3.8-flash` fallback for HTTP 429/503. Request-level SDK retries are disabled, other network timeouts are not duplicated, each provider call allows 15 seconds, and mobile allows 30 seconds for the complete request. The API and Admin portal are deployed on Vercel, and a live primary-model smoke test passed on September 8, 2026. The updated `ai_moderation.sql` enum-cast fix and API timeout configuration still require redeployment and live verification.
 - The user reports that the previous `supabase/parent_supervision.sql`, `supabase/chat.sql`, and `supabase/admin_portal.sql` were applied. Before live acceptance, rerun the newly updated complete `supabase/parent_supervision.sql` and `supabase/chat.sql`; repository files and local tests alone do not update or verify Supabase.
 - Message requests are now hidden/dormant. The Messages screen does not load or show them, and active profile/search/follower actions use `open_direct_conversation`, which requires a follow row in either direction. Existing accepted chat history remains readable after both users unfollow, while the Messages preview and chat-room composer become follow-required and `send_chat_message` rejects new direct messages.
-- The creator-application UI still says 10,000 followers and does not enforce the threshold. The approved MVP/UAT target is 2 followers; update the mobile copy and authoritative submission enforcement in a later implementation slice, align the source SRS when it is available, then revisit the production threshold after UAT.
-- Registration consent/OTP is implemented in the repository, including the combined legal page, centered six-cell OTP input, inline borderless Back action, and the existing resend/recovery behavior. The user has confirmed real six-digit Supabase/Brevo email delivery and verification. The remaining F002 boundary is running/verifying `supabase/registration_consent_otp.sql`, independently checking hosted activation state, and completing the OTP screen pixel comparison after the device is unlocked. The approved 2-follower MVP/UAT creator gate and live Gemini/Vercel acceptance remain pending. Do not report any unverified boundary as complete.
+- The creator-application repository implementation now displays follower progress against the approved 2-follower MVP/UAT target, disables ineligible submission, and enforces the same threshold through an RPC and RLS. Run and verify `supabase/creator_follower_gate.sql` on the hosted project before live acceptance, then revisit the production threshold after UAT.
+- Registration consent/OTP is implemented in the repository, including the combined legal page, centered six-cell OTP input, inline borderless Back action, and the existing resend/recovery behavior. The user has confirmed real six-digit Supabase/Brevo email delivery and verification. The remaining F002 boundary is running/verifying `supabase/registration_consent_otp.sql`, independently checking hosted activation state, and completing the OTP screen pixel comparison after the device is unlocked. The 2-follower creator-gate migration and remaining live Gemini/Vercel acceptance still require verification. Do not report any unverified boundary as complete.
 - The user will perform the final non-functional acceptance evidence after all implementation work is complete.
 - Run all terminal commands directly in the user's PowerShell environment outside the Codex sandbox and use `apply_patch` for manual edits.
 
@@ -634,7 +635,7 @@ Immediate implementation sequence updated on September 7, 2026:
 
 Before MVP/UAT completion:
 
-4. Replace the displayed 10,000-follower creator requirement with 2 followers and enforce the same MVP/UAT threshold at the authoritative backend boundary; revisit the production value after UAT.
+4. Apply and verify `supabase/creator_follower_gate.sql` so the implemented 2-follower MVP/UAT UI and authoritative backend gate are live; revisit the production value after UAT.
 5. Rerun the updated complete `supabase/parent_supervision.sql` and `supabase/chat.sql`, then verify the SOS lifecycle/location rules, direct-chat entry/send revocation, and group-member relationship checks with live accounts. Dormant message-request rows and functions remain stored.
 6. Verify the remaining repository SQL against the intended Supabase project, then verify the Administration Portal/API deployment and cross-surface flows.
 7. Hand the completed build to the user for the final non-functional acceptance evidence pass.

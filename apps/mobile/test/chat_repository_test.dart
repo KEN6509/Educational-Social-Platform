@@ -6,6 +6,64 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ChatRepository', () {
+    test('post sharing only lists current eligible conversations', () {
+      const eligibleDirect = ChatConversation(
+        id: 'direct-eligible',
+        type: ChatConversationType.direct,
+        requestStatus: ChatRequestStatus.none,
+        unreadCount: 0,
+      );
+      const disconnectedDirect = ChatConversation(
+        id: 'direct-disconnected',
+        type: ChatConversationType.direct,
+        requestStatus: ChatRequestStatus.none,
+        unreadCount: 0,
+        canSendMessages: false,
+      );
+      const pendingRequest = ChatConversation(
+        id: 'direct-request',
+        type: ChatConversationType.direct,
+        requestStatus: ChatRequestStatus.pending,
+        unreadCount: 0,
+      );
+      const group = ChatConversation(
+        id: 'group',
+        type: ChatConversationType.group,
+        requestStatus: ChatRequestStatus.none,
+        unreadCount: 0,
+      );
+
+      final result = ChatRepository.postShareEligibleConversations(const [
+        disconnectedDirect,
+        pendingRequest,
+        group,
+        eligibleDirect,
+      ]);
+
+      expect(
+        result.map((conversation) => conversation.id),
+        ['group', 'direct-eligible'],
+      );
+    });
+
+    test('post share reloads live permissions before sending', () {
+      final source = File(
+        'lib/src/features/posts/presentation/post_share_sheet.dart',
+      ).readAsStringSync();
+
+      final sendStart = source.indexOf('Future<void> _sendSharedPost()');
+      expect(sendStart, greaterThanOrEqualTo(0));
+      final sendSource = source.substring(sendStart);
+      expect(sendSource, contains('fetchConversations()'));
+      expect(
+        sendSource,
+        contains('postShareEligibleConversations'),
+      );
+      expect(
+          source, contains("AppFeedback.showSuccess(context, 'Post sent.')"));
+      expect(source, contains('AppFeedback.showWarning'));
+    });
+
     test('exposes stable RPC names', () {
       expect(
         ChatRepository.createDirectConversationRpc,
@@ -446,7 +504,7 @@ void main() {
         'Future<List<ChatParticipant>> fetchSuggestedGroupMembers',
       );
       final end = source.indexOf(
-        'RealtimeChannel subscribeToChatChanges',
+        'RealtimeChannel subscribeToChatHomeChanges',
         start,
       );
 
@@ -469,64 +527,56 @@ void main() {
       expect(source, contains("enriched['can_send_messages']"));
     });
 
-    test('main shell uses total chat badge count instead of chat message only',
+    test('chat page uses total chat badge count instead of chat message only',
         () {
-      final source = File('lib/src/features/shell/presentation/main_shell.dart')
-          .readAsStringSync();
+      final source = File(
+        'lib/src/features/chat/presentation/chat_page.dart',
+      ).readAsStringSync();
 
-      expect(source, contains('fetchUnreadChatTabBadgeCount'));
+      expect(source, contains('ChatRepository.bottomChatBadgeCount'));
       expect(source, isNot(contains('fetchUnreadChatCount();')));
     });
 
     test('main shell preserves the last known chat badge while refreshing', () {
-      final source = File('lib/src/features/shell/presentation/main_shell.dart')
-          .readAsStringSync();
+      final source = File(
+        'lib/src/features/shell/presentation/main_shell.dart',
+      ).readAsStringSync();
 
-      final navigationStart = source.indexOf('onTap: (value)');
-      final navigationEnd =
-          source.indexOf('chatBadgeCount: _chatBadgeCount', navigationStart);
+      expect(source, contains('onTap: _handleNavigationTap'));
+      expect(source, contains('chatBadgeCount: _chatBadgeCount'));
+      final navigationStart = source.indexOf('void _handleNavigationTap');
+      final navigationEnd = source.indexOf(
+        'Future<void> _openFilterPage',
+        navigationStart,
+      );
       expect(navigationStart, greaterThanOrEqualTo(0));
       expect(navigationEnd, greaterThan(navigationStart));
-      final navigationSource = source.substring(navigationStart, navigationEnd);
-      expect(navigationSource, isNot(contains('_chatBadgeCount = 0')));
-
-      final refreshStart = source.indexOf('Future<void> _refreshChatBadge()');
-      final refreshEnd =
-          source.indexOf('void _handleChatBadgeCountChanged', refreshStart);
-      expect(refreshStart, greaterThanOrEqualTo(0));
-      expect(refreshEnd, greaterThan(refreshStart));
-      final refreshSource = source.substring(refreshStart, refreshEnd);
       expect(
-        refreshSource,
+        source.substring(navigationStart, navigationEnd),
+        isNot(contains('_chatBadgeCount = 0')),
+      );
+
+      expect(
+        source,
         isNot(contains('setState(() => _chatBadgeCount = 0)')),
       );
     });
 
-    test('main shell owns foreground notification badge realtime lifecycle',
-        () {
-      final repositorySource =
-          File('lib/src/features/chat/data/chat_repository.dart')
-              .readAsStringSync();
-      final shellSource =
-          File('lib/src/features/shell/presentation/main_shell.dart')
-              .readAsStringSync();
-      final sectionSource = File(
-        'lib/src/features/chat/presentation/notification_sections_page.dart',
+    test('chat page owns continuous badge realtime lifecycle', () {
+      final chatSource = File(
+        'lib/src/features/chat/presentation/chat_page.dart',
+      ).readAsStringSync();
+      final shellSource = File(
+        'lib/src/features/shell/presentation/main_shell.dart',
       ).readAsStringSync();
 
-      expect(
-        repositorySource,
-        contains('RealtimeChannel subscribeToNotificationChanges'),
-      );
-      expect(shellSource, contains('with WidgetsBindingObserver'));
-      expect(shellSource,
-          contains("channelName: 'main-shell-notification-badge'"));
-      expect(shellSource, contains('AppLifecycleState.resumed'));
-      expect(shellSource, contains('_chatRepository.unsubscribe(channel)'));
-      expect(
-        sectionSource,
-        contains("channelName: 'notification-section-\${_section.name}'"),
-      );
+      expect(chatSource, contains('with WidgetsBindingObserver'));
+      expect(chatSource, contains('subscribeToChatHomeChanges'));
+      expect(chatSource, contains('AppLifecycleState.resumed'));
+      expect(chatSource, contains('_repo.unsubscribe(channel)'));
+      expect(shellSource, isNot(contains('subscribeToNotificationChanges')));
+      expect(shellSource, contains('chatBadgeCount: _chatBadgeCount'));
+      expect(shellSource, contains('_handleChatBadgeCountChanged'));
     });
   });
 }

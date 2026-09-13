@@ -57,6 +57,22 @@ void main() {
     );
   });
 
+  test('switching reaction type records a new interaction time', () {
+    final occurredAt = DateTime.utc(2026, 9, 11, 8, 30);
+
+    expect(
+      PostsRepository.buildReactionUpdate(
+        reactionType: 'like',
+        occurredAt: occurredAt,
+      ),
+      {
+        'reaction_type': 'like',
+        'hidden_until': null,
+        'created_at': occurredAt.toIso8601String(),
+      },
+    );
+  });
+
   test('post images use the shared images storage bucket', () {
     final source = File('lib/src/features/posts/data/posts_repository.dart')
         .readAsStringSync();

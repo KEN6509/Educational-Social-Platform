@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:cyanzone_mobile/src/core/widgets/app_confirmation_dialog.dart';
 import 'package:cyanzone_mobile/src/features/profile/presentation/settings_page.dart';
+import 'package:cyanzone_mobile/src/features/profile/presentation/notification_settings_page.dart';
 
 void main() {
   testWidgets('opens Verified Badge information from Account settings',
@@ -61,6 +62,37 @@ void main() {
     expect(find.text('System notifications'), findsOneWidget);
     expect(find.text('New followers'), findsOneWidget);
     expect(find.byType(SwitchListTile), findsNWidgets(6));
+  });
+
+  testWidgets('restores a preference when notification save fails',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NotificationSettingsPage(
+          loadNotificationPreferences: () async => const {
+            'in_app_enabled': true,
+            'chat_enabled': true,
+            'activity_enabled': true,
+            'system_enabled': true,
+            'followers_enabled': true,
+          },
+          saveNotificationPreferences: (_) async {
+            throw StateError('offline');
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final tile = find.widgetWithText(SwitchListTile, 'In-app notifications');
+    expect(tile, findsOneWidget);
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+    expect(find.text('Could not update notification setting.'), findsOneWidget);
   });
 
   Future<void> pumpSettings(

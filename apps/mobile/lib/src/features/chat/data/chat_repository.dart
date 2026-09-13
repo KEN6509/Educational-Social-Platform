@@ -110,6 +110,18 @@ class ChatRepository {
     return term.trim().toLowerCase().split(RegExp(r'\s+')).join(' ');
   }
 
+  static List<ChatConversation> postShareEligibleConversations(
+    Iterable<ChatConversation> conversations,
+  ) {
+    return conversations
+        .where(
+          (conversation) =>
+              !conversation.isRequest &&
+              (conversation.isGroup || conversation.canSendMessages),
+        )
+        .toList();
+  }
+
   static List<ChatNotification> visibleNewFollowerNotifications(
     List<ChatNotification> notifications, {
     DateTime? now,
@@ -810,10 +822,11 @@ class ChatRepository {
     return _fetchParticipantsByIds(suggestionIds.toList());
   }
 
-  RealtimeChannel subscribeToChatChanges({
+  RealtimeChannel subscribeToChatHomeChanges({
     required String channelName,
     required void Function(PostgresChangePayload payload) onChange,
   }) {
+    final currentUserId = _requireCurrentUserId();
     return _client
         .channel(channelName)
         .onPostgresChanges(
@@ -838,6 +851,74 @@ class ChatRepository {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: currentUserId,
+          ),
+          callback: onChange,
+        )
+        .subscribe();
+  }
+
+  RealtimeChannel subscribeToConversationChanges({
+    required String channelName,
+    required String conversationId,
+    required void Function(PostgresChangePayload payload) onChange,
+  }) {
+    return _client
+        .channel(channelName)
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'chat_conversations',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: conversationId,
+          ),
+          callback: onChange,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'chat_conversation_members',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: conversationId,
+          ),
+          callback: onChange,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'chat_messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: conversationId,
+          ),
+          callback: onChange,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'chat_messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: conversationId,
+          ),
+          callback: onChange,
+        )
+        // Supabase DELETE payloads cannot be filtered by conversation_id
+        // without exposing the full deleted row. Keep this listener unfiltered
+        // so a remotely unsent message still refreshes an open room.
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'chat_messages',
           callback: onChange,
         )
         .subscribe();
@@ -847,12 +928,18 @@ class ChatRepository {
     required String channelName,
     required void Function(PostgresChangePayload payload) onChange,
   }) {
+    final currentUserId = _requireCurrentUserId();
     return _client
         .channel(channelName)
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: currentUserId,
+          ),
           callback: onChange,
         )
         .subscribe();

@@ -9,15 +9,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
 import '../../posts/presentation/post_detail_page.dart';
 import '../../profile/presentation/profile_page.dart';
 import '../data/chat_models.dart';
 import '../data/chat_mention.dart';
 import '../data/chat_repository.dart';
+import '../../../core/application/async_refresh_coordinator.dart';
 import 'chat_details_page.dart';
 import 'chat_widgets.dart';
 import 'chat_mention_controller.dart';
+
+part 'chat_room_widgets.dart';
 
 typedef MessageLoader = Future<List<ChatMessage>> Function();
 typedef MessageSender = Future<void> Function(
@@ -64,6 +68,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
 
   ChatRepository? _repository;
   RealtimeChannel? _channel;
+  late final AsyncRefreshCoordinator _refreshCoordinator;
   late Future<List<ChatMessage>> _messagesFuture;
   late ChatConversation _conversation = widget.conversation;
   final _controller = TextEditingController();
@@ -98,7 +103,19 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     WidgetsBinding.instance.addObserver(this);
     _messageScrollController.addListener(_handleMessageScrollChanged);
     _inputFocusNode.addListener(_handleInputFocusChanged);
+    _refreshCoordinator = AsyncRefreshCoordinator(
+      refresh: _refreshMessages,
+      onError: (error, _) {
+        assert(() {
+          debugPrint('Chat room refresh failed: $error');
+          return true;
+        }());
+      },
+    );
     _messagesFuture = _load();
+    _refreshCoordinator.trackInitialRefresh(
+      _messagesFuture.then<void>((_) {}),
+    );
     _canSendMessages = _conversation.isGroup
         ? true
         : widget.loadSendPermission != null || widget.loadMessages == null
@@ -117,15 +134,10 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     }
     (widget.markRead ?? _repo.markConversationRead)(_conversation.id);
     if (widget.loadMessages == null) {
-      _channel = _repo.subscribeToChatChanges(
+      _channel = _repo.subscribeToConversationChanges(
         channelName: 'chat-room-${_conversation.id}',
-        onChange: (_) {
-          if (mounted) {
-            setState(() {
-              _messagesFuture = _load();
-            });
-          }
-        },
+        conversationId: _conversation.id,
+        onChange: (_) => _refreshCoordinator.schedule(),
       );
     }
   }
@@ -133,6 +145,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _refreshCoordinator.dispose();
     final channel = _channel;
     if (channel != null) {
       _repo.unsubscribe(channel);
@@ -178,6 +191,20 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       if (!mounted) return;
       setState(() => _canSendMessages = _conversation.canSendMessages);
     }
+  }
+
+  Future<bool> _verifySendPermission() async {
+    if (_conversation.isGroup) return true;
+
+    final canSend = await (widget.loadSendPermission ?? _repo.canSendMessage)(
+      _conversation.id,
+    );
+    if (!mounted) return false;
+    if (canSend) return true;
+
+    setState(() => _canSendMessages = false);
+    AppFeedback.showWarning(context, _followRequiredMessage);
+    return false;
   }
 
   void _handleInputFocusChanged() {
@@ -338,6 +365,15 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     }
   }
 
+  Future<void> _refreshMessages() async {
+    if (!mounted) return;
+    final nextMessages = _load();
+    setState(() {
+      _messagesFuture = nextMessages;
+    });
+    await nextMessages;
+  }
+
   Future<void> _loadMentionParticipants() async {
     try {
       final participants =
@@ -493,6 +529,8 @@ class _ChatRoomPageState extends State<ChatRoomPage>
 
     setState(() => _isSending = true);
     try {
+      if (!await _verifySendPermission()) return;
+
       final action = widget.sendMessage ??
           (String id, String text) async {
             final leading =
@@ -518,13 +556,8 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       _mentionController.clear();
       _previousComposerText = '';
       _mentionQuery = null;
-      final nextMessages = _load();
-      if (mounted) {
-        setState(() {
-          _messagesFuture = nextMessages;
-        });
-        _pinToBottomAfterLayout();
-      }
+      unawaited(_refreshCoordinator.refreshNow());
+      _pinToBottomAfterLayout();
     } catch (error) {
       assert(() {
         debugPrint('Chat send failed: $error');
@@ -546,8 +579,13 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                     : message.contains('Conversation not found')
                         ? 'This chat no longer exists.'
                         : 'No internet connection';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(text)));
+        AppFeedback.show(
+          context,
+          message: text,
+          kind: text == 'No internet connection'
+              ? AppFeedbackKind.error
+              : AppFeedbackKind.warning,
+        );
       }
     } finally {
       if (mounted) setState(() => _isSending = false);
@@ -593,6 +631,9 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     if (_isSending || _isPickingImage || _canSendMessages != true) return;
     setState(() => _isPickingImage = true);
     try {
+      if (!await _verifySendPermission()) return;
+      if (!mounted) return;
+
       final picked = await Navigator.of(context).push<List<XFile>>(
         MaterialPageRoute(
           builder: (_) => const DevicePhotoPickerPage(
@@ -618,13 +659,8 @@ class _ChatRoomPageState extends State<ChatRoomPage>
         conversationId: _conversation.id,
         images: uploads,
       );
-      final nextMessages = _load();
-      if (mounted) {
-        setState(() {
-          _messagesFuture = nextMessages;
-        });
-        _pinToBottomAfterLayout();
-      }
+      unawaited(_refreshCoordinator.refreshNow());
+      _pinToBottomAfterLayout();
     } catch (error) {
       assert(() {
         debugPrint('Chat image send failed: $error');
@@ -636,14 +672,14 @@ class _ChatRoomPageState extends State<ChatRoomPage>
         if (relationshipRequired) {
           setState(() => _canSendMessages = false);
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              relationshipRequired
-                  ? _followRequiredMessage
-                  : 'No internet connection',
-            ),
-          ),
+        AppFeedback.show(
+          context,
+          message: relationshipRequired
+              ? _followRequiredMessage
+              : 'No internet connection',
+          kind: relationshipRequired
+              ? AppFeedbackKind.warning
+              : AppFeedbackKind.error,
         );
       }
     } finally {
@@ -736,9 +772,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
     _clearSelectedMessages();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied')),
-    );
+    AppFeedback.showSuccess(context, 'Copied');
   }
 
   Future<void> _openSharedPost(ChatSharedPost sharedPost) async {
@@ -756,18 +790,13 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       );
     } on ChatNotificationPostUnavailableException {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "This post can't be viewed. It may be deleted or not approved yet.",
-          ),
-        ),
+      AppFeedback.showWarning(
+        context,
+        "This post can't be viewed. It may be deleted or not approved yet.",
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No internet connection')),
-      );
+      AppFeedback.showError(context, 'No internet connection');
     }
   }
 
@@ -791,22 +820,21 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       }
       if (!mounted) return;
       _clearSelectedMessages();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      AppFeedback.show(
+        context,
+        message:
             isPlural ? 'Messages deleted for me' : 'Message deleted for me',
-          ),
-          action: SnackBarAction(
+        kind: AppFeedbackKind.success,
+        actions: [
+          AppFeedbackAction(
             label: 'Undo',
             onPressed: () => _restoreDeletedForMe(messages),
           ),
-        ),
+        ],
       );
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
-        );
+        AppFeedback.showError(context, 'No internet connection');
       }
     }
   }
@@ -851,17 +879,14 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       if (!mounted) return;
       _clearSelectedMessages();
       if (storageCleanupFailed) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Photo cleanup failed. Please try again later.'),
-          ),
+        AppFeedback.showError(
+          context,
+          'Photo cleanup failed. Please try again later.',
         );
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No internet connection')),
-      );
+      AppFeedback.showError(context, 'No internet connection');
     }
   }
 
@@ -876,9 +901,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No internet connection')),
-      );
+      AppFeedback.showError(context, 'No internet connection');
     }
   }
 
@@ -948,8 +971,12 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                             ChatDetailsPage(conversation: _conversation),
                       ),
                     );
-                    if (updated is ChatConversation && mounted) {
+                    if (!mounted) return;
+                    if (updated is ChatConversation) {
                       setState(() => _conversation = updated);
+                    }
+                    if (!_conversation.isGroup) {
+                      await _refreshSendPermission();
                     }
                   },
                   behavior: HitTestBehavior.opaque,
@@ -1234,513 +1261,4 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       ),
     );
   }
-}
-
-class _MessageList extends StatelessWidget {
-  const _MessageList({
-    required this.messages,
-    required this.conversation,
-    required this.currentUserId,
-    required this.scrollController,
-    required this.selectedMessageIds,
-    required this.messageKeys,
-    required this.unreadDividerKey,
-    required this.onMessageTap,
-    required this.onMessageLongPress,
-    required this.onSharedPostTap,
-    required this.onMentionTap,
-  });
-
-  final List<ChatMessage> messages;
-  final ChatConversation conversation;
-  final String? currentUserId;
-  final ScrollController scrollController;
-  final Set<String> selectedMessageIds;
-  final Map<String, GlobalKey> messageKeys;
-  final GlobalKey unreadDividerKey;
-  final ValueChanged<ChatMessage> onMessageTap;
-  final ValueChanged<ChatMessage> onMessageLongPress;
-  final ValueChanged<ChatSharedPost> onSharedPostTap;
-  final ValueChanged<String> onMentionTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final children = <Widget>[];
-    if (conversation.isGroup) {
-      final createdAt = conversation.createdAt ??
-          (messages.isEmpty ? DateTime.now() : messages.first.createdAt);
-      children
-        ..add(_DateSeparator(date: createdAt))
-        ..add(
-          _GroupCreationNotice(
-            conversation: conversation,
-            currentUserId: currentUserId,
-          ),
-        );
-    }
-    final unreadCount = conversation.unreadCount;
-    final rawFirstUnreadIndex = messages.length - unreadCount;
-    final firstUnreadIndex = unreadCount <= 0
-        ? -1
-        : rawFirstUnreadIndex < 0
-            ? 0
-            : rawFirstUnreadIndex > messages.length
-                ? messages.length
-                : rawFirstUnreadIndex;
-    for (var index = 0; index < messages.length; index += 1) {
-      final message = messages[index];
-      final previous = index == 0 ? null : messages[index - 1];
-      final alreadyShowedCreationDate =
-          conversation.isGroup && previous == null;
-      if (!alreadyShowedCreationDate &&
-          (previous == null ||
-              !_isSameDate(previous.createdAt, message.createdAt))) {
-        children.add(_DateSeparator(date: message.createdAt));
-      }
-      if (index == firstUnreadIndex) {
-        children.add(
-          _UnreadMessagesDivider(
-            key: unreadDividerKey,
-            count: unreadCount,
-          ),
-        );
-      }
-      children.add(
-        ChatMessageBubble(
-          key: messageKeys.putIfAbsent(message.id, GlobalKey.new),
-          body: message.body,
-          isMine: message.isMine,
-          isDeleted: message.isDeleted,
-          isSelected: selectedMessageIds.contains(message.id),
-          isSelectionMode: selectedMessageIds.isNotEmpty,
-          createdAt: message.createdAt,
-          showSenderName: conversation.isGroup,
-          senderName: message.senderName ?? 'Member',
-          previewSenderName: message.isMine
-              ? 'You'
-              : (message.senderName ?? conversation.displayTitle),
-          onTap: () => onMessageTap(message),
-          onLongPress: () => onMessageLongPress(message),
-          onSharedPostTap: onSharedPostTap,
-          mentions: message.mentions,
-          onMentionTap: onMentionTap,
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          controller: scrollController,
-          reverse: true,
-          padding: const EdgeInsets.fromLTRB(0, 16, 0, 12),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight - 28),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: children,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _JumpToBottomButton extends StatelessWidget {
-  const _JumpToBottomButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1A000000),
-                blurRadius: 12,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: Color(0xFF128C7E),
-            size: 28,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MentionNavigationButton extends StatelessWidget {
-  const _MentionNavigationButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      shape: const CircleBorder(),
-      elevation: 3,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox.square(
-          dimension: 42,
-          child: Center(
-            child: Transform.translate(
-              key: const ValueKey('mention-navigation-glyph'),
-              offset: const Offset(0, -2),
-              child: const Text(
-                '@',
-                style: TextStyle(
-                  color: chatMentionAccent,
-                  fontSize: 20,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MentionSuggestionsPanel extends StatelessWidget {
-  const _MentionSuggestionsPanel({
-    required this.participants,
-    required this.showAll,
-    required this.onMemberTap,
-    required this.onAllTap,
-  });
-
-  final List<ChatParticipant> participants;
-  final bool showAll;
-  final ValueChanged<ChatParticipant> onMemberTap;
-  final VoidCallback onAllTap;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!showAll && participants.isEmpty) return const SizedBox.shrink();
-    final rowCount = participants.length + (showAll ? 1 : 0);
-    final panelHeight = (rowCount > 4 ? 4 : rowCount) * 60.0;
-    return Container(
-      key: const ValueKey('mention-suggestions-panel'),
-      height: panelHeight,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: chatBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A000000),
-            blurRadius: 16,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ListView.separated(
-        key: const ValueKey('mention-suggestions-list'),
-        padding: EdgeInsets.zero,
-        itemCount: rowCount,
-        separatorBuilder: (context, index) => Padding(
-          padding: const EdgeInsets.only(left: 64),
-          child: Divider(
-            key: ValueKey('mention-suggestion-divider-$index'),
-            height: 1,
-            thickness: 1,
-            color: const Color(0xFFF1F5F9),
-          ),
-        ),
-        itemBuilder: (context, index) {
-          if (showAll && index == 0) {
-            return _MentionSuggestionRow(
-              key: const ValueKey('mention-all-suggestion'),
-              avatar: const CircleAvatar(
-                radius: 20,
-                backgroundColor: chatMentionAccent,
-                child: Text(
-                  '@',
-                  style: TextStyle(
-                    color: Colors.white,
-                    height: 1,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              title: '@all',
-              subtitle: 'Notify every group member',
-              onTap: onAllTap,
-            );
-          }
-          final person = participants[index - (showAll ? 1 : 0)];
-          return _MentionSuggestionRow(
-            key: ValueKey('mention-suggestion-${person.id}'),
-            avatar: ChatAvatar(
-              name: person.name,
-              avatarUrl: person.avatarUrl,
-              size: 40,
-            ),
-            title: person.name,
-            onTap: () => onMemberTap(person),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _MentionSuggestionRow extends StatelessWidget {
-  const _MentionSuggestionRow({
-    super.key,
-    required this.avatar,
-    required this.title,
-    required this.onTap,
-    this.subtitle,
-  });
-
-  final Widget avatar;
-  final String title;
-  final String? subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: SizedBox(
-        height: 59,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              SizedBox.square(dimension: 40, child: avatar),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: chatNavy,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (subtitle != null)
-                      Text(
-                        subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 12,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GroupCreationNotice extends StatelessWidget {
-  const _GroupCreationNotice({
-    required this.conversation,
-    required this.currentUserId,
-  });
-
-  final ChatConversation conversation;
-  final String? currentUserId;
-
-  @override
-  Widget build(BuildContext context) {
-    final isMine = conversation.createdBy != null &&
-        currentUserId != null &&
-        conversation.createdBy == currentUserId;
-    final creator = isMine ? 'You' : (conversation.createdByName ?? 'Someone');
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Center(
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.sizeOf(context).width * 0.76,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: RichText(
-            textAlign: TextAlign.center,
-            text: TextSpan(
-              style: const TextStyle(
-                color: Color(0xFF64748B),
-                fontSize: 12,
-                height: 1.25,
-              ),
-              children: [
-                TextSpan(
-                  text: creator,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                const TextSpan(text: ' created the group chat'),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DateSeparator extends StatelessWidget {
-  const _DateSeparator({required this.date});
-
-  final DateTime date;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.78),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Text(
-            _formatDateSeparator(date),
-            style: const TextStyle(
-              color: Color(0xFF64748B),
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _UnreadMessagesDivider extends StatelessWidget {
-  const _UnreadMessagesDivider({
-    super.key,
-    required this.count,
-  });
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = count == 1 ? '1 unread message' : '$count unread messages';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF111827),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              height: 1.15,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-bool _isSameDate(DateTime a, DateTime b) {
-  final first = a.toLocal();
-  final second = b.toLocal();
-  return first.year == second.year &&
-      first.month == second.month &&
-      first.day == second.day;
-}
-
-String _formatDateSeparator(DateTime value) {
-  final now = DateTime.now();
-  final local = value.toLocal();
-  final today = DateTime(now.year, now.month, now.day);
-  final date = DateTime(local.year, local.month, local.day);
-  final difference = today.difference(date).inDays;
-  if (difference == 0) return 'Today';
-  if (difference == 1) return 'Yesterday';
-  return '${local.day}/${local.month}/${local.year}';
-}
-
-class _WhatsAppRoomBackground extends StatelessWidget {
-  const _WhatsAppRoomBackground({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: chatWhatsappBackground,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: CustomPaint(painter: _ChatWallpaperPainter()),
-          ),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _ChatWallpaperPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.18)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    const spacing = 72.0;
-    for (var y = 24.0; y < size.height; y += spacing) {
-      for (var x = 18.0; x < size.width; x += spacing) {
-        canvas.drawCircle(Offset(x, y), 10, paint);
-        canvas.drawLine(Offset(x + 22, y - 8), Offset(x + 34, y + 4), paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

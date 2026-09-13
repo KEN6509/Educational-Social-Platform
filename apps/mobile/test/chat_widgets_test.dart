@@ -12,6 +12,7 @@ import 'package:cyanzone_mobile/src/features/chat/presentation/chat_details_page
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_room_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_widgets.dart';
+import 'package:cyanzone_mobile/src/core/widgets/unread_badge.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/create_group_chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/notification_sections_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/system_notification_detail_page.dart';
@@ -502,6 +503,19 @@ void main() {
     expect(find.text('Chan'), findsOneWidget);
     expect(find.byType(Card), findsOneWidget);
     expect(find.textContaining(ChatMessage.sharedPostPrefix), findsNothing);
+
+    final bubble = tester.widget<Container>(
+      find.byKey(const ValueKey('chat-message-bubble')),
+    );
+    final bubbleDecoration = bubble.decoration! as BoxDecoration;
+    final bubbleRadius = bubbleDecoration.borderRadius! as BorderRadius;
+    expect(bubbleRadius.topLeft, const Radius.circular(16));
+
+    final card = tester.widget<Card>(find.byType(Card));
+    final cardShape = card.shape! as RoundedRectangleBorder;
+    final cardRadius = cardShape.borderRadius.resolve(TextDirection.ltr);
+    expect(cardRadius.topLeft, const Radius.circular(12));
+    expect(cardRadius.topRight, const Radius.circular(12));
   });
 
   testWidgets('ChatMessageBubble opens shared post through tap callback',
@@ -534,15 +548,19 @@ void main() {
 
   test('post detail image preview uses preview transition and download action',
       () {
-    final source =
+    final pageSource =
         File('lib/src/features/posts/presentation/post_detail_page.dart')
             .readAsStringSync();
-    final carouselStart = source.indexOf('PageView.builder');
-    final carouselEnd = source.indexOf('if (visibleImageUrls.length > 1)');
+    final mediaSource =
+        File('lib/src/features/posts/presentation/post_detail_media.dart')
+            .readAsStringSync();
+    final source = '$pageSource\n$mediaSource';
+    final carouselStart = pageSource.indexOf('PageView.builder');
+    final carouselEnd = pageSource.indexOf('if (visibleImageUrls.length > 1)');
     expect(carouselStart, greaterThanOrEqualTo(0));
     expect(carouselEnd, greaterThan(carouselStart));
 
-    final carouselSource = source.substring(carouselStart, carouselEnd);
+    final carouselSource = pageSource.substring(carouselStart, carouselEnd);
     expect(carouselSource, isNot(contains('InteractiveViewer')));
     expect(carouselSource, contains('Listener('));
     expect(carouselSource, contains('_handleImagePointerDown'));
@@ -597,7 +615,7 @@ void main() {
 
   test('share sheet reuses Message page group avatar styling', () {
     final source =
-        File('lib/src/features/posts/presentation/post_detail_page.dart')
+        File('lib/src/features/posts/presentation/post_share_sheet.dart')
             .readAsStringSync();
 
     expect(source, contains('GroupAvatar('));
@@ -619,7 +637,9 @@ void main() {
     expect(source, contains('_isSheetExpanded = shouldExpand'));
     expect(source, contains('int get _recentContactRows'));
     expect(source, contains('height: gridHeight'));
-    expect(source, contains('_recentShareContactsCache'));
+    expect(source, isNot(contains('_recentShareContactsCache')));
+    expect(source, contains('postShareEligibleConversations'));
+    expect(source, contains('await _chatRepository.fetchConversations()'));
   });
 
   testWidgets('ChatMessageBubble highlights selected message row',
@@ -708,8 +728,13 @@ void main() {
 
   test('chat preview downloads real images and keeps thumbnail errors quiet',
       () {
-    final source = File('lib/src/features/chat/presentation/chat_widgets.dart')
-        .readAsStringSync();
+    final widgetSource =
+        File('lib/src/features/chat/presentation/chat_widgets.dart')
+            .readAsStringSync();
+    final mediaSource =
+        File('lib/src/features/chat/presentation/chat_message_media.dart')
+            .readAsStringSync();
+    final source = '$widgetSource\n$mediaSource';
     final roomSource =
         File('lib/src/features/chat/presentation/chat_room_page.dart')
             .readAsStringSync();
@@ -976,6 +1001,66 @@ void main() {
     expect(find.text('System'), findsOneWidget);
     expect(find.text('New Followers'), findsOneWidget);
     expect(find.text('No chats yet'), findsOneWidget);
+  });
+
+  testWidgets('ChatPage starts conversation and count reads concurrently',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final releaseConversations = Completer<void>();
+    var conversationStarted = false;
+    var countsStarted = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async {
+            conversationStarted = true;
+            await releaseConversations.future;
+            return const <ChatConversation>[];
+          },
+          loadCounts: () async {
+            countsStarted = true;
+            return const <NotificationSection, int>{};
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(conversationStarted, isTrue);
+    expect(countsStarted, isTrue);
+
+    releaseConversations.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('ChatPage refreshes home data when the app resumes',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    var conversationLoads = 0;
+    var countLoads = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async {
+            conversationLoads += 1;
+            return const <ChatConversation>[];
+          },
+          loadCounts: () async {
+            countLoads += 1;
+            return const <NotificationSection, int>{};
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(conversationLoads, 2);
+    expect(countLoads, 2);
   });
 
   testWidgets('ChatPage exposes only All, Unread, and Groups filters',
@@ -1251,6 +1336,52 @@ void main() {
     expect(find.text('Say hi with a kind message.'), findsNothing);
   });
 
+  testWidgets('ChatRoomPage refreshes direct permission after details return',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'followed-from-details-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_id': 'user-2',
+      'other_user_name': 'Ming',
+      'can_send_messages': false,
+    });
+    var permissionChecks = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => const [],
+          loadSendPermission: (_) async {
+            permissionChecks += 1;
+            return permissionChecks > 1;
+          },
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 1);
+    expect(find.byType(TextField), findsNothing);
+
+    await tester.tap(find.text('Ming').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Contact Info'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 2);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsNothing,
+    );
+  });
+
   testWidgets('ChatRoomPage blocks stale direct send and preserves draft',
       (tester) async {
     final conversation = ChatConversation.fromMap({
@@ -1291,8 +1422,94 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
 
-    expect(permissionChecks, 2);
+    expect(permissionChecks, 3);
     expect(find.text('draft'), findsOneWidget);
+  });
+
+  testWidgets(
+      'ChatRoomPage rechecks direct permission before sending stale draft',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'preflight-direct-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_name': 'Ming',
+    });
+    var permissionChecks = 0;
+    var sendCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => const [],
+          loadSendPermission: (_) async {
+            permissionChecks += 1;
+            return permissionChecks != 2;
+          },
+          sendMessage: (_, __) async {
+            sendCount += 1;
+          },
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'stale draft');
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 2);
+    expect(sendCount, 0);
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsWidgets,
+    );
+    expect(find.byIcon(Icons.send_rounded), findsNothing);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 3);
+    expect(find.text('stale draft'), findsOneWidget);
+  });
+
+  testWidgets('ChatRoomPage rechecks direct permission before image picker',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'preflight-image-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_name': 'Ming',
+    });
+    var permissionChecks = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => const [],
+          loadSendPermission: (_) async {
+            permissionChecks += 1;
+            return permissionChecks == 1;
+          },
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.image_outlined));
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 2);
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsWidgets,
+    );
+    expect(find.byIcon(Icons.image_outlined), findsNothing);
+    expect(find.text('Choose from gallery'), findsNothing);
   });
 
   testWidgets('ChatRoomPage keeps text when send fails', (tester) async {
@@ -1309,6 +1526,7 @@ void main() {
         home: ChatRoomPage(
           conversation: conversation,
           loadMessages: () async => const [],
+          loadSendPermission: (_) async => true,
           sendMessage: (_, __) async => throw Exception('network'),
           markRead: (_) async {},
         ),
@@ -1338,6 +1556,7 @@ void main() {
         home: ChatRoomPage(
           conversation: conversation,
           loadMessages: () async => const [],
+          loadSendPermission: (_) async => true,
           sendMessage: (_, __) async {
             sendCount += 1;
           },
@@ -2325,9 +2544,13 @@ void main() {
   });
 
   test('notification divider aligns with notification row text', () {
-    final source = File(
+    final pageSource = File(
       'lib/src/features/chat/presentation/notification_sections_page.dart',
     ).readAsStringSync();
+    final widgetSource = File(
+      'lib/src/features/chat/presentation/notification_section_widgets.dart',
+    ).readAsStringSync();
+    final source = '$pageSource\n$widgetSource';
 
     expect(source, contains('indent: 62'));
     expect(source, isNot(contains('indent: 78')));
@@ -2335,8 +2558,9 @@ void main() {
   });
 
   test('conversation rows place unread badge on preview line', () {
-    final source = File('lib/src/features/chat/presentation/chat_widgets.dart')
-        .readAsStringSync();
+    final source =
+        File('lib/src/features/chat/presentation/chat_list_widgets.dart')
+            .readAsStringSync();
     final start = source.indexOf('class _ConversationTileState');
     final end = source.indexOf('class _ConversationPreviewLine', start);
     expect(start, greaterThanOrEqualTo(0));
@@ -2353,9 +2577,13 @@ void main() {
 
   test('chat room supports initial unread target and jump to bottom button',
       () {
-    final source =
+    final pageSource =
         File('lib/src/features/chat/presentation/chat_room_page.dart')
             .readAsStringSync();
+    final widgetSource =
+        File('lib/src/features/chat/presentation/chat_room_widgets.dart')
+            .readAsStringSync();
+    final source = '$pageSource\n$widgetSource';
 
     expect(source, contains('_initialScrollDone'));
     expect(source, contains('_scrollToUnreadDividerOrLatest'));
@@ -2379,9 +2607,13 @@ void main() {
   });
 
   test('notification page refresh resets follower action state', () {
-    final source = File(
+    final pageSource = File(
       'lib/src/features/chat/presentation/notification_sections_page.dart',
     ).readAsStringSync();
+    final widgetSource = File(
+      'lib/src/features/chat/presentation/notification_section_widgets.dart',
+    ).readAsStringSync();
+    final source = '$pageSource\n$widgetSource';
 
     expect(source, contains('int _refreshGeneration = 0;'));
     expect(source, contains('_refreshGeneration += 1;'));
@@ -2393,7 +2625,7 @@ void main() {
 
   test('follow back uses follow-only profile flow and not toggle helper', () {
     final source = File(
-      'lib/src/features/chat/presentation/notification_sections_page.dart',
+      'lib/src/features/chat/presentation/notification_section_widgets.dart',
     ).readAsStringSync();
     final start = source.indexOf('Future<void> _follow()');
     final end = source.indexOf('Future<void> _message()', start);

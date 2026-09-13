@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cyanzone_mobile/src/core/widgets/app_confirmation_dialog.dart';
+import 'package:cyanzone_mobile/src/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -118,6 +119,45 @@ void main() {
     expect(find.text('Child'), findsOneWidget);
     expect(find.text('Parent'), findsOneWidget);
     await tester.tap(find.text('Parent'));
+    await tester.pumpAndSettle();
+    expect(result, isFalse);
+  });
+
+  testWidgets(
+      'permission variant uses the shared dialog and cannot barrier dismiss',
+      (tester) async {
+    bool? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              result = await showAppDialog(
+                context: context,
+                variant: AppDialogVariant.permission,
+                icon: Icons.notifications_active_outlined,
+                title: 'Stay updated on CyanZone',
+                message: 'Enable phone notifications.',
+                primaryLabel: 'Enable',
+                secondaryLabel: 'Not now',
+              );
+            },
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AppConfirmationDialog), findsOneWidget);
+
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pumpAndSettle();
+    expect(find.byType(AppConfirmationDialog), findsOneWidget);
+
+    await tester.tap(find.text('Not now'));
     await tester.pumpAndSettle();
     expect(result, isFalse);
   });

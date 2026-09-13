@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_feedback.dart';
 import '../application/moderation_submission_coordinator.dart';
 import '../domain/content_moderation.dart';
 import '../domain/pending_moderation_retry.dart';
@@ -71,18 +72,14 @@ class _PendingModerationRetryBannerState
     await _refresh();
     if (!mounted) return;
     setState(() => _retrying = false);
-    final messenger = ScaffoldMessenger.of(context);
     if (errorMessage != null) {
-      messenger.showSnackBar(SnackBar(content: Text(errorMessage)));
+      AppFeedback.showError(context, errorMessage);
     } else if (completed > 0) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            completed == 1
-                ? 'Moderation updated for 1 item.'
-                : 'Moderation updated for $completed items.',
-          ),
-        ),
+      AppFeedback.showSuccess(
+        context,
+        completed == 1
+            ? 'Moderation updated for 1 item.'
+            : 'Moderation updated for $completed items.',
       );
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../profile/presentation/profile_page.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
@@ -48,9 +49,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       if (mounted) Navigator.pop(context, true);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
-        );
+        AppFeedback.showError(context, 'No internet connection');
       }
     } finally {
       if (mounted) setState(() => _isClearing = false);
@@ -71,9 +70,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
       if (mounted) Navigator.pop(context, true);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection')),
-        );
+        AppFeedback.showError(context, 'No internet connection');
       }
     }
   }

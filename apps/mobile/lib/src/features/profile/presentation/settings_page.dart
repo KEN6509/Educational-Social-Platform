@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/theme/app_design_tokens.dart';
 import 'notification_settings_page.dart';
 import 'set_password_page.dart';
 import 'verified_badge_page.dart';
 import '../../notifications/application/push_notification_coordinator.dart';
 import '../../notifications/presentation/push_notification_scope.dart';
+
+part 'settings_widgets.dart';
 
 typedef SignOutAction = Future<void> Function();
 
@@ -39,12 +43,12 @@ class _SettingsPageState extends State<SettingsPage> {
     final shouldLogout = await showAppConfirmationDialog(
       context: context,
       icon: Icons.logout_rounded,
-      iconColor: const Color(0xFFE11D48),
+      iconColor: AppColors.error,
       iconBackgroundColor: const Color(0xFFFFE4E6),
       title: 'Log out?',
       message: 'Are you sure you want to log out of CyanZone?',
       primaryLabel: 'Log out',
-      primaryColor: const Color(0xFFE11D48),
+      primaryColor: AppColors.error,
     );
     if (shouldLogout != true || !mounted) return;
 
@@ -59,11 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not log out. Please try again.'),
-          ),
-        );
+        AppFeedback.showError(context, 'Could not log out. Please try again.');
       }
     } finally {
       if (mounted) {
@@ -102,8 +102,8 @@ class _SettingsPageState extends State<SettingsPage> {
         child: Column(
           children: [
             const SizedBox(height: 12),
-            _buildSectionHeader('ACCOUNT'),
-            _buildSection([
+            _SettingsSectionHeader(title: 'ACCOUNT'),
+            _SettingsSection(children: [
               _SettingsTile(
                 icon: Icons.shield_outlined,
                 title: 'Account Security',
@@ -134,8 +134,8 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ]),
             const SizedBox(height: 24),
-            _buildSectionHeader('GENERAL'),
-            _buildSection([
+            _SettingsSectionHeader(title: 'GENERAL'),
+            _SettingsSection(children: [
               _SettingsTile(
                 icon: Icons.notifications_none_rounded,
                 title: 'Notification',
@@ -159,126 +159,17 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ]),
             const SizedBox(height: 24),
-            _buildSection([
+            _SettingsSection(children: [
               _SettingsTile(
                 icon: Icons.logout_rounded,
                 title: 'Log out',
-                titleColor: const Color(0xFFE11D48),
+                titleColor: AppColors.error,
                 showChevron: false,
                 onTap: _confirmLogout,
               ),
             ]),
             const SizedBox(height: 40),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          title,
-          style: const TextStyle(
-            color: Color(0xFF64748B),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSection(List<Widget> children) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(children: children),
-    );
-  }
-}
-
-class _SettingsTile extends StatelessWidget {
-  const _SettingsTile({
-    required this.icon,
-    required this.title,
-    this.subtitle,
-    this.titleColor,
-    this.showChevron = true,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Color? titleColor;
-  final bool showChevron;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: titleColor ?? const Color(0xFF475569),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: titleColor ?? const Color(0xFF1E293B),
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              if (showChevron)
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: Color(0xFFCBD5E1),
-                  size: 20,
-                ),
-            ],
-          ),
         ),
       ),
     );

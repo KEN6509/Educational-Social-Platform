@@ -3,12 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_location_map.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import '../domain/sos_lifecycle_state.dart';
 import '../services/location_service.dart';
+
+part 'sos_widgets.dart';
 
 class SosPage extends StatefulWidget {
   SosPage({
@@ -63,13 +67,13 @@ class _SosPageState extends State<SosPage> {
     final confirmed = await showAppConfirmationDialog(
       context: context,
       icon: Icons.sos_rounded,
-      iconColor: const Color(0xFFE11D48),
+      iconColor: AppColors.error,
       iconBackgroundColor: const Color(0xFFFFE4E6),
       title: 'Share location and alert parents?',
       message:
           'CyanZone will try to share your current location with all linked parents. The SOS will still send if location is unavailable.',
       primaryLabel: 'Send SOS',
-      primaryColor: const Color(0xFFE11D48),
+      primaryColor: AppColors.error,
     );
     if (confirmed != true || !mounted) return;
     setState(() {
@@ -116,7 +120,7 @@ class _SosPageState extends State<SosPage> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _sendError = 'Unable to confirm SOS delivery: $error';
+        _sendError = 'Unable to confirm SOS delivery. Please try again.';
       });
     }
   }
@@ -166,13 +170,13 @@ class _SosPageState extends State<SosPage> {
     final confirmed = await showAppConfirmationDialog(
       context: context,
       icon: Icons.check_circle_outline_rounded,
-      iconColor: const Color(0xFFE11D48),
+      iconColor: AppColors.error,
       iconBackgroundColor: const Color(0xFFFFE4E6),
       title: 'Resolve this SOS?',
       message:
           'Resolving stops the child’s live location updates for this alert. This action applies to every linked parent.',
       primaryLabel: 'Resolve SOS',
-      primaryColor: const Color(0xFFE11D48),
+      primaryColor: AppColors.error,
     );
     if (confirmed == true && mounted) {
       await _updateAlert(() => widget.repository.resolveSos(_alert!.id));
@@ -199,8 +203,9 @@ class _SosPageState extends State<SosPage> {
       if (widget.subscribeToRealtime) await _refreshDetail();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to update SOS: $error')),
+      AppFeedback.showError(
+        context,
+        'Unable to update SOS. Please try again.',
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -263,7 +268,7 @@ class _SosPageState extends State<SosPage> {
               borderRadius: BorderRadius.circular(22),
             ),
             child: const Column(children: [
-              Icon(Icons.sos_rounded, size: 58, color: Color(0xFFE11D48)),
+              Icon(Icons.sos_rounded, size: 58, color: AppColors.error),
               SizedBox(height: 14),
               Text(
                 'Send an urgent alert',
@@ -291,7 +296,7 @@ class _SosPageState extends State<SosPage> {
             height: 54,
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFE11D48),
+                backgroundColor: AppColors.error,
               ),
               onPressed: _busy
                   ? null
@@ -364,7 +369,7 @@ class _SosPageState extends State<SosPage> {
               _locationFreshness(latest),
               textAlign: TextAlign.right,
               style: const TextStyle(
-                color: Color(0xFF64748B),
+                color: AppColors.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -434,165 +439,4 @@ class _SosPageState extends State<SosPage> {
         : '${elapsed.inMinutes}m';
     return 'Last updated $value ago • tracking may be paused';
   }
-}
-
-final class _BottomSosAction extends StatelessWidget {
-  const _BottomSosAction({
-    required this.action,
-    required this.busy,
-    required this.onPressed,
-  });
-
-  final SosParentAction action;
-  final bool busy;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => SafeArea(
-        minimum: const EdgeInsets.fromLTRB(20, 10, 20, 14),
-        child: SizedBox(
-          height: 52,
-          child: FilledButton(
-            key: const Key('sos-bottom-action'),
-            style: FilledButton.styleFrom(
-              backgroundColor: action == SosParentAction.resolve
-                  ? const Color(0xFFE11D48)
-                  : const Color(0xFF087F8C),
-            ),
-            onPressed: busy ? null : onPressed,
-            child: busy
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : Text(
-                    action == SosParentAction.acknowledge
-                        ? 'Acknowledge SOS'
-                        : 'Resolve SOS',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-          ),
-        ),
-      );
-}
-
-final class _TimelineCard extends StatelessWidget {
-  const _TimelineCard({required this.events});
-
-  final List<SosEvent> events;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        key: const Key('sos-timeline'),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF6F8FA),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(children: [
-              Icon(Icons.timeline_rounded, color: Color(0xFF087F8C)),
-              SizedBox(width: 12),
-              Text(
-                'Timeline',
-                style: TextStyle(fontWeight: FontWeight.w900),
-              ),
-            ]),
-            const SizedBox(height: 12),
-            for (var index = 0; index < events.length; index++) ...[
-              _TimelineEventRow(event: events[index]),
-              if (index != events.length - 1) const SizedBox(height: 10),
-            ],
-          ],
-        ),
-      );
-}
-
-final class _TimelineEventRow extends StatelessWidget {
-  const _TimelineEventRow({required this.event});
-
-  final SosEvent event;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 70,
-            child: Text(
-              _formatTime(event.createdAt),
-              style: const TextStyle(
-                color: Color(0xFF64748B),
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              switch (event.type) {
-                SosEventType.triggered => 'SOS triggered by ${event.actorName}',
-                SosEventType.acknowledged =>
-                  '${event.actorName} acknowledged alert',
-                SosEventType.resolved => '${event.actorName} resolved alert',
-              },
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      );
-
-  static String _formatTime(DateTime value) {
-    final local = value.toLocal();
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final minute = local.minute.toString().padLeft(2, '0');
-    final period = local.hour < 12 ? 'AM' : 'PM';
-    return '$hour:$minute $period';
-  }
-}
-
-final class _DetailCard extends StatelessWidget {
-  const _DetailCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-  });
-
-  final String title;
-  final String value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF6F8FA),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(children: [
-          Icon(icon, color: const Color(0xFF087F8C)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(color: Colors.blueGrey, fontSize: 12),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ],
-            ),
-          ),
-        ]),
-      );
 }

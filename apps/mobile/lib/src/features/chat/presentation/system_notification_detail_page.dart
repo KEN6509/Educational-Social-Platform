@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../../posts/presentation/post_detail_page.dart';
 import '../../posts/data/post_interaction_sync.dart';
 import '../data/chat_models.dart';
@@ -133,12 +134,9 @@ class _SystemNotificationDetailPageState
     } catch (_) {
       if (!mounted) return;
       setState(() => _postUnavailable = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'This rejected post is no longer available.',
-          ),
-        ),
+      AppFeedback.showWarning(
+        context,
+        'This rejected post is no longer available.',
       );
     }
   }
@@ -180,10 +178,9 @@ class _SystemNotificationDetailPageState
       if (mounted) Navigator.of(context).pop(true);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not delete this notification. Please retry.'),
-        ),
+      AppFeedback.showError(
+        context,
+        'Could not delete this notification. Please retry.',
       );
     }
   }

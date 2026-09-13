@@ -4,10 +4,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/shimmer_skeleton.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/theme/app_design_tokens.dart';
 import '../data/profile_repository.dart';
 import '../data/user_profile.dart';
 import 'content_creator_badge.dart';
 import 'profile_page.dart';
+
+part 'follow_list_widgets.dart';
 
 class FollowListPage extends StatefulWidget {
   const FollowListPage({
@@ -66,7 +70,7 @@ class _FollowListPageState extends State<FollowListPage>
         title: Text(
           widget.userName,
           style: const TextStyle(
-            color: Color(0xFF0B1F3E),
+            color: AppColors.navy,
             fontSize: 17,
             fontWeight: FontWeight.w800,
           ),
@@ -75,9 +79,9 @@ class _FollowListPageState extends State<FollowListPage>
           controller: _tabController,
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           splashFactory: NoSplash.splashFactory,
-          labelColor: const Color(0xFF0B1F3E),
-          unselectedLabelColor: const Color(0xFF64748B),
-          indicatorColor: const Color(0xFF4490AD),
+          labelColor: AppColors.navy,
+          unselectedLabelColor: AppColors.textSecondary,
+          indicatorColor: AppColors.cyan,
           indicatorWeight: 3,
           tabs: const [
             Tab(text: 'Followers'),
@@ -93,7 +97,7 @@ class _FollowListPageState extends State<FollowListPage>
               height: 44,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: AppColors.surfaceMuted,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: TextField(
@@ -112,7 +116,7 @@ class _FollowListPageState extends State<FollowListPage>
                   hintText: 'Search',
                   prefixIcon: const Icon(
                     Icons.search_rounded,
-                    color: Color(0xFF94A3B8),
+                    color: AppColors.textMuted,
                     size: 20,
                   ),
                 ),
@@ -192,7 +196,7 @@ class _FollowListState extends State<_FollowList> {
           return const Center(
             child: Text(
               'No users yet',
-              style: TextStyle(color: Color(0xFF94A3B8)),
+              style: TextStyle(color: AppColors.textMuted),
             ),
           );
         }
@@ -210,7 +214,7 @@ class _FollowListState extends State<_FollowList> {
           return const Center(
             child: Text(
               'No users found',
-              style: TextStyle(color: Color(0xFF94A3B8)),
+              style: TextStyle(color: AppColors.textMuted),
             ),
           );
         }
@@ -220,11 +224,13 @@ class _FollowListState extends State<_FollowList> {
           itemCount: profiles.length,
           separatorBuilder: (_, __) => const Divider(
             height: 1,
-            color: Color(0xFFF1F5F9),
+            color: AppColors.surfaceMuted,
           ),
           itemBuilder: (context, index) {
+            final currentUserId = Supabase.instance.client.auth.currentUser?.id;
             return _FollowTile(
               profile: profiles[index],
+              isSelf: currentUserId == profiles[index].id,
               onOpenProfile: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -233,7 +239,6 @@ class _FollowListState extends State<_FollowList> {
                 );
               },
               onToggleFollow: () async {
-                final messenger = ScaffoldMessenger.of(context);
                 final current = profiles[index];
                 final optimistic = current.copyWith(
                   isFollowing: !current.isFollowing,
@@ -244,204 +249,18 @@ class _FollowListState extends State<_FollowList> {
                 setState(() => profiles[index] = optimistic);
                 try {
                   final updated = await widget.onToggleFollow(current);
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   setState(() => profiles[index] = updated);
                 } catch (e) {
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   setState(() => profiles[index] = current);
-                  messenger.showSnackBar(
-                    SnackBar(content: Text(friendlyErrorTitle(e))),
-                  );
+                  AppFeedback.showError(context, friendlyErrorTitle(e));
                 }
               },
             );
           },
         );
       },
-    );
-  }
-}
-
-class _FollowListSkeleton extends StatelessWidget {
-  const _FollowListSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-      itemCount: 8,
-      separatorBuilder: (_, __) => const SizedBox(height: 18),
-      itemBuilder: (context, index) {
-        return const Row(
-          children: [
-            _FollowSkeletonBlock(width: 48, height: 48, radius: 24),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _FollowSkeletonBlock(width: 140, height: 13, radius: 7),
-                  SizedBox(height: 8),
-                  _FollowSkeletonBlock(width: 90, height: 11, radius: 6),
-                ],
-              ),
-            ),
-            SizedBox(width: 18),
-            _FollowSkeletonBlock(width: 76, height: 32, radius: 16),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _FollowListError extends StatelessWidget {
-  const _FollowListError({required this.error});
-
-  final Object? error;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(24, 120, 24, 24),
-      children: [
-        Icon(Icons.cloud_off_outlined, size: 44, color: Colors.grey.shade300),
-        const SizedBox(height: 12),
-        Text(
-          friendlyErrorTitle(error),
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFF0B1F3E),
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          friendlyErrorMessage(error),
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
-        ),
-      ],
-    );
-  }
-}
-
-class _FollowSkeletonBlock extends StatelessWidget {
-  const _FollowSkeletonBlock({
-    required this.width,
-    required this.height,
-    required this.radius,
-  });
-
-  final double width;
-  final double height;
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    return ShimmerBlock(width: width, height: height, radius: radius);
-  }
-}
-
-class _FollowTile extends StatelessWidget {
-  const _FollowTile({
-    required this.profile,
-    required this.onOpenProfile,
-    required this.onToggleFollow,
-  });
-
-  final UserProfile profile;
-  final VoidCallback onOpenProfile;
-  final VoidCallback onToggleFollow;
-
-  @override
-  Widget build(BuildContext context) {
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    final isSelf = currentUserId == profile.id;
-
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      onTap: onOpenProfile,
-      leading: CircleAvatar(
-        radius: 23,
-        backgroundColor: const Color(0xFFE7F8F5),
-        backgroundImage:
-            profile.avatarUrl != null ? NetworkImage(profile.avatarUrl!) : null,
-        child: profile.avatarUrl == null
-            ? Text(
-                profile.name.characters.first.toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFF2C7189),
-                  fontWeight: FontWeight.w900,
-                ),
-              )
-            : null,
-      ),
-      title: Row(
-        children: [
-          Flexible(
-            child: Text(
-              profile.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF0B1F3E),
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          if (profile.isContentCreator) ...[
-            const SizedBox(width: 4),
-            const ContentCreatorBadge(isVisible: true, size: 12),
-          ],
-        ],
-      ),
-      trailing: isSelf
-          ? null
-          : _SmallFollowButton(
-              isFollowing: profile.isFollowing,
-              onTap: onToggleFollow,
-            ),
-    );
-  }
-}
-
-class _SmallFollowButton extends StatelessWidget {
-  const _SmallFollowButton({
-    required this.isFollowing,
-    required this.onTap,
-  });
-
-  final bool isFollowing;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color:
-                isFollowing ? const Color(0xFFF1F5F9) : const Color(0xFF4490AD),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            isFollowing ? 'Following' : 'Follow',
-            style: TextStyle(
-              color: isFollowing ? const Color(0xFF64748B) : Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

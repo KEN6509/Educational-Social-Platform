@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/application/async_refresh_coordinator.dart';
+import '../../../core/theme/app_design_tokens.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../data/parent_child_repository.dart';
 import '../data/parent_supervision_models.dart';
 import 'check_in_page.dart';
@@ -32,8 +35,8 @@ class _ParentChildPageState extends State<ParentChildPage>
     with WidgetsBindingObserver {
   late final ParentChildRepositoryContract _repository;
   late Future<SupervisionDashboardState> _dashboardFuture;
+  late final AsyncRefreshCoordinator _refreshCoordinator;
   RealtimeChannel? _channel;
-  Timer? _refreshDebounce;
 
   @override
   void initState() {
@@ -41,30 +44,43 @@ class _ParentChildPageState extends State<ParentChildPage>
     WidgetsBinding.instance.addObserver(this);
     _repository =
         widget.repository ?? ParentChildRepository(Supabase.instance.client);
+    _refreshCoordinator = AsyncRefreshCoordinator(
+      debounce: const Duration(milliseconds: 180),
+      refresh: _performRefresh,
+      onError: (error, _) {
+        assert(() {
+          debugPrint('Parent Supervision refresh failed: $error');
+          return true;
+        }());
+      },
+    );
     _dashboardFuture = _repository.fetchDashboard(localDay: DateTime.now());
+    _refreshCoordinator
+        .trackInitialRefresh(_dashboardFuture.then<void>((_) {}));
     if (widget.subscribeToRealtime) {
       _channel = _repository.subscribeToSupervisionChanges(
-        onChange: _scheduleRefresh,
+        onChange: _refreshCoordinator.schedule,
       );
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refresh();
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refresh());
+    }
   }
 
-  void _scheduleRefresh() {
-    _refreshDebounce?.cancel();
-    _refreshDebounce = Timer(const Duration(milliseconds: 180), _refresh);
-  }
-
-  void _refresh() {
+  Future<void> _performRefresh() async {
     if (!mounted) return;
+    final next = _repository.fetchDashboard(localDay: DateTime.now());
     setState(() {
-      _dashboardFuture = _repository.fetchDashboard(localDay: DateTime.now());
+      _dashboardFuture = next;
     });
+    await next;
   }
+
+  Future<void> _refresh() => _refreshCoordinator.refreshNow();
 
   Future<void> _openCandidates() async {
     try {
@@ -86,13 +102,12 @@ class _ParentChildPageState extends State<ParentChildPage>
           ),
         ),
       );
-      if (changed) _refresh();
+      if (changed) await _refresh();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to open family link requests right now.'),
-        ),
+      AppFeedback.showError(
+        context,
+        'Unable to open family link requests right now.',
       );
     }
   }
@@ -107,7 +122,7 @@ class _ParentChildPageState extends State<ParentChildPage>
         ),
       ),
     );
-    _refresh();
+    await _refresh();
   }
 
   Future<void> _openCheckIn() async {
@@ -116,7 +131,7 @@ class _ParentChildPageState extends State<ParentChildPage>
         builder: (_) => CheckInPage(repository: _repository),
       ),
     );
-    if (sent == true) _refresh();
+    if (sent == true) await _refresh();
   }
 
   Future<void> _openSos() async {
@@ -129,7 +144,7 @@ class _ParentChildPageState extends State<ParentChildPage>
         ),
       ),
     );
-    if (sent == true) _refresh();
+    if (sent == true) await _refresh();
   }
 
   Future<void> _openRecords(SupervisionDashboardState state) async {
@@ -141,13 +156,13 @@ class _ParentChildPageState extends State<ParentChildPage>
         ),
       ),
     );
-    _refresh();
+    await _refresh();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _refreshDebounce?.cancel();
+    _refreshCoordinator.dispose();
     final channel = _channel;
     if (channel != null) unawaited(_repository.unsubscribe(channel));
     super.dispose();
@@ -155,9 +170,9 @@ class _ParentChildPageState extends State<ParentChildPage>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF1F5F9),
+        backgroundColor: AppColors.background,
         appBar: AppBar(
-          backgroundColor: Color(0xFFFAFCFC),
+          backgroundColor: AppColors.background,
           elevation: 0,
           scrolledUnderElevation: 0,
           centerTitle: false,
@@ -165,7 +180,7 @@ class _ParentChildPageState extends State<ParentChildPage>
           title: const Text(
             'Parent Supervision',
             style: TextStyle(
-              color: Color(0xFF0B1F3E),
+              color: AppColors.navy,
               fontSize: 24,
               fontWeight: FontWeight.w800,
             ),
@@ -175,7 +190,7 @@ class _ParentChildPageState extends State<ParentChildPage>
               tooltip: 'Add family link',
               icon: const Icon(
                 Icons.person_add_alt_1_rounded,
-                color: Color(0xFF0B1F3E),
+                color: AppColors.navy,
                 size: 28,
               ),
               onPressed: _openCandidates,
@@ -210,7 +225,7 @@ class _ParentChildPageState extends State<ParentChildPage>
               subscribeToRealtime: widget.subscribeToRealtime,
             );
             return RefreshIndicator(
-              onRefresh: () async => _refresh(),
+              onRefresh: _refresh,
               child: SupervisionDashboard(
                 state: state,
                 callbacks: SupervisionDashboardCallbacks(

@@ -6,10 +6,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/theme/app_design_tokens.dart';
 import '../data/user_profile.dart';
 import '../data/profile_repository.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
 import 'avatar_crop_page.dart';
+
+part 'edit_profile_widgets.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({required this.profile, super.key});
@@ -116,9 +120,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyErrorTitle(e))),
-        );
+        AppFeedback.showError(context, friendlyErrorTitle(e));
       }
     } finally {
       if (mounted) {
@@ -199,7 +201,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               child: const Text(
                 'Save',
                 style: TextStyle(
-                  color: Color(0xFF4490AD),
+                  color: AppColors.cyan,
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
                 ),
@@ -218,218 +220,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 )
-              : SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 32),
-                      // Avatar Section (TikTok style)
-                      Center(
-                        child: Column(
-                          children: [
-                            GestureDetector(
-                              onTap: _pickImage,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  Container(
-                                    width: 100,
-                                    height: 100,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: const Color(0xFFF1F5F9),
-                                    ),
-                                    child: ClipOval(
-                                      child: _selectedImage != null
-                                          ? Image.file(_selectedImage!,
-                                              fit: BoxFit.cover)
-                                          : widget.profile.avatarUrl != null
-                                              ? Image.network(
-                                                  widget.profile.avatarUrl!,
-                                                  fit: BoxFit.cover)
-                                              : Center(
-                                                  child: Text(
-                                                    widget.profile.name
-                                                        .characters.first
-                                                        .toUpperCase(),
-                                                    style: const TextStyle(
-                                                      fontSize: 32,
-                                                      color: Color(0xFF2C7189),
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                    ),
-                                                  ),
-                                                ),
-                                    ),
-                                  ),
-                                  Container(
-                                    width: 100,
-                                    height: 100,
-                                    decoration: BoxDecoration(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.25),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.camera_alt_outlined,
-                                      color: Colors.white,
-                                      size: 32,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            GestureDetector(
-                              onTap: _pickImage,
-                              child: const Text(
-                                'Change Photo',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF1E293B),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 48),
-                      // Modern Input Fields
-                      _buildModernInput(
-                        label: 'Username',
-                        controller: _nameController,
-                        hint: 'Enter your name',
-                        maxLength: 24,
-                      ),
-                      _buildModernInput(
-                        label: 'Bio',
-                        controller: _bioController,
-                        hint: 'Add a bio to your profile',
-                        maxLines: 5,
-                        maxLength: 150,
-                      ),
-                    ],
-                  ),
+              : _EditProfileBody(
+                  profile: widget.profile,
+                  selectedImage: _selectedImage,
+                  nameController: _nameController,
+                  bioController: _bioController,
+                  onPickImage: _pickImage,
                 ),
-    );
-  }
-
-  Widget _buildModernInput({
-    required String label,
-    required TextEditingController controller,
-    required String hint,
-    int? maxLines = 1,
-    int? maxLength,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
-              ),
-            ),
-          ),
-          TextField(
-            controller: controller,
-            maxLines: maxLines,
-            minLines: 1,
-            maxLength: maxLength,
-            inputFormatters: maxLength == null
-                ? null
-                : [LengthLimitingTextInputFormatter(maxLength)],
-            style: const TextStyle(
-              fontSize: 15,
-              color: Color(0xFF1E293B),
-              fontWeight: FontWeight.w500,
-            ),
-            decoration: appInputDecoration(
-              hintText: hint,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            ),
-          ),
-          if (maxLength != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4, right: 4),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: controller,
-                  builder: (context, value, child) {
-                    return Text(
-                      '${value.text.length}/$maxLength',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF94A3B8),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EditProfileLoadError extends StatelessWidget {
-  const _EditProfileLoadError({required this.error, required this.onRetry});
-
-  final Object? error;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(24, 140, 24, 24),
-      children: [
-        Icon(Icons.cloud_off_outlined, size: 48, color: Colors.grey.shade300),
-        const SizedBox(height: 14),
-        Text(
-          friendlyErrorTitle(error),
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFF0B1F3E),
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          friendlyErrorMessage(error),
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFF64748B),
-            fontSize: 14,
-            height: 1.35,
-          ),
-        ),
-        const SizedBox(height: 18),
-        Center(
-          child: FilledButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Try again'),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF0B1F3E),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

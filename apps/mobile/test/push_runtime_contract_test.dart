@@ -3,6 +3,18 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('notification preference trigger reads table-specific fields safely',
+      () {
+    final sql = File(
+      '../../supabase/fcm_push_notifications.sql',
+    ).readAsStringSync();
+
+    expect(sql, contains("to_jsonb(new) ->> 'type'"));
+    expect(sql, contains("to_jsonb(new) ->> 'event_type'"));
+    expect(sql, isNot(contains('then new.type')));
+    expect(sql, isNot(contains('else new.event_type')));
+  });
+
   test('push startup waits until inherited dependencies are safe to read', () {
     final source = File(
       'lib/src/features/shell/presentation/main_shell.dart',

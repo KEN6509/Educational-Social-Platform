@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/app_feedback.dart';
 import '../data/tag_catalog.dart';
 
 class FilterPage extends StatefulWidget {
@@ -32,11 +33,10 @@ class _FilterPageState extends State<FilterPage> {
         _selectedTags.remove(slug);
       } else {
         if (widget.isSelectionMode && _selectedTags.length >= 5) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Maximum 5 tags allowed'),
-              duration: Duration(seconds: 2),
-            ),
+          AppFeedback.showWarning(
+            context,
+            'Maximum 5 tags allowed',
+            duration: const Duration(seconds: 2),
           );
           return;
         }
@@ -302,7 +302,8 @@ class _TagChip extends StatelessWidget {
           color: isSelected ? const Color(0xFF0B1F3E) : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? const Color(0xFF0B1F3E) : const Color(0xFFE2E8F0),
+            color:
+                isSelected ? const Color(0xFF0B1F3E) : const Color(0xFFE2E8F0),
           ),
         ),
         child: Text(
