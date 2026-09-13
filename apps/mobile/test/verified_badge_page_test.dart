@@ -29,7 +29,7 @@ void main() {
     String? submittedStatement;
     await pumpPage(
       tester,
-      state: const CreatorVerificationState(),
+      state: const CreatorVerificationState(followerCount: 2),
       submitApplication: (statement) async {
         submittedStatement = statement;
       },
@@ -48,14 +48,13 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Have at least 10,000 followers'), findsOneWidget);
-    expect(find.text('Complete your profile'), findsOneWidget);
+    expect(find.text('Have at least 2 followers'), findsOneWidget);
     expect(
-      find.text(
-        'Sometimes, CyanZone may also proactively verify accounts with fewer than 10,000 followers that are well-known outside of CyanZone.',
-      ),
+      find.text('You currently have 2 of 2 required followers.'),
       findsOneWidget,
     );
+    expect(find.text('Complete your profile'), findsOneWidget);
+    expect(find.textContaining('10,000 followers'), findsNothing);
     expect(find.text('Strengthen your application'), findsOneWidget);
     expect(find.text('Keep your account in good standing'), findsOneWidget);
     expect(find.text('Share valuable content'), findsOneWidget);
@@ -104,6 +103,7 @@ void main() {
     await pumpPage(
       tester,
       state: const CreatorVerificationState(
+        followerCount: 2,
         requestStatus: CreatorRequestStatus.rejected,
       ),
     );
@@ -136,7 +136,7 @@ void main() {
       (tester) async {
     await pumpPage(
       tester,
-      state: const CreatorVerificationState(),
+      state: const CreatorVerificationState(followerCount: 2),
     );
 
     await tester
@@ -153,7 +153,7 @@ void main() {
       (tester) async {
     await pumpPage(
       tester,
-      state: const CreatorVerificationState(),
+      state: const CreatorVerificationState(followerCount: 2),
       submitApplication: (_) async => throw StateError('offline'),
     );
     await tester.enterText(
@@ -173,5 +173,27 @@ void main() {
       find.widgetWithText(FilledButton, 'Apply for verification'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('requires two followers before creator application submission',
+      (tester) async {
+    var submitted = false;
+    await pumpPage(
+      tester,
+      state: const CreatorVerificationState(followerCount: 1),
+      submitApplication: (_) async => submitted = true,
+    );
+
+    expect(find.text('Have at least 2 followers'), findsOneWidget);
+    expect(
+      find.text('You currently have 1 of 2 required followers.'),
+      findsOneWidget,
+    );
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Need 2 followers'),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.textContaining('10,000 followers'), findsNothing);
+    expect(submitted, isFalse);
   });
 }

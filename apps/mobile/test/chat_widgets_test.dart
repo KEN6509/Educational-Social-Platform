@@ -1336,6 +1336,52 @@ void main() {
     expect(find.text('Say hi with a kind message.'), findsNothing);
   });
 
+  testWidgets('ChatRoomPage refreshes direct permission after details return',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'followed-from-details-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_id': 'user-2',
+      'other_user_name': 'Ming',
+      'can_send_messages': false,
+    });
+    var permissionChecks = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => const [],
+          loadSendPermission: (_) async {
+            permissionChecks += 1;
+            return permissionChecks > 1;
+          },
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 1);
+    expect(find.byType(TextField), findsNothing);
+
+    await tester.tap(find.text('Ming').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Contact Info'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 2);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsNothing,
+    );
+  });
+
   testWidgets('ChatRoomPage blocks stale direct send and preserves draft',
       (tester) async {
     final conversation = ChatConversation.fromMap({
@@ -1376,8 +1422,94 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
 
-    expect(permissionChecks, 2);
+    expect(permissionChecks, 3);
     expect(find.text('draft'), findsOneWidget);
+  });
+
+  testWidgets(
+      'ChatRoomPage rechecks direct permission before sending stale draft',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'preflight-direct-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_name': 'Ming',
+    });
+    var permissionChecks = 0;
+    var sendCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => const [],
+          loadSendPermission: (_) async {
+            permissionChecks += 1;
+            return permissionChecks != 2;
+          },
+          sendMessage: (_, __) async {
+            sendCount += 1;
+          },
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'stale draft');
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 2);
+    expect(sendCount, 0);
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsWidgets,
+    );
+    expect(find.byIcon(Icons.send_rounded), findsNothing);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 3);
+    expect(find.text('stale draft'), findsOneWidget);
+  });
+
+  testWidgets('ChatRoomPage rechecks direct permission before image picker',
+      (tester) async {
+    final conversation = ChatConversation.fromMap({
+      'id': 'preflight-image-room',
+      'type': 'direct',
+      'request_status': 'accepted',
+      'unread_count': 0,
+      'other_user_name': 'Ming',
+    });
+    var permissionChecks = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatRoomPage(
+          conversation: conversation,
+          loadMessages: () async => const [],
+          loadSendPermission: (_) async {
+            permissionChecks += 1;
+            return permissionChecks == 1;
+          },
+          markRead: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.image_outlined));
+    await tester.pumpAndSettle();
+
+    expect(permissionChecks, 2);
+    expect(
+      find.text('Follow this user to continue chatting.'),
+      findsWidgets,
+    );
+    expect(find.byIcon(Icons.image_outlined), findsNothing);
+    expect(find.text('Choose from gallery'), findsNothing);
   });
 
   testWidgets('ChatRoomPage keeps text when send fails', (tester) async {
@@ -1394,6 +1526,7 @@ void main() {
         home: ChatRoomPage(
           conversation: conversation,
           loadMessages: () async => const [],
+          loadSendPermission: (_) async => true,
           sendMessage: (_, __) async => throw Exception('network'),
           markRead: (_) async {},
         ),
@@ -1423,6 +1556,7 @@ void main() {
         home: ChatRoomPage(
           conversation: conversation,
           loadMessages: () async => const [],
+          loadSendPermission: (_) async => true,
           sendMessage: (_, __) async {
             sendCount += 1;
           },

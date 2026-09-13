@@ -162,7 +162,7 @@ void main() {
     _expectClasses(widgets, classes);
     _expectOwnerDoesNotContainClasses(page, classes);
     expect(page, contains('class _VerifiedBadgePageState'));
-    expect(page, contains('Future<void> _submit()'));
+    expect(page, contains('Future<void> _submit('));
   });
 
   test('Phase 5B profile presentation uses the shared feedback facade', () {

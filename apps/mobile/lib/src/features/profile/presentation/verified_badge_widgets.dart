@@ -16,20 +16,28 @@ class _VerificationBottomAction extends StatelessWidget {
     final isVerified = state.isVerified ||
         state.requestStatus == CreatorRequestStatus.approved;
     final isPending = state.requestStatus == CreatorRequestStatus.pending;
+    final meetsFollowerRequirement = state.meetsFollowerRequirement;
     final label = isVerified
         ? 'Verified creator'
         : isPending
             ? 'Application pending'
-            : state.requestStatus == CreatorRequestStatus.rejected
-                ? 'Apply again'
-                : 'Apply for verification';
+            : !meetsFollowerRequirement
+                ? 'Need $creatorFollowerRequirement followers'
+                : state.requestStatus == CreatorRequestStatus.rejected
+                    ? 'Apply again'
+                    : 'Apply for verification';
 
     return SafeArea(
       minimum: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       child: SizedBox(
         height: 50,
         child: FilledButton(
-          onPressed: isVerified || isPending || isSubmitting ? null : onSubmit,
+          onPressed: isVerified ||
+                  isPending ||
+                  isSubmitting ||
+                  !meetsFollowerRequirement
+              ? null
+              : onSubmit,
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.cyan,
             disabledBackgroundColor: const Color(0xFFCBD5E1),
@@ -137,44 +145,16 @@ class _BadgePageBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          const _Requirement(
+          _Requirement(
             icon: Icons.groups_rounded,
-            title: 'Have at least 10,000 followers',
-            detail: 'Your CyanZone account must reach this follower milestone.',
+            title: 'Have at least $creatorFollowerRequirement followers',
+            detail:
+                'You currently have ${state.followerCount} of $creatorFollowerRequirement required followers.',
           ),
           const _Requirement(
             icon: Icons.account_circle_outlined,
             title: 'Complete your profile',
             detail: 'Use a clear profile name, photo, and useful biography.',
-          ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEAF5F8),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  color: Color(0xFF367D98),
-                  size: 20,
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Sometimes, CyanZone may also proactively verify accounts with fewer than 10,000 followers that are well-known outside of CyanZone.',
-                    style: TextStyle(
-                      color: Color(0xFF526779),
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
           const SizedBox(height: 24),
           const Text(

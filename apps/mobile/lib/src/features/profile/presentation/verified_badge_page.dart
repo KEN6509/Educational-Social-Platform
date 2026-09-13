@@ -9,14 +9,21 @@ part 'verified_badge_widgets.dart';
 
 enum CreatorRequestStatus { pending, approved, rejected }
 
+const creatorFollowerRequirement = 2;
+
 class CreatorVerificationState {
   const CreatorVerificationState({
     this.isVerified = false,
+    this.followerCount = 0,
     this.requestStatus,
   });
 
   final bool isVerified;
+  final int followerCount;
   final CreatorRequestStatus? requestStatus;
+
+  bool get meetsFollowerRequirement =>
+      followerCount >= creatorFollowerRequirement;
 }
 
 typedef CreatorVerificationStateLoader = Future<CreatorVerificationState>
@@ -64,11 +71,10 @@ class _VerifiedBadgePageState extends State<VerifiedBadgePage> {
       throw StateError('Sign in to view verification status.');
     }
 
-    final profile = await client
-        .from('profiles')
-        .select('is_content_creator')
-        .eq('id', userId)
-        .maybeSingle();
+    final profile = await client.from('profiles').select('''
+          is_content_creator,
+          follower_count:follows!follows_following_id_fkey(count)
+        ''').eq('id', userId).maybeSingle();
     final request = await client
         .from('content_creator_requests')
         .select('status')
@@ -77,8 +83,14 @@ class _VerifiedBadgePageState extends State<VerifiedBadgePage> {
         .limit(1)
         .maybeSingle();
 
+    final followerCountRows = profile?['follower_count'] as List?;
+    final followerCount = followerCountRows?.isNotEmpty == true
+        ? followerCountRows!.first['count'] as int? ?? 0
+        : 0;
+
     return CreatorVerificationState(
       isVerified: profile?['is_content_creator'] as bool? ?? false,
+      followerCount: followerCount,
       requestStatus: _requestStatusFrom(request?['status'] as String?),
     );
   }
@@ -92,8 +104,16 @@ class _VerifiedBadgePageState extends State<VerifiedBadgePage> {
     };
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit(CreatorVerificationState currentState) async {
     if (_isSubmitting) return;
+
+    if (!currentState.meetsFollowerRequirement) {
+      AppFeedback.showWarning(
+        context,
+        'You need at least $creatorFollowerRequirement followers to apply.',
+      );
+      return;
+    }
 
     final statement = _statementController.text.trim();
     if (statement.isEmpty) {
@@ -111,20 +131,21 @@ class _VerifiedBadgePageState extends State<VerifiedBadgePage> {
         await injectedSubmitter(statement);
       } else {
         final client = Supabase.instance.client;
-        final userId = client.auth.currentUser?.id;
-        if (userId == null) {
+        if (client.auth.currentUser == null) {
           throw StateError('Sign in to apply for verification.');
         }
-        await client.from('content_creator_requests').insert({
-          'user_id': userId,
-          'reason': statement,
-        });
+        await client.rpc<void>(
+          'submit_creator_verification_request',
+          params: {'p_reason': statement},
+        );
       }
 
       if (!mounted) return;
       setState(() {
         _stateFuture = Future.value(
-          const CreatorVerificationState(
+          CreatorVerificationState(
+            isVerified: currentState.isVerified,
+            followerCount: currentState.followerCount,
             requestStatus: CreatorRequestStatus.pending,
           ),
         );
@@ -196,7 +217,7 @@ class _VerifiedBadgePageState extends State<VerifiedBadgePage> {
           return _VerificationBottomAction(
             state: state,
             isSubmitting: _isSubmitting,
-            onSubmit: _submit,
+            onSubmit: () => _submit(state),
           );
         },
       ),

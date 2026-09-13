@@ -193,6 +193,20 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     }
   }
 
+  Future<bool> _verifySendPermission() async {
+    if (_conversation.isGroup) return true;
+
+    final canSend = await (widget.loadSendPermission ?? _repo.canSendMessage)(
+      _conversation.id,
+    );
+    if (!mounted) return false;
+    if (canSend) return true;
+
+    setState(() => _canSendMessages = false);
+    AppFeedback.showWarning(context, _followRequiredMessage);
+    return false;
+  }
+
   void _handleInputFocusChanged() {
     if (!_inputFocusNode.hasFocus) return;
     _pinToBottomAfterLayout();
@@ -515,6 +529,8 @@ class _ChatRoomPageState extends State<ChatRoomPage>
 
     setState(() => _isSending = true);
     try {
+      if (!await _verifySendPermission()) return;
+
       final action = widget.sendMessage ??
           (String id, String text) async {
             final leading =
@@ -615,6 +631,9 @@ class _ChatRoomPageState extends State<ChatRoomPage>
     if (_isSending || _isPickingImage || _canSendMessages != true) return;
     setState(() => _isPickingImage = true);
     try {
+      if (!await _verifySendPermission()) return;
+      if (!mounted) return;
+
       final picked = await Navigator.of(context).push<List<XFile>>(
         MaterialPageRoute(
           builder: (_) => const DevicePhotoPickerPage(
@@ -952,8 +971,12 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                             ChatDetailsPage(conversation: _conversation),
                       ),
                     );
-                    if (updated is ChatConversation && mounted) {
+                    if (!mounted) return;
+                    if (updated is ChatConversation) {
                       setState(() => _conversation = updated);
+                    }
+                    if (!_conversation.isGroup) {
+                      await _refreshSendPermission();
                     }
                   },
                   behavior: HitTestBehavior.opaque,
