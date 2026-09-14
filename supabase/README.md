@@ -468,6 +468,10 @@ Expected results:
 - `to_regclass` returns `public.admin_action_audit`.
 - The routine query returns five rows.
 
+For an existing hosted project, run `admin_performance_indexes.sql` after the
+Admin and moderation migrations. It adds only idempotent read indexes for the
+Users, Creator Requests, and AI-Flagged queues; it does not change stored data.
+
 ### Gemini moderation
 
 Run `ai_moderation.sql` after `admin_portal.sql` for an existing project. The

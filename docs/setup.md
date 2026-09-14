@@ -57,6 +57,7 @@ by the current mobile app. At minimum, the live project should include:
 13. `supabase/report_flow_simplification.sql` for an existing database only
 14. `supabase/ai_moderation.sql`
 15. `supabase/fcm_push_notifications.sql`
+16. `supabase/admin_performance_indexes.sql`
 
 Existing projects must run `supabase/creator_follower_gate.sql` after
 `follow.sql`. It preserves creator requests while adding the temporary
@@ -91,6 +92,10 @@ It creates the moderation-case table, revisioned result storage, RLS, and the
 service-role preparation/result/decision RPCs used by the Express API. Run the
 complete file; do not copy only one function. Fresh projects still need the
 incremental file so the RPCs, policies, and indexes are present.
+
+Run `admin_performance_indexes.sql` after the Admin and moderation tables exist.
+It only adds idempotent indexes for the Admin read queues and does not modify
+existing records.
 
 Fresh projects use the simplified report schema already present in `schema.sql`
 and `admin_portal.sql`. For an existing database that still has Open/Reviewing

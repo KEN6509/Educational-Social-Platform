@@ -21,6 +21,13 @@ const chatSql = readFileSync(
   new URL('../../../../supabase/chat.sql', import.meta.url),
   'utf8',
 ).toLowerCase();
+const performanceSql = readFileSync(
+  new URL(
+    '../../../../supabase/admin_performance_indexes.sql',
+    import.meta.url,
+  ),
+  'utf8',
+).toLowerCase();
 
 test('admin portal SQL defines audit and decision boundaries', () => {
   assert.match(sql, /create table if not exists public\.admin_action_audit/);
@@ -192,4 +199,21 @@ test('appeals and audit records are administrator-readable only', () => {
   assert.match(sql, /admins view post appeals/);
   assert.match(sql, /revoke all on table public\.admin_action_audit/);
   assert.match(sql, /grant select on table public\.admin_action_audit/);
+});
+
+test('admin read queues have indexes matching their filters and ordering', () => {
+  for (const source of [performanceSql, schemaSql]) {
+    assert.match(
+      source,
+      /profiles_admin_created_idx[\s\S]*public\.profiles\s*\(is_admin, created_at desc\)/,
+    );
+    assert.match(
+      source,
+      /creator_requests_status_created_idx[\s\S]*public\.content_creator_requests\s*\(status, created_at desc\)/,
+    );
+    assert.match(
+      source,
+      /moderation_cases_state_created_idx[\s\S]*public\.content_moderation_cases\s*\(state, created_at desc\)/,
+    );
+  }
 });

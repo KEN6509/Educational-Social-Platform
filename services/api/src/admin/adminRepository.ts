@@ -781,20 +781,20 @@ export function createAdminRepository(
         ),
       ];
 
-      const postResult =
+      const [postResult, commentResult] = await Promise.all([
         postIds.length === 0
-          ? { data: [], error: null }
-          : await client
+          ? Promise.resolve({ data: [], error: null })
+          : client
               .from('posts')
               .select('id, author_id, title, content')
-              .in('id', postIds);
-      const commentResult =
+              .in('id', postIds),
         commentIds.length === 0
-          ? { data: [], error: null }
-          : await client
+          ? Promise.resolve({ data: [], error: null })
+          : client
               .from('comments')
               .select('id, author_id, content')
-              .in('id', commentIds);
+              .in('id', commentIds),
+      ]);
       assertQuerySucceeded(postResult.error);
       assertQuerySucceeded(commentResult.error);
 
@@ -1128,29 +1128,36 @@ export function createAdminRepository(
     },
     listModerationCases: async (query: AiModerationListQuery) => {
       const databaseState = query.status === 'pending' ? 'admin_review' : query.status;
-      const result = await client
+      let request = client
         .from('content_moderation_cases')
         .select('*', { count: 'exact' })
         .eq('state', databaseState)
-        .order('created_at', { ascending: false })
-        .range(0, 9999);
+        .order('created_at', { ascending: false });
+      if (query.targetType) {
+        request = request.eq('target_type', query.targetType);
+      }
+
+      const from = (query.page - 1) * query.pageSize;
+      request = query.search.trim()
+        ? request.range(0, 9999)
+        : request.range(from, from + query.pageSize - 1);
+
+      const result = await request;
       assertQuerySucceeded(result.error);
       const search = query.search.trim().toLowerCase();
-      const filteredRows = asRows(result.data).filter((row) =>
-        query.targetType ? row.target_type === query.targetType : true,
-      );
-      const hydrated = (await hydrateModerationCases(client, filteredRows)).filter((item) =>
+      const hydrated = (await hydrateModerationCases(client, asRows(result.data))).filter((item) =>
         search
           ? [item.authorName, item.authorEmail, item.title, item.content, item.userReason]
               .some((value) => value?.toLowerCase().includes(search))
           : true,
       );
-      const from = (query.page - 1) * query.pageSize;
       return {
-        items: hydrated.slice(from, from + query.pageSize),
+        items: search
+          ? hydrated.slice(from, from + query.pageSize)
+          : hydrated,
         page: query.page,
         pageSize: query.pageSize,
-        total: search || query.targetType ? hydrated.length : result.count ?? hydrated.length,
+        total: search ? hydrated.length : result.count ?? hydrated.length,
       };
     },
     getModerationCase: async (caseId: string) => {

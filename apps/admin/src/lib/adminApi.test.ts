@@ -94,4 +94,102 @@ describe('adminApi', () => {
     });
     expect(fetcher).not.toHaveBeenCalled();
   });
+
+  it('reuses a recent authenticated GET response', async () => {
+    const fetcher = vi.fn(async () =>
+      new Response(JSON.stringify({ activeUsers: 4 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const api = createAdminApi({
+      baseUrl: 'https://api.cyanzone.test',
+      fetcher,
+      getAccessToken: async () => 'access-token',
+    });
+
+    await api.get('/admin/overview');
+    await api.get('/admin/overview');
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears cached reads after an administrator write', async () => {
+    const fetcher = vi.fn(async (_url: string | URL | Request, init?: RequestInit) =>
+      new Response(
+        init?.method === 'POST'
+          ? undefined
+          : JSON.stringify({ activeUsers: 4 }),
+        {
+          status: init?.method === 'POST' ? 204 : 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    );
+    const api = createAdminApi({
+      baseUrl: 'https://api.cyanzone.test',
+      fetcher,
+      getAccessToken: async () => 'access-token',
+    });
+
+    await api.get('/admin/overview');
+    await api.post('/admin/users/member-1/account-status', {
+      status: 'suspended',
+      reason: 'Verified policy violation.',
+    });
+    await api.get('/admin/overview');
+
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not reuse an older in-flight read after an administrator write', async () => {
+    let resolveStaleRead!: (response: Response) => void;
+    let markReadStarted!: () => void;
+    const readStarted = new Promise<void>((resolve) => {
+      markReadStarted = resolve;
+    });
+    let getCount = 0;
+    const fetcher = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return new Response(undefined, { status: 204 });
+      }
+      getCount += 1;
+      if (getCount === 1) {
+        markReadStarted();
+        return new Promise<Response>((resolve) => {
+          resolveStaleRead = resolve;
+        });
+      }
+      return new Response(JSON.stringify({ activeUsers: 5 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const api = createAdminApi({
+      baseUrl: 'https://api.cyanzone.test',
+      fetcher,
+      getAccessToken: async () => 'access-token',
+    });
+
+    const staleRead = api.get('/admin/overview');
+    await readStarted;
+    await api.post('/admin/users/member-1/account-status', {
+      status: 'suspended',
+      reason: 'Verified policy violation.',
+    });
+    const freshRead = api.get<{ activeUsers: number }>('/admin/overview');
+    setTimeout(() => {
+      resolveStaleRead(
+        new Response(JSON.stringify({ activeUsers: 4 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    }, 0);
+    const freshResult = await freshRead;
+    await staleRead;
+
+    expect(freshResult.activeUsers).toBe(5);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
 });
