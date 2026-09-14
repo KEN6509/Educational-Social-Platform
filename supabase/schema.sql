@@ -326,6 +326,9 @@ create table if not exists public.follows (
 );
 
 create index if not exists profiles_created_at_idx on public.profiles(created_at desc);
+create index if not exists profiles_admin_created_idx on public.profiles(is_admin, created_at desc);
+create index if not exists creator_requests_status_created_idx on public.content_creator_requests(status, created_at desc);
+create index if not exists moderation_cases_state_created_idx on public.content_moderation_cases(state, created_at desc);
 create index if not exists posts_author_created_idx on public.posts(author_id, created_at desc);
 create index if not exists posts_feed_idx on public.posts(moderation_status, published_at desc nulls last, created_at desc);
 create index if not exists posts_tags_idx on public.posts using gin(tags);
