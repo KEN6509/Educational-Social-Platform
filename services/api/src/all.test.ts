@@ -21,3 +21,7 @@ import './push/firebasePushGateway.test.js';
 import './push/pushRepository.test.js';
 import './push/pushService.test.js';
 import './push/pushRouter.test.js';
+import './maintenance/rejectedPostCleanup.test.js';
+import './maintenance/rejectedPostCleanupRepository.test.js';
+import './maintenance/maintenanceRouter.test.js';
+import './middleware/requestTelemetry.test.js';

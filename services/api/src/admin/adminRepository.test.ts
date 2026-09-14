@@ -171,8 +171,27 @@ test('moderation repository filters target type before database pagination', asy
 
   assert.deepEqual(equalityFilters, [
     ['state', 'rejected'],
+    ['decision_source', 'admin'],
     ['target_type', 'post'],
   ]);
+});
+
+test('moderation repository keeps pending queue independent of administrator decisions', async () => {
+  const equalityFilters: Array<[string, unknown]> = [];
+  const query = {
+    select() { return this; },
+    eq(column: string, value: unknown) { equalityFilters.push([column, value]); return this; },
+    order() { return this; },
+    range() { return this; },
+    then(resolve: (value: { data: never[]; error: null; count: number }) => unknown) {
+      return Promise.resolve({ data: [], error: null, count: 0 }).then(resolve);
+    },
+  };
+  const client = { from() { return query; } } as unknown as SupabaseClient;
+  await createAdminRepository(client).listModerationCases({
+    page: 1, pageSize: 20, search: '', status: 'pending',
+  });
+  assert.deepEqual(equalityFilters, [['state', 'admin_review']]);
 });
 
 test('report repository starts independent target reads together', async () => {

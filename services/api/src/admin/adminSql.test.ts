@@ -28,6 +28,26 @@ const performanceSql = readFileSync(
   ),
   'utf8',
 ).toLowerCase();
+const retentionSql = readFileSync(
+  new URL(
+    '../../../../supabase/rejected_post_retention_upgrade.sql',
+    import.meta.url,
+  ),
+  'utf8',
+).toLowerCase();
+
+test('rejected-post retention uses revision-safe service-role RPCs', () => {
+  assert.match(retentionSql, /prepare_expired_rejected_post_cleanup/);
+  assert.match(retentionSql, /finalize_expired_rejected_post_cleanup/);
+  assert.match(retentionSql, /decision_source\s*=\s*'admin'/);
+  assert.match(retentionSql, /completed_at\s*>\s*now\(\)\s*-\s*interval\s*'7 days'/);
+  assert.match(retentionSql, /moderation_revision\s+is\s+distinct\s+from/);
+  assert.match(retentionSql, /target_snapshot\s*=\s*target_snapshot\s*-\s*'images'/);
+  assert.match(retentionSql, /delete\s+from\s+public\.posts/);
+  assert.doesNotMatch(retentionSql, /delete\s+from\s+storage\.objects/);
+  assert.match(retentionSql, /grant execute[\s\S]*to service_role/);
+  assert.match(retentionSql, /cron\.unschedule/);
+});
 
 test('admin portal SQL defines audit and decision boundaries', () => {
   assert.match(sql, /create table if not exists public\.admin_action_audit/);

@@ -58,6 +58,7 @@ by the current mobile app. At minimum, the live project should include:
 14. `supabase/ai_moderation.sql`
 15. `supabase/fcm_push_notifications.sql`
 16. `supabase/admin_performance_indexes.sql`
+17. `supabase/rejected_post_retention_upgrade.sql` for an existing database
 
 Existing projects must run `supabase/creator_follower_gate.sql` after
 `follow.sql`. It preserves creator requests while adding the temporary
@@ -96,6 +97,14 @@ incremental file so the RPCs, policies, and indexes are present.
 Run `admin_performance_indexes.sql` after the Admin and moderation tables exist.
 It only adds idempotent indexes for the Admin read queues and does not modify
 existing records.
+
+Run `rejected_post_retention_upgrade.sql` after `ai_moderation.sql` for an
+existing database. It retires the old SQL-only rejected-post job and installs
+service-role-only prepare/finalize RPCs. The API uses those RPCs with the
+Supabase Storage API to remove administrator-rejected post media after seven
+days. Do not delete rows directly from `storage.objects`; Supabase requires
+Storage objects to be removed through the Storage API. The old rejected
+text/evidence audit remains while image metadata is redacted after cleanup.
 
 Fresh projects use the simplified report schema already present in `schema.sql`
 and `admin_portal.sql`. For an existing database that still has Open/Reviewing
@@ -215,8 +224,10 @@ Deploy the Express API and Admin Portal only after the local checks pass:
 3. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_BOOTSTRAP_SECRET`,
    `REPORT_REVIEW_THRESHOLD`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
    `GEMINI_FALLBACK_MODEL`, `GEMINI_TIMEOUT_MS`, `CORS_ALLOWED_ORIGINS`,
-   `PUSH_WEBHOOK_SECRET`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and
-   `FIREBASE_PRIVATE_KEY` to the Preview and Production environments. Set
+   `PUSH_WEBHOOK_SECRET`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
+   `FIREBASE_PRIVATE_KEY`, and `CRON_SECRET` to the Preview and Production
+   environments. `CRON_SECRET` must be a random value of at least 16
+   characters. Set
    `CORS_ALLOWED_ORIGINS` to a comma-separated exact list, for example
    `https://<admin-domain>,http://localhost:5173,http://127.0.0.1:5173`.
    Do not add Firebase credentials to Admin or mobile variables.
@@ -231,6 +242,12 @@ Deploy the Express API and Admin Portal only after the local checks pass:
    with the exact `x-cyanzone-webhook-secret` header. The webhook body should
    include the inserted row and its table name; verify one Chat, Activity,
    Follower, System, and Supervision event on a physical Android device.
+8. Confirm the Supabase project region in Project Settings, then configure the
+   API Function Region to the same region (or the nearest available Vercel
+   region). Do not guess this value from the developer's location.
+9. The API project's daily Cron calls `/maintenance/rejected-posts`. Keep
+   `CRON_SECRET` configured in the API project and inspect the Cron logs for
+   processed, deleted, skipped, and failed counts.
 
 Never put the service-role key or Gemini key in Admin/mobile variables. After
 deployment, verify one approved, one administrator-review, one rejected, and

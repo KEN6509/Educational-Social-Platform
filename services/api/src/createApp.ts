@@ -8,6 +8,7 @@ import {
   type CreateAdministratorInput,
 } from './routes/admin.js';
 import { healthRouter } from './routes/health.js';
+import { requestTelemetry } from './middleware/requestTelemetry.js';
 
 export type AppDependencies = {
   allowedOrigins?: readonly string[];
@@ -22,6 +23,7 @@ export type AppDependencies = {
   protectedAdminRouter: Router;
   moderationRouter: Router;
   pushRouter?: Router;
+  maintenanceRouter?: Router;
   verifyAdmin: VerifyAdmin;
 };
 
@@ -33,6 +35,7 @@ export function createApp(
 ) {
   const allowedOrigins = new Set(dependencies.allowedOrigins ?? []);
 
+  app.use(requestTelemetry());
   app.use(createHelmetMiddleware());
   app.use(cors({
     origin: (origin, callback) => {
@@ -44,6 +47,7 @@ export function createApp(
   app.use('/admin', createAdminRouter(dependencies));
   app.use('/moderation', dependencies.moderationRouter);
   if (dependencies.pushRouter) app.use('/push', dependencies.pushRouter);
+  if (dependencies.maintenanceRouter) app.use('/maintenance', dependencies.maintenanceRouter);
   app.use('/health', healthRouter);
 
   app.use(
@@ -53,7 +57,8 @@ export function createApp(
       res: express.Response,
       _next: express.NextFunction,
     ) => {
-      console.error('Unhandled API error', error);
+      res.locals.errorCategory = 'unhandled';
+      console.error('Unhandled API error', error instanceof Error ? error.name : 'unknown');
       res.status(500).json({
         error: 'Unable to complete the administrator request.',
       });

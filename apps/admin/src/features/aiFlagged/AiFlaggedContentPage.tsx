@@ -5,7 +5,7 @@ import {
   MessageSquare,
   ShieldAlert,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AsyncState } from '../../components/casework/AsyncState';
 import { CaseworkList } from '../../components/casework/CaseworkList';
@@ -18,41 +18,78 @@ import {
   decideAiFlaggedCase,
   loadAiFlaggedCases,
 } from './aiFlaggedApi';
+import { ModerationImageGallery } from './ModerationImageGallery';
 import type { AiFlaggedCase, AiFlaggedStatus } from './aiFlaggedTypes';
 
 export function AiFlaggedContentPage() {
-  const [rows, setRows] = useState<AiFlaggedCase[]>([]);
+  type QueueState = {
+    rows: AiFlaggedCase[];
+    loadState: 'loading' | 'empty' | 'error' | 'ready';
+    errorMessage: string;
+  };
+  const initialQueue: QueueState = {
+    rows: [],
+    loadState: 'loading',
+    errorMessage: 'Casework could not be loaded.',
+  };
+  const [queues, setQueues] = useState<Record<AiFlaggedStatus, QueueState>>({
+    pending: initialQueue,
+    approved: { ...initialQueue },
+    rejected: { ...initialQueue },
+  });
   const [status, setStatus] = useState<AiFlaggedStatus>('pending');
-  const [loadState, setLoadState] = useState<'loading' | 'empty' | 'error'>('loading');
-  const [errorMessage, setErrorMessage] = useState('Casework could not be loaded.');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [decision, setDecision] = useState<'approved' | 'rejected' | null>(null);
   const [saved, setSaved] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false);
+  const requestGeneration = useRef(0);
+  const activeQueue = queues[status];
+  const rows = activeQueue.rows;
 
   async function load(statusToLoad = status) {
-    setLoadState('loading');
-    setErrorMessage('Casework could not be loaded.');
+    const generation = ++requestGeneration.current;
+    setQueues((current) => ({
+      ...current,
+      [statusToLoad]: {
+        ...current[statusToLoad],
+        loadState: current[statusToLoad].rows.length > 0 ? 'ready' : 'loading',
+        errorMessage: 'Casework could not be loaded.',
+      },
+    }));
     try {
       const page = await loadAiFlaggedCases(statusToLoad);
-      setRows(page.items);
+      if (generation !== requestGeneration.current) return;
+      setQueues((current) => ({
+        ...current,
+        [statusToLoad]: {
+          rows: page.items,
+          loadState: page.items.length === 0 ? 'empty' : 'ready',
+          errorMessage: 'Casework could not be loaded.',
+        },
+      }));
       setSelectedId((current) =>
         page.items.some((item) => item.id === current)
           ? current
           : page.items[0]?.id ?? null,
       );
-      setLoadState(page.items.length === 0 ? 'empty' : 'empty');
     } catch (error) {
-      setRows([]);
-      setSelectedId(null);
-      setLoadState('error');
-      setErrorMessage(
-        error instanceof AdminApiError
-          ? error.message
-          : 'Casework could not be loaded.',
-      );
+      if (generation !== requestGeneration.current) return;
+      const existingRows = queues[statusToLoad].rows;
+      setQueues((current) => ({
+        ...current,
+        [statusToLoad]: {
+          ...current[statusToLoad],
+          loadState: existingRows.length > 0 ? 'ready' : 'error',
+          errorMessage: error instanceof AdminApiError
+            ? error.message
+            : 'Casework could not be loaded.',
+        },
+      }));
+      if (existingRows.length === 0) {
+        setSelectedId(null);
+      }
     }
   }
 
@@ -82,11 +119,15 @@ export function AiFlaggedContentPage() {
       setSaved(true);
       await load(status);
     } catch (error) {
-      setErrorMessage(
-        error instanceof AdminApiError
-          ? error.message
-          : 'The moderation decision could not be saved.',
-      );
+      setQueues((current) => ({
+        ...current,
+        [status]: {
+          ...current[status],
+          errorMessage: error instanceof AdminApiError
+            ? error.message
+            : 'The moderation decision could not be saved.',
+        },
+      }));
     } finally {
       setIsSubmitting(false);
     }
@@ -112,12 +153,12 @@ export function AiFlaggedContentPage() {
             ]}
             onChange={changeStatus}
           />
-          {loadState === 'loading' || loadState === 'error' || (loadState === 'empty' && rows.length === 0) ? (
+          {(activeQueue.loadState === 'loading' && rows.length === 0) || (activeQueue.loadState === 'error' && rows.length === 0) || (activeQueue.loadState === 'empty' && rows.length === 0) ? (
             <AsyncState
               emptyMessage={`No ${status} cases.`}
-              errorMessage={errorMessage}
+              errorMessage={activeQueue.errorMessage}
               onRetry={() => void load(status)}
-              state={loadState}
+              state={activeQueue.loadState}
             />
           ) : (
             <CaseworkList
@@ -182,16 +223,14 @@ export function AiFlaggedContentPage() {
                   <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{selected.content}</p>
                 </section>
 
-                {selected.imageUrls.length > 0 ? (
+                {selected.targetType === 'post' ? (
                   <section className="mt-5 rounded-xl border border-slate-200 p-5">
                     <div className="flex items-center gap-2 text-slate-700">
                       <ImageIcon className="h-5 w-5" aria-hidden="true" />
                       <h3 className="font-black">Attached images</h3>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
-                      {selected.imageUrls.map((url) => (
-                        <img className="aspect-square rounded-lg object-cover" key={url} src={url} alt="Moderated post attachment" />
-                      ))}
+                      <ModerationImageGallery imageUrls={selected.imageUrls} />
                     </div>
                   </section>
                 ) : null}

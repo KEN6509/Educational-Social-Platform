@@ -1,8 +1,15 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/api"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/maintenance/rejected-posts",
+      "schedule": "17 3 * * *"
     }
   ]
 }

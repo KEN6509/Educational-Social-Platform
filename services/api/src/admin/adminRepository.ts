@@ -198,7 +198,9 @@ function snapshotImageUrls(
   client: SupabaseClient,
   snapshot: Record<string, any> | null,
 ): string[] | null {
-  if (!snapshot || !Array.isArray(snapshot.images)) return null;
+  if (!snapshot) return null;
+  if (!Object.prototype.hasOwnProperty.call(snapshot, 'images')) return [];
+  if (!Array.isArray(snapshot.images)) return [];
 
   return snapshot.images.flatMap((value: unknown) => {
     const image = asRecord(value);
@@ -1133,6 +1135,9 @@ export function createAdminRepository(
         .select('*', { count: 'exact' })
         .eq('state', databaseState)
         .order('created_at', { ascending: false });
+      if (query.status !== 'pending') {
+        request = request.eq('decision_source', 'admin');
+      }
       if (query.targetType) {
         request = request.eq('target_type', query.targetType);
       }

@@ -472,6 +472,36 @@ For an existing hosted project, run `admin_performance_indexes.sql` after the
 Admin and moderation migrations. It adds only idempotent read indexes for the
 Users, Creator Requests, and AI-Flagged queues; it does not change stored data.
 
+### Rejected post retention
+
+For an existing hosted project, run `rejected_post_retention_upgrade.sql` after
+`ai_moderation.sql`. It unschedules the legacy SQL-only rejected-post job and
+adds service-role-only prepare/finalize RPCs. The API invokes these RPCs from
+the daily Vercel Cron route, deletes image objects through the Supabase Storage
+API, and only then permanently deletes the post row after the seven-day grace
+period. The migration deliberately never deletes from `storage.objects`.
+
+Verify the hosted objects:
+
+```sql
+select routine_name
+from information_schema.routines
+where routine_schema = 'public'
+  and routine_name in (
+    'prepare_expired_rejected_post_cleanup',
+    'finalize_expired_rejected_post_cleanup'
+  )
+order by routine_name;
+
+select jobname
+from cron.job
+where jobname = 'delete-old-rejected-posts';
+```
+
+Expected results are two cleanup routines and no legacy job row. If the
+`cron.job` view is unavailable, the migration's guarded unschedule step is
+safe to rerun; verify the two routines and use the Vercel Cron logs instead.
+
 ### Gemini moderation
 
 Run `ai_moderation.sql` after `admin_portal.sql` for an existing project. The
