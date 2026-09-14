@@ -199,8 +199,8 @@ function snapshotImageUrls(
   snapshot: Record<string, any> | null,
 ): string[] | null {
   if (!snapshot) return null;
-  if (!Object.prototype.hasOwnProperty.call(snapshot, 'images')) return [];
-  if (!Array.isArray(snapshot.images)) return [];
+  if (snapshot.image_evidence_redacted === true) return [];
+  if (!Array.isArray(snapshot.images)) return null;
 
   return snapshot.images.flatMap((value: unknown) => {
     const image = asRecord(value);

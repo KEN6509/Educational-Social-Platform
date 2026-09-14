@@ -1,8 +1,8 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { adminApi } from '../../lib/adminApi';
+import { AdminApiError, adminApi } from '../../lib/adminApi';
 import { AiFlaggedContentPage } from './AiFlaggedContentPage';
 
 vi.mock('../../lib/adminApi', async () => {
@@ -35,6 +35,14 @@ const pendingCase = {
   status: 'pending' as const,
   decisionReason: null,
   decidedAt: null,
+};
+
+const approvedCase = {
+  ...pendingCase,
+  id: 'case-2',
+  targetId: 'post-2',
+  title: 'Administrator approved post',
+  status: 'approved' as const,
 };
 
 describe('AiFlaggedContentPage', () => {
@@ -91,5 +99,38 @@ describe('AiFlaggedContentPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Enter a reason between 10 and 500 characters before choosing "Reject content".',
     );
+  });
+
+  it('ignores an older tab response after the administrator changes tabs', async () => {
+    const user = userEvent.setup();
+    let resolvePending!: (value: unknown) => void;
+    let resolveApproved!: (value: unknown) => void;
+    vi.mocked(adminApi.get).mockReset()
+      .mockImplementationOnce(() => new Promise((resolve) => { resolvePending = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveApproved = resolve; }));
+
+    render(<AiFlaggedContentPage />);
+    await user.click(screen.getByRole('tab', { name: 'Approved' }));
+    await waitFor(() => expect(adminApi.get).toHaveBeenCalledTimes(2));
+    resolveApproved({ items: [approvedCase], page: 1, pageSize: 20, total: 1 });
+    expect((await screen.findAllByText('Administrator approved post'))[0]).toBeVisible();
+    resolvePending({ items: [pendingCase], page: 1, pageSize: 20, total: 1 });
+    await waitFor(() => expect(screen.queryByText('A reviewed post')).not.toBeInTheDocument());
+  });
+
+  it('keeps cached rows visible when their background refresh fails', async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.get).mockReset()
+      .mockResolvedValueOnce({ items: [pendingCase], page: 1, pageSize: 20, total: 1 })
+      .mockResolvedValueOnce({ items: [approvedCase], page: 1, pageSize: 20, total: 1 })
+      .mockRejectedValueOnce(new AdminApiError('server', 'Unable to refresh moderation cases.', 503));
+
+    render(<AiFlaggedContentPage />);
+    expect((await screen.findAllByText('A reviewed post'))[0]).toBeVisible();
+    await user.click(screen.getByRole('tab', { name: 'Approved' }));
+    expect((await screen.findAllByText('Administrator approved post'))[0]).toBeVisible();
+    await user.click(screen.getByRole('tab', { name: 'Pending' }));
+    expect((await screen.findAllByText('A reviewed post'))[0]).toBeVisible();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to refresh moderation cases.');
   });
 });

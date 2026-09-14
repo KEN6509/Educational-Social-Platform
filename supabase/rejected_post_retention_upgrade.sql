@@ -50,7 +50,9 @@ begin
 
   if not found then
     update public.content_moderation_cases
-    set target_snapshot = target_snapshot - 'images', updated_at = now()
+    set target_snapshot = (target_snapshot - 'images')
+          || jsonb_build_object('image_evidence_redacted', true),
+        updated_at = now()
     where id = v_case.id;
     return jsonb_build_object('action', 'missing', 'storage_paths', '[]'::jsonb);
   end if;
@@ -59,7 +61,9 @@ begin
     or v_post.moderation_status not in ('rejected'::public.moderation_status, 'removed'::public.moderation_status)
   then
     update public.content_moderation_cases
-    set target_snapshot = target_snapshot - 'images', updated_at = now()
+    set target_snapshot = (target_snapshot - 'images')
+          || jsonb_build_object('image_evidence_redacted', true),
+        updated_at = now()
     where id = v_case.id;
     return jsonb_build_object('action', 'superseded', 'storage_paths', '[]'::jsonb);
   end if;
@@ -111,7 +115,9 @@ begin
 
   if not found then
     update public.content_moderation_cases
-    set target_snapshot = target_snapshot - 'images', updated_at = now()
+    set target_snapshot = (target_snapshot - 'images')
+          || jsonb_build_object('image_evidence_redacted', true),
+        updated_at = now()
     where id = v_case.id;
     return jsonb_build_object('action', 'missing');
   end if;
@@ -120,14 +126,18 @@ begin
     or v_post.moderation_status <> 'removed'::public.moderation_status
   then
     update public.content_moderation_cases
-    set target_snapshot = target_snapshot - 'images', updated_at = now()
+    set target_snapshot = (target_snapshot - 'images')
+          || jsonb_build_object('image_evidence_redacted', true),
+        updated_at = now()
     where id = v_case.id;
     return jsonb_build_object('action', 'skip');
   end if;
 
   delete from public.posts where id = v_post.id;
   update public.content_moderation_cases
-  set target_snapshot = target_snapshot - 'images', updated_at = now()
+  set target_snapshot = (target_snapshot - 'images')
+        || jsonb_build_object('image_evidence_redacted', true),
+      updated_at = now()
   where id = v_case.id;
   return jsonb_build_object('action', 'deleted');
 end;

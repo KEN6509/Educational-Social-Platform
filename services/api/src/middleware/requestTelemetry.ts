@@ -5,6 +5,7 @@ export function requestTelemetry(): RequestHandler {
   return (req, res, next) => {
     const requestId = randomUUID();
     const startedAt = process.hrtime.bigint();
+    const requestPath = req.path;
     res.locals.requestId = requestId;
     res.setHeader('X-Request-Id', requestId);
     res.on('finish', () => {
@@ -12,7 +13,7 @@ export function requestTelemetry(): RequestHandler {
       console.info(JSON.stringify({
         requestId,
         method: req.method,
-        path: req.path,
+        path: requestPath,
         status: res.statusCode,
         durationMs: Math.round(durationMs * 100) / 100,
         errorCategory: res.locals.errorCategory ?? null,

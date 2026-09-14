@@ -26,11 +26,13 @@ export function AiFlaggedContentPage() {
     rows: AiFlaggedCase[];
     loadState: 'loading' | 'empty' | 'error' | 'ready';
     errorMessage: string;
+    refreshError: string | null;
   };
   const initialQueue: QueueState = {
     rows: [],
     loadState: 'loading',
     errorMessage: 'Casework could not be loaded.',
+    refreshError: null,
   };
   const [queues, setQueues] = useState<Record<AiFlaggedStatus, QueueState>>({
     pending: initialQueue,
@@ -56,6 +58,7 @@ export function AiFlaggedContentPage() {
         ...current[statusToLoad],
         loadState: current[statusToLoad].rows.length > 0 ? 'ready' : 'loading',
         errorMessage: 'Casework could not be loaded.',
+        refreshError: null,
       },
     }));
     try {
@@ -67,6 +70,7 @@ export function AiFlaggedContentPage() {
           rows: page.items,
           loadState: page.items.length === 0 ? 'empty' : 'ready',
           errorMessage: 'Casework could not be loaded.',
+          refreshError: null,
         },
       }));
       setSelectedId((current) =>
@@ -85,6 +89,11 @@ export function AiFlaggedContentPage() {
           errorMessage: error instanceof AdminApiError
             ? error.message
             : 'Casework could not be loaded.',
+          refreshError: existingRows.length > 0
+            ? error instanceof AdminApiError
+              ? error.message
+              : 'Casework could not be refreshed.'
+            : null,
         },
       }));
       if (existingRows.length === 0) {
@@ -126,6 +135,9 @@ export function AiFlaggedContentPage() {
           errorMessage: error instanceof AdminApiError
             ? error.message
             : 'The moderation decision could not be saved.',
+          refreshError: error instanceof AdminApiError
+            ? error.message
+            : 'The moderation decision could not be saved.',
         },
       }));
     } finally {
@@ -141,6 +153,14 @@ export function AiFlaggedContentPage() {
           Review content identified by Gemini moderation.
         </p>
       </header>
+      {activeQueue.refreshError ? (
+        <p
+          className="m-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800"
+          role="alert"
+        >
+          {activeQueue.refreshError}
+        </p>
+      ) : null}
 
       <div className="grid min-h-[calc(100vh-7rem)] xl:grid-cols-[26rem_minmax(0,1fr)]">
         <aside className={`border-r border-slate-200 ${mobileDetail ? 'hidden xl:block' : 'block'}`}>
@@ -229,9 +249,7 @@ export function AiFlaggedContentPage() {
                       <ImageIcon className="h-5 w-5" aria-hidden="true" />
                       <h3 className="font-black">Attached images</h3>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
-                      <ModerationImageGallery imageUrls={selected.imageUrls} />
-                    </div>
+                    <ModerationImageGallery imageUrls={selected.imageUrls} />
                   </section>
                 ) : null}
 

@@ -224,9 +224,10 @@ Deploy the Express API and Admin Portal only after the local checks pass:
 3. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_BOOTSTRAP_SECRET`,
    `REPORT_REVIEW_THRESHOLD`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
    `GEMINI_FALLBACK_MODEL`, `GEMINI_TIMEOUT_MS`, `CORS_ALLOWED_ORIGINS`,
-   `PUSH_WEBHOOK_SECRET`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
-   `FIREBASE_PRIVATE_KEY`, and `CRON_SECRET` to the Preview and Production
-   environments. `CRON_SECRET` must be a random value of at least 16
+   `PUSH_WEBHOOK_SECRET`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and
+   `FIREBASE_PRIVATE_KEY` to the Preview and Production environments. Add
+   `CRON_SECRET` to Production; Preview is optional for manually testing the
+   protected maintenance route. It must be a random value of at least 16
    characters. Set
    `CORS_ALLOWED_ORIGINS` to a comma-separated exact list, for example
    `https://<admin-domain>,http://localhost:5173,http://127.0.0.1:5173`.

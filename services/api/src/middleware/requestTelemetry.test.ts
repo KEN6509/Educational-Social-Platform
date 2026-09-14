@@ -25,3 +25,19 @@ test('returns a request ID and logs safe timing fields', async () => {
     console.info = original;
   }
 });
+
+test('captures the complete route before nested routers change the request URL', async () => {
+  const logs: string[] = [];
+  const original = console.info;
+  console.info = (message: string) => logs.push(message);
+  try {
+    const nested = express.Router().get('/overview', (_req, res) => res.json({ ok: true }));
+    const app = express().use(requestTelemetry()).use('/admin', nested);
+    await request(app).get('/admin/overview?search=private');
+    const event = JSON.parse(logs[0]);
+    assert.equal(event.path, '/admin/overview');
+    assert.equal(JSON.stringify(event).includes('private'), false);
+  } finally {
+    console.info = original;
+  }
+});
