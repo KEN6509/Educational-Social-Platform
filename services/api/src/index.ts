@@ -33,6 +33,10 @@ import {
 } from './push/pushRepository.js';
 import { createPushRouter } from './push/pushRouter.js';
 import { createPushService } from './push/pushService.js';
+import { createMaintenanceRouter } from './maintenance/maintenanceRouter.js';
+import { createRejectedPostCleanup } from './maintenance/rejectedPostCleanup.js';
+import { createRejectedPostCleanupRepository } from './maintenance/rejectedPostCleanupRepository.js';
+import type { RejectedPostCleanupClient } from './maintenance/rejectedPostCleanupRepository.js';
 
 const adminAuthSource: AdminAuthSource = {
   getUser: async (token) => {
@@ -135,6 +139,17 @@ const pushRouter = env.PUSH_WEBHOOK_SECRET &&
     })
   : undefined;
 
+const maintenanceRouter = env.CRON_SECRET
+  ? createMaintenanceRouter({
+      cronSecret: env.CRON_SECRET,
+      runRejectedPostCleanup: () => createRejectedPostCleanup(
+        createRejectedPostCleanupRepository(
+          supabaseAdmin as unknown as RejectedPostCleanupClient,
+        ),
+      ).run(100),
+    })
+  : undefined;
+
 const app = createApp({
   allowedOrigins: env.CORS_ALLOWED_ORIGINS,
   bootstrapSecret: env.ADMIN_BOOTSTRAP_SECRET,
@@ -175,6 +190,7 @@ const app = createApp({
   protectedAdminRouter,
   moderationRouter,
   pushRouter,
+  maintenanceRouter,
   verifyAdmin: createVerifyAdmin(adminAuthSource),
 }, express());
 

@@ -81,6 +81,35 @@ describe('adminApi', () => {
     } satisfies Partial<AdminApiError>);
   });
 
+  it('retries a transient GET once and then caches only the success', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const api = createAdminApi({
+      baseUrl: 'https://api.cyanzone.test',
+      fetcher,
+      getAccessToken: async () => 'access-token',
+      retryDelayMs: 0,
+    });
+    await expect(api.get('/admin/overview')).resolves.toEqual({ ok: true });
+    await api.get('/admin/overview');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a non-transient GET or any POST', async () => {
+    const fetcher = vi.fn(async (_url: string | URL | Request, init?: RequestInit) =>
+      new Response(JSON.stringify({ error: 'Not allowed.' }), { status: init?.method === 'POST' ? 400 : 404 }),
+    );
+    const api = createAdminApi({
+      baseUrl: 'https://api.cyanzone.test',
+      fetcher,
+      getAccessToken: async () => 'access-token',
+    });
+    await expect(api.get('/admin/overview')).rejects.toMatchObject({ code: 'not-found' });
+    await expect(api.post('/admin/overview', {})).rejects.toMatchObject({ code: 'validation' });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it('classifies a missing session before making a request', async () => {
     const fetcher = vi.fn();
     const api = createAdminApi({

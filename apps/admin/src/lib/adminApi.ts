@@ -12,6 +12,7 @@ export class AdminApiError extends Error {
   constructor(
     public readonly code: AdminApiErrorCode,
     message: string,
+    public readonly status?: number,
   ) {
     super(message);
     this.name = 'AdminApiError';
@@ -35,9 +36,19 @@ type AdminApiDependencies = {
   baseUrl: string;
   fetcher: typeof fetch;
   getAccessToken: () => Promise<string | null>;
+  requestTimeoutMs?: number;
+  retryDelayMs?: number;
+  sleep?: (milliseconds: number) => Promise<void>;
 };
 
 const ADMIN_READ_CACHE_TTL_MS = 10_000;
+const RETRYABLE_GET_STATUSES = new Set([500, 502, 503, 504]);
+
+function isAbortError(error: unknown): boolean {
+  return typeof DOMException !== 'undefined'
+    && error instanceof DOMException
+    && error.name === 'AbortError';
+}
 
 function statusToCode(status: number): AdminApiErrorCode {
   if (status === 401) return 'unauthenticated';
@@ -88,38 +99,73 @@ export function createAdminApi(
       }
     }
 
-    const execute = async (): Promise<T> => {
-      const response = await dependencies.fetcher.call(
-        globalThis,
-        url.toString(),
-        {
-          ...init,
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${token}`,
-            ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-            ...init.headers,
-          },
-        },
+    const executeOnce = async (): Promise<T> => {
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(),
+        dependencies.requestTimeoutMs ?? 15_000,
       );
+      try {
+        const response = await dependencies.fetcher.call(
+          globalThis,
+          url.toString(),
+          {
+            ...init,
+            signal: controller.signal,
+            headers: {
+              Accept: 'application/json',
+              Authorization: `Bearer ${token}`,
+              ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+              ...init.headers,
+            },
+          },
+        );
 
-      if (!response.ok) {
-        let message = 'Unable to complete the administrator request.';
-        try {
-          const payload = (await response.json()) as { error?: string };
-          if (payload.error) {
-            message = payload.error;
+        if (!response.ok) {
+          let message = 'Unable to complete the administrator request.';
+          try {
+            const payload = (await response.json()) as { error?: string };
+            if (payload.error) {
+              message = payload.error;
+            }
+          } catch {
+            // Keep the safe fallback message.
           }
-        } catch {
-          // Keep the safe fallback message.
+          throw new AdminApiError(statusToCode(response.status), message, response.status);
         }
-        throw new AdminApiError(statusToCode(response.status), message);
-      }
 
-      if (response.status === 204) {
-        return undefined as T;
+        if (response.status === 204) {
+          return undefined as T;
+        }
+        return (await response.json()) as T;
+      } finally {
+        clearTimeout(timeout);
       }
-      return (await response.json()) as T;
+    };
+
+    const execute = async (): Promise<T> => {
+      const isGet = init.method === 'GET';
+      const maxAttempts = isGet ? 2 : 1;
+      const sleep = dependencies.sleep ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          return await executeOnce();
+        } catch (error) {
+          const retryable = isGet && (
+            error instanceof AdminApiError
+              ? RETRYABLE_GET_STATUSES.has(error.status ?? 0)
+              : error instanceof TypeError || isAbortError(error)
+          );
+          if (attempt < maxAttempts && retryable) {
+            await sleep(dependencies.retryDelayMs ?? 150);
+            continue;
+          }
+          throw error instanceof TypeError || isAbortError(error)
+            ? new AdminApiError('server', 'Unable to complete the administrator request.')
+            : error;
+        }
+      }
+      throw new AdminApiError('server', 'Unable to complete the administrator request.');
     };
 
     if (init.method !== 'GET') {

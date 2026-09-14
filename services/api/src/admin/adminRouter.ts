@@ -33,15 +33,19 @@ export type ProtectedAdminRouterDependencies = {
 
 function sendAdminError(res: Response, error: unknown) {
   if (error instanceof AdminValidationError) {
+    res.locals.errorCategory = 'admin_validation';
     return res.status(400).json({ error: error.message });
   }
   if (error instanceof AdminNotFoundError) {
+    res.locals.errorCategory = 'admin_not_found';
     return res.status(404).json({ error: error.message });
   }
   if (error instanceof AdminConflictError) {
+    res.locals.errorCategory = 'admin_conflict';
     return res.status(409).json({ error: error.message });
   }
 
+  res.locals.errorCategory = 'admin_request';
   return res.status(500).json({
     error: 'Unable to complete the administrator request.',
   });

@@ -61,7 +61,10 @@ async function handleModeration(
       return;
     }
 
-    console.error('Unhandled moderation error', error);
+    console.error(
+      'Unhandled moderation error',
+      error instanceof Error ? error.name : 'unknown',
+    );
     res.status(500).json({
       error: 'Unable to complete the moderation request.',
     });

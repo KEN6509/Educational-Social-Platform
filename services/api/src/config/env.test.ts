@@ -83,6 +83,12 @@ test('push configuration is optional for local development', () => {
   assert.equal(env.FIREBASE_PROJECT_ID, undefined);
 });
 
+test('Cron cleanup secret is optional locally and requires at least 16 characters', () => {
+  assert.equal(parseEnv(requiredEnv).CRON_SECRET, undefined);
+  assert.throws(() => parseEnv({ ...requiredEnv, CRON_SECRET: 'short' }));
+  assert.equal(parseEnv({ ...requiredEnv, CRON_SECRET: 'c'.repeat(32) }).CRON_SECRET, 'c'.repeat(32));
+});
+
 test('push configuration requires every Firebase credential together', () => {
   assert.throws(
     () =>

@@ -107,6 +107,9 @@ function handleError(res: Response, error: unknown, fallback: string) {
     res.status(error.status).json({error: error.message});
     return;
   }
-  console.error('Push operation failed', error);
+  console.error(
+    'Push operation failed',
+    error instanceof Error ? error.name : 'unknown',
+  );
   res.status(500).json({error: fallback});
 }
