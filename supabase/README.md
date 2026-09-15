@@ -167,6 +167,13 @@ rerunning the complete file keeps existing alerts and records, creates the live
 SOS objects, and backfills available legacy SOS coordinates and timeline events
 where the stored data is sufficient.
 
+After the complete migration, existing projects must also run
+`parent_supervision_history_access.sql`. This focused, rerunnable policy upgrade
+allows a former parent to read only Check-In and SOS records created while that
+specific link was active. It does not restore screen-time access, live sharing,
+or any write permission after unlinking. Fresh projects receive the same
+policies from `schema.sql`.
+
 Verify the six core module tables:
 
 ```sql

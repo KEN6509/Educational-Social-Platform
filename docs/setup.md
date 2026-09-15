@@ -52,13 +52,14 @@ by the current mobile app. At minimum, the live project should include:
 8. `supabase/comment_mentions.sql`
 9. `supabase/chat.sql`
 10. `supabase/parent_supervision.sql`
-11. `supabase/registration_consent_otp.sql`
-12. `supabase/admin_portal.sql`
-13. `supabase/report_flow_simplification.sql` for an existing database only
-14. `supabase/ai_moderation.sql`
-15. `supabase/fcm_push_notifications.sql`
-16. `supabase/admin_performance_indexes.sql`
-17. `supabase/rejected_post_retention_upgrade.sql` for an existing database
+11. `supabase/parent_supervision_history_access.sql` for an existing database only
+12. `supabase/registration_consent_otp.sql`
+13. `supabase/admin_portal.sql`
+14. `supabase/report_flow_simplification.sql` for an existing database only
+15. `supabase/ai_moderation.sql`
+16. `supabase/fcm_push_notifications.sql`
+17. `supabase/admin_performance_indexes.sql`
+18. `supabase/rejected_post_retention_upgrade.sql` for an existing database
 
 Existing projects must run `supabase/creator_follower_gate.sql` after
 `follow.sql`. It preserves creator requests while adding the temporary

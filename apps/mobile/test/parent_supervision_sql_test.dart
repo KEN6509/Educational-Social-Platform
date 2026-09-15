@@ -5,13 +5,55 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   late String migration;
   late String schema;
+  late String historyUpgrade;
   late String readme;
 
   setUpAll(() {
     migration =
         File('../../supabase/parent_supervision.sql').readAsStringSync();
     schema = File('../../supabase/schema.sql').readAsStringSync();
+    final historyUpgradeFile =
+        File('../../supabase/parent_supervision_history_access.sql');
+    historyUpgrade = historyUpgradeFile.existsSync()
+        ? historyUpgradeFile.readAsStringSync()
+        : '';
     readme = File('../../supabase/README.md').readAsStringSync();
+  });
+
+  test('preserves former-parent safety records within each link window', () {
+    expect(historyUpgrade, isNotEmpty);
+    for (final sql in [migration, schema, historyUpgrade]) {
+      expect(sql, contains('Family views child safety records'));
+      expect(sql, contains('Family views child SOS records'));
+      expect(sql, contains('Family views SOS live locations'));
+      expect(sql, contains('Family views SOS events'));
+      expect(sql, contains('link.linked_at is not null'));
+      expect(sql, contains('link.linked_at <= check_ins.created_at'));
+      expect(sql, contains('check_ins.created_at <= link.revoked_at'));
+      expect(sql, contains('link.linked_at <= sos_alerts.created_at'));
+      expect(sql, contains('sos_alerts.created_at <= link.revoked_at'));
+      expect(sql, contains("link.status = 'active'"));
+      expect(sql, contains("link.status = 'revoked'"));
+    }
+  });
+
+  test('keeps historical safety access read-only and screen time current', () {
+    for (final sql in [migration, schema]) {
+      expect(sql, contains('Family can view screen time'));
+      expect(
+        sql,
+        matches(
+          RegExp(
+            r"link\.child_id = screen_time_logs\.user_id\s+and link\.status = 'active'",
+          ),
+        ),
+      );
+      expect(sql, contains('No active parent link'));
+      expect(
+        sql,
+        contains('Current parent must acknowledge before resolving'),
+      );
+    }
   });
 
   test('canonical schema matches parent supervision migration contracts', () {
@@ -87,7 +129,11 @@ void main() {
       ),
     );
     expect(migration, contains('Users view own supervision notifications'));
-    expect(migration, contains('Active family views child safety records'));
+    expect(migration, contains('Family views child safety records'));
+    expect(
+      readme,
+      contains('parent_supervision_history_access.sql'),
+    );
   });
 
   test('publishes live supervision tables', () {
@@ -141,8 +187,8 @@ void main() {
           'revoke insert, update, delete on public.sos_events from authenticated',
         ),
       );
-      expect(sql, contains('Active family views SOS live locations'));
-      expect(sql, contains('Active family views SOS events'));
+      expect(sql, contains('Family views SOS live locations'));
+      expect(sql, contains('Family views SOS events'));
       expect(
         sql,
         contains('Only the child can update an unresolved SOS location'),
