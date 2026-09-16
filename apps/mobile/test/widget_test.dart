@@ -50,7 +50,9 @@ void main() {
     await pumpApp(tester);
     await tester.pump();
 
-    await tester.tap(find.text('Log in').last);
+    final loginSubmit = find.text('Log in').last;
+    await tester.ensureVisible(loginSubmit);
+    await tester.tap(loginSubmit);
     await tester.pump();
 
     expect(find.text('Enter a valid email address.'), findsOneWidget);
