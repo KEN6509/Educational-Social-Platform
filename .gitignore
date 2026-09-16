@@ -5,9 +5,11 @@
 
 # Node
 node_modules/
+.pnpm-store/
 dist/
 .vite/
 coverage/
+*.tsbuildinfo
 
 # Flutter
 .dart_tool/
@@ -24,7 +26,13 @@ Thumbs.db
 .DS_Store
 
 # Local design exploration
+.agents/
 .superpowers/
+.tmp/
+.tmp-*/
+
+# Runtime logs
+*.log
 
 # Local isolated Git worktrees
 .worktrees/

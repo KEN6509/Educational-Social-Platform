@@ -77,7 +77,10 @@ void main() {
   test('Supabase README documents parent supervision rollout', () {
     expect(readme, contains('parent_supervision.sql'));
     expect(readme, contains('supervision_notifications'));
-    expect(readme, contains('Android FCM delivery is implemented in code'));
+    expect(
+      readme,
+      contains('physical-device push validation remains part of UAT'),
+    );
     expect(
         readme, contains('In-app Realtime notifications remain independent'));
   });

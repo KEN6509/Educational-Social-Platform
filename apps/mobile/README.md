@@ -12,9 +12,14 @@ Flutter application for CyanZone's educational social, chat, and family-safety e
 - Group-chat member mentions, admin-only `@all`, tappable profile links, and oldest-first unread mention navigation
 - Activity, System, and New Followers pages with in-app badges/read state
 - Android push notification permission, per-device FCM registration, foreground/background handling, and safe typed notification destinations
-- Parent-child repository and safety-center foundations
+- Parent/child linking, screen-time reminders, Safety Check-In, foreground SOS
+  tracking, safety records, supervision notifications, two-party unlinking, and
+  time-window-authorized historical records
 
-Android FCM delivery, Gemini moderation, and the remaining parent-supervision acceptance work are implemented in code. Live Firebase, Supabase webhook, Vercel environment, and device acceptance configuration still require manual setup.
+The current Supabase migrations, Gemini/API deployment, Firebase Android
+configuration, Vercel environment, and notification webhooks are configured.
+Android FCM physical-device UAT and the broader final acceptance record remain.
+iOS/APNs delivery is intentionally deferred.
 
 ## Run
 
@@ -32,4 +37,7 @@ flutter analyze
 flutter test
 ```
 
-For current implementation details, database script order, and next-work handoff, read the repository root `Project_Overview.md` and `docs/setup.md`.
+For current implementation details, database script order, and the documentation
+handover, read the repository root
+[`Project_Overview.md`](../../Project_Overview.md) and
+[`docs/setup.md`](../../docs/setup.md).

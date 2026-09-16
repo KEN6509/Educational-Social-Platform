@@ -80,8 +80,7 @@ apps/admin/                     React Administration Portal
 services/api/                   Express privileged API
 supabase/                       Base schema and incremental SQL
 docs/setup.md                   Local and database setup
-docs/superpowers/specs/         Approved/historical designs
-docs/superpowers/plans/         Historical implementation plans
+docs/Future_Improvements.md     Deferred post-MVP improvements
 ```
 
 Important mobile entry points:
@@ -462,7 +461,8 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] Implement server-authoritative two-party unlink request, approval, and rejection outcomes.
 - [x] Preserve former-parent read access only to Check-In/SOS records created inside each link's active time window; keep later records, screen time, live sharing, and writes unavailable after unlinking.
 - [x] Keep the accepted two-party unlink flow without current-password reauthentication.
-- [ ] Apply `parent_supervision_history_access.sql`, then run RLS/integration/device acceptance for every role, relationship state, permission outcome, and former-link history rule.
+- [x] Apply `parent_supervision_history_access.sql` to the hosted Supabase project.
+- [ ] Run RLS/integration/device acceptance for every role, relationship state, permission outcome, and former-link history rule.
 
 ### 5. Notifications and FCM
 
@@ -721,9 +721,9 @@ verification block for the current automated baseline.
 - Prepare the Software Design Specification around the six agreed GoF patterns:
   Factory Method, Adapter, Facade, Strategy, Observer, and State. Repository may
   be documented separately but is not part of that six-pattern count.
-- Use `docs/superpowers/specs/2026-09-10-mobile-architecture-ui-refactor-design.md`
-  for the pattern rationale and refactor boundaries. Use the later September
-  specs for concrete implementation decisions.
+- Use the implemented-pattern table in this overview together with the cited
+  production classes and tests as the source of truth for the SDS. Historical
+  agent implementation plans were removed during final repository cleanup.
 - Keep message requests dormant, private chat outside Gemini moderation, and
   the creator threshold at two followers for MVP/UAT unless requirements are
   deliberately revised.
@@ -743,8 +743,8 @@ verification block for the current automated baseline.
    final production decision.
 4. Confirm `REPORT_REVIEW_THRESHOLD=1000` in the production API environment
    before the production release; keep `1` only for the current small UAT data.
-5. Apply and complete multi-account acceptance for the Parent Supervision
-   historical-access policy upgrade.
+5. Complete multi-account acceptance for the applied Parent Supervision
+   historical-access policy.
 6. Produce the Software Design Specification and final report from the verified
    implementation rather than from older phase plans.
 

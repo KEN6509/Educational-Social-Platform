@@ -9,6 +9,8 @@ AI-Assisted Parent-Supervised Educational Social Platform for Teenagers.
 - Backend service: Node.js, Express
 - Backend platform: Supabase Auth, PostgreSQL, Storage, Realtime
 - AI moderation: Google Gemini for public text and image posts/comments
+- Android push notifications: Firebase Cloud Messaging
+- Deployment: Vercel for the API and Administration Portal
 
 ## Workspace Structure
 
@@ -19,12 +21,14 @@ apps/
 services/
   api/          Express API for privileged operations and Gemini moderation
 supabase/
-  auth.sql      Phase 3 auth trigger and admin policies
+  auth.sql      Authentication triggers and administrator policies
   README.md     Supabase setup guide
-  schema.sql    Phase 2 database schema
-  storage.sql   Phase 1 storage bucket setup
+  schema.sql    Canonical database schema
+  storage.sql   Storage bucket setup
 docs/
-  setup.md      Local setup and demo notes
+  setup.md                Complete setup and deployment guide
+  Future_Improvements.md  Deferred post-MVP improvements
+Project_Overview.md       Current implementation and SRS handover
 ```
 
 ## Initial Setup
@@ -35,10 +39,9 @@ docs/
 4. Run `supabase/storage.sql` in the Supabase SQL editor to create storage buckets.
 5. Run `supabase/schema.sql` in the Supabase SQL editor to create database tables.
 6. Run `supabase/auth.sql` in the Supabase SQL editor to enable profile auto-create.
-7. Apply the incremental SQL required by current modules, especially
-   `follow.sql`, `comment_mentions.sql`, `chat.sql`, `parent_supervision.sql`,
-   `registration_consent_otp.sql`, `admin_portal.sql`, and
-   `ai_moderation.sql`; see `docs/setup.md` for the complete order.
+7. Apply the incremental SQL required by current modules in the exact order in
+   [`docs/setup.md`](docs/setup.md). Git and Vercel deployments do not apply
+   Supabase SQL.
 8. Install dependencies for each app when local tooling is available.
 
 ## Applications
@@ -51,10 +54,11 @@ flutter pub get
 flutter run
 ```
 
-The mobile app currently includes the educational feed, post creation/detail,
-profiles/search, parent-child foundations, direct/group chat, chat media and
-shared posts, Activity/New Followers, unread badges, and offline-oriented media
-caching. See `Project_Overview.md` for the current code-level handoff.
+The mobile app includes the educational feed, moderated posts/comments,
+profiles/search, Parent Supervision, direct/group chat, Android push and in-app
+notifications, safety Check-In/SOS, and offline-oriented media caching. See
+[`Project_Overview.md`](Project_Overview.md) for the current implementation
+handover.
 
 ### API
 
@@ -72,7 +76,9 @@ call; safety and permanent failures stop immediately. Each provider call has a
 15-second timeout. `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, and
 `GEMINI_TIMEOUT_MS` are optional overrides. Keep all Gemini credentials
 server-side; never put them in Flutter, React, Supabase client configuration,
-or source control. Health and admin-bootstrap routes do not call Gemini.
+or source control. Firebase service-account values, webhook secrets, the
+Supabase service-role key, and `CRON_SECRET` are also API-only. Health and
+admin-bootstrap routes do not call Gemini.
 
 Create the first admin after running `supabase/auth.sql`.
 
@@ -114,17 +120,17 @@ CyanZone prioritizes a polished prototype over broad unfinished scope:
 - Educational Rednote-style feed
 - Admin creator approval and moderation workflow
 
-## Current Implementation Boundary
+## MVP Delivery Status
 
-- Supabase-backed in-app chat notifications and badges are implemented.
-- Android FCM push delivery is implemented and the Firebase/Vercel credentials
-  are configured. Supabase webhooks and physical-device acceptance remain to be
-  completed; iOS/APNs delivery is a future improvement.
-- Gemini text/image moderation is connected through the privileged API and the
-  mobile/Admin clients. Failed requests are retained for same-record retry,
-  and administrator cases preserve the submitted content revision. Live
-  Supabase migration, Gemini key/Vercel environment setup, and final acceptance
-  evidence are still required.
+- Mobile, Administration Portal, API, Supabase, Gemini moderation, Android FCM,
+  Parent Supervision, and Vercel implementation/configuration are complete for
+  the current MVP scope.
+- The Administration Portal and API deployments report Ready. The current
+  database migrations, including former-link Parent Supervision history access,
+  have been applied.
+- Android FCM physical-device UAT and the wider functional/non-functional
+  acceptance record remain before final submission. iOS/APNs is a future
+  improvement.
 - Chat is intentionally excluded from AI moderation.
-- Parent-child linking and supervision flows remain incomplete and are a next
-  implementation priority.
+- The temporary two-follower creator threshold and test-only
+  `REPORT_REVIEW_THRESHOLD=1` must be reviewed before a production release.
