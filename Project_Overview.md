@@ -1,10 +1,38 @@
 # CyanZone Project Overview and SRS Delivery Handover
 
-Last reviewed against the workspace: **September 7, 2026**. The SRS traceability
+Last reviewed against the workspace: **September 15, 2026**. The SRS traceability
 baseline was last reviewed against **Software Requirement Specification.docx**
 on **August 2, 2026**.
 
 This is the canonical starting point for a developer or AI session. Source code, tests, and SQL remain authoritative for what is implemented. The Software Requirement Specification (SRS) is authoritative for what CyanZone must deliver.
+
+## Current delivery snapshot
+
+- The planned mobile, Administration Portal, privileged API, Gemini moderation,
+  Android push-notification, Supabase, and Vercel development work is complete
+  for the current MVP scope.
+- The mobile architecture/UI refactor and performance pass are complete. Shared
+  design tokens, dialogs, feedback surfaces, navigation clearance, bounded
+  refresh coordination, caching, deterministic ordering, and feature-local
+  presentation decomposition are in place.
+- The Administration Portal and API are deployed on Vercel. The API is aligned
+  with the Supabase Singapore region through Vercel `sin1`; `/health` responds
+  successfully and privileged maintenance requests reject missing credentials.
+- Gemini text/image moderation is live. Administrator-completed moderation
+  queues exclude automatic Gemini decisions, preserve immutable text evidence,
+  show uncropped available images, and degrade safely when historical media has
+  been removed.
+- Administrator-rejected posts use a secured, idempotent seven-day cleanup
+  workflow. Vercel Cron calls `/maintenance/rejected-posts` daily at `03:17`
+  UTC (`11:17` Malaysia time) using the server-only `CRON_SECRET`.
+- Android FCM delivery is implemented and its Firebase, Vercel, and Supabase
+  webhook configuration is complete. End-to-end physical-device FCM UAT is the
+  only unfinished push-notification validation.
+- Full automated verification on September 15 passed: Mobile **498 tests** plus
+  clean `flutter analyze`; Administration Portal **61 tests**, TypeScript, and
+  production build; API **148 tests**, TypeScript, and production build.
+- Development completion does not replace UAT or the remaining non-functional
+  measurements. Documentation and final-report work are the next project phase.
 
 ## Delivery rule
 
@@ -27,7 +55,11 @@ CyanZone is a mobile-first, parent-supervised educational and interest-based soc
 - Required deployment target: Vercel for the Administration Portal and Express API/Vercel Functions.
 - Version control: Git with the GitHub `origin` repository.
 
-The Gemini moderation workflow, authenticated Admin moderation queue, and Android FCM push delivery are implemented in code. Live Firebase/Supabase webhook/Vercel configuration and final acceptance evidence remain pending. Private direct and group chat messages are intentionally excluded from AI moderation.
+The Gemini moderation workflow, authenticated Admin moderation queue, Android
+FCM push delivery, Firebase/Supabase webhook connection, and Vercel deployment
+are implemented and configured. Physical-device FCM UAT and the final
+non-functional acceptance evidence remain pending. Private direct and group
+chat messages are intentionally excluded from AI moderation.
 
 ## Stable product rules
 
@@ -48,8 +80,7 @@ apps/admin/                     React Administration Portal
 services/api/                   Express privileged API
 supabase/                       Base schema and incremental SQL
 docs/setup.md                   Local and database setup
-docs/superpowers/specs/         Approved/historical designs
-docs/superpowers/plans/         Historical implementation plans
+docs/Future_Improvements.md     Deferred post-MVP improvements
 ```
 
 Important mobile entry points:
@@ -64,12 +95,34 @@ apps/mobile/lib/src/features/profile/
 apps/mobile/lib/src/features/parent_child/
 ```
 
+## Implemented software design patterns
+
+The refactor deliberately uses six GoF patterns. These are the six patterns to
+carry into the Software Design Specification; they were selected because they
+match real CyanZone responsibilities rather than to satisfy a pattern count.
+
+| GoF pattern | CyanZone implementation evidence | Purpose |
+| --- | --- | --- |
+| Factory Method | `AppDependencies.production(...)` and focused construction helpers create production or substitute dependencies. | Keeps SDK and environment-specific construction outside feature pages. |
+| Adapter | `FirebaseMessagingClientAdapter`, `SupabaseAuthGateway`, `HttpContentModerationGateway`, and parent/location contracts translate external SDKs into CyanZone-owned interfaces. | Isolates Firebase, Supabase, HTTP, storage, and device APIs from application code. |
+| Facade | `AppFeedback`, `AppConfirmationDialog`, and `SosTrackingCoordinator` provide small APIs over repeated UI or multi-service workflows. | Hides snackbar/dialog configuration and SOS coordination complexity. |
+| Strategy | `PushNotificationGateway` implementations (`FirebasePushNotificationGateway` and `NoopPushNotificationGateway`) and injected loaders/actions provide interchangeable behaviour behind a shared contract. | Allows production, fallback, and test behaviour to change without rewriting callers. |
+| Observer | Supabase Realtime subscriptions, `WidgetsBindingObserver`, `ChangeNotifier`, and UI listeners propagate chat, notification, moderation, and SOS changes. | Keeps live screens synchronized while making subscription ownership and cleanup explicit. |
+| State | `SosLifecycleState`, `OpenSosState`, and `ResolvedSosState` centralize allowed SOS actions and transitions. | Prevents invalid lifecycle actions from being scattered across widgets. |
+
+The Repository pattern is also used as a non-GoF application architecture
+pattern through classes such as `PostsRepository`, `ChatRepository`,
+`ProfileRepository`, `ParentChildRepository`, and the API `AdminRepository`.
+It is useful supporting material but is not counted among the six GoF patterns.
+Flutter widget composition naturally resembles Composite, but Composite is not
+part of the agreed six-pattern SDS scope.
+
 ## SRS roles and development baseline
 
 - Normal users include teenagers, parents, and content creators. Teenagers are the primary audience; parent-only access begins after successful linking; verified creators remain normal users.
 - System Administrators operate the web Administration Portal and require moderation procedures and basic data-management knowledge, not an advanced technical background.
 - The documented development/test baseline is Windows 10/11 with Visual Studio Code, an Intel Core i5 or equivalent, 8 GB RAM, 256 GB SSD, an Android test phone, and stable internet access.
-- The required software baseline is represented by the stack above: Flutter/Dart, React/Vite/TypeScript/Tailwind, Node/Express/TypeScript, Supabase/PostgreSQL/Auth/RLS/Storage/Realtime, FCM, Gemini, Git/GitHub, and Vercel. Android FCM and Gemini are connected through the privileged API; live configuration and acceptance evidence remain pending.
+- The required software baseline is represented by the stack above: Flutter/Dart, React/Vite/TypeScript/Tailwind, Node/Express/TypeScript, Supabase/PostgreSQL/Auth/RLS/Storage/Realtime, FCM, Gemini, Git/GitHub, and Vercel. Android FCM and Gemini are connected through the privileged API; hosted configuration is complete, while physical-device FCM UAT and broader acceptance evidence remain pending.
 
 ## SRS functional traceability
 
@@ -82,16 +135,16 @@ Status meanings:
 | ID | SRS level | Feature | Status | Current evidence and remaining boundary |
 | --- | --- | --- | --- | --- |
 | F001 / REQ_F001 | Basic | User Authentication | **Implemented** | Mobile and administrator login, authenticated sessions, confirmation-based mobile and Administration Portal logout, and mobile password change with current-password reauthentication are implemented. New mobile registration passwords, changed passwords, and administrator bootstrap passwords require at least 12 characters with uppercase, lowercase, number, and non-whitespace symbol; `.` and `_` are accepted symbols. Existing passwords remain valid for login until changed. |
-| F002 / REQ_F002 | Basic | User Registration | **Partial** | The repository now contains required Terms and Privacy consent, version/timestamp metadata, one combined in-app legal page, centered six-cell email OTP verification/resend, an inline borderless Back action for wrong-email correction, pending-email recovery, confirmed-session activation gating, deferred public-profile creation, and confirmation-time rejection of missing current consent metadata. The user has confirmed real six-digit email delivery and verification through hosted Supabase/Brevo; the new migration and hosted activation state still require independent live verification. |
+| F002 / REQ_F002 | Basic | User Registration | **Implemented** | Terms and Privacy consent, version/timestamp metadata, one combined in-app legal page, centered six-cell email OTP verification/resend, an inline borderless Back action for wrong-email correction, pending-email recovery, confirmed-session activation gating, deferred public-profile creation, and confirmation-time rejection of missing current consent metadata are implemented. The migration was applied and real six-digit Supabase/Brevo delivery, registration, and verification were exercised. Provider rate limits can still suppress repeated test emails and should be observed during UAT. |
 | F003 / REQ_F003 | Basic | User Profile Management | **Implemented** | Own/other public profiles, own-profile editing, follow/unfollow, follower/following lists, public creator badge display, and database protection against self-following are present. Administrator assignment/removal of creator status remains under F011. |
-| F004 / REQ_F004 | Intermediate | Social Feed | **Partial** | Feed browsing, search, create/edit/soft-delete, selection of one to five predefined tags, `Others` fallback, image and text posts, profiles, saves/following views, media flows, and server-side Gemini moderation for new/edited posts are implemented. The API is deployed and the first live migration was applied; the current enum-cast correction must be reapplied before final 20-second device acceptance. UC004 must state one to five predefined tags, not exactly one tag. |
-| F005 / REQ_F005 | Intermediate | Post Engagement | **Partial** | Comments/replies, likes, saves, chat sharing, private 14-day dislike hiding, and server-side Gemini moderation for public comments are implemented. The deployed moderation stack needs the current SQL/API correction and final device acceptance evidence. |
-| F006 / REQ_F006 | Intermediate | Content Reporting | **Implemented** | Users submit reason-only reports for public posts and comments. The repository report lifecycle is `pending_review` to `resolved` (Remove) or `dismissed` (Retain), with no separate Open/Reviewing state or reporter description. The Administration Portal groups cases by target, shows total/unique counts in a reason pie chart and legend, keeps two-line queue previews, and opens complete post evidence through the shared Post Detail viewer. `REPORT_REVIEW_THRESHOLD=1` is a testing convenience only and must be changed to `1000` before deployment. The destructive `report_flow_simplification.sql` migration is committed but has not been applied to the live Supabase project. |
-| F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Partial** | The privileged API performs structured Gemini text/image moderation for posts, edits, and public comments; persists revisioned results, exact submitted-content snapshots, risk scores, evidence, model/version, timestamps, and decision source; switches once to the fallback model for explicit 429/503 responses; keeps content unpublished on failure; and routes 40%-60% cases to the authenticated Admin review queue. Mobile retryable failures are retained across restarts against the same record ID. The API and Admin clients are deployed and the Gemini key/models are live. The current enum-cast SQL correction, 15-second provider timeout deployment value, redeployment, and final 20-second/device acceptance evidence remain required. |
-| F008 / REQ_F008 | Advanced | Parent Supervision | **Partial** | Server-authoritative parent/child linking, role enforcement, role dashboards, foreground CyanZone screen-time tracking and threshold events, location-aware Check-In, foreground-only 10-second live SOS location, OpenStreetMap detail maps, multi-parent acknowledgement/timeline/resolution, safety records, dedicated realtime supervision notifications, and two-party unlink request/accept/reject flows are implemented in the repository. The updated `parent_supervision.sql` must be rerun on Supabase. Password reauthentication for unlink, former-link historical-record authorization, remote inspection, and multi-account/physical-device acceptance remain incomplete or unverified. |
-| F009 / REQ_F009 | Intermediate | Real-Time Communication | **Partial** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. Message requests are intentionally hidden from active mobile loading and UI while their existing data and backend foundation remain dormant. Active direct-chat entry and every new direct-message send require a current follow relationship in either direction, and group-member candidates/validation are limited to Followers and Following. Existing accepted conversations and history remain readable after both users unfollow, but their composer is blocked. The user applied the previous `chat.sql`; the updated follow-only functions still require live reapplication and verification. |
-| F010 / REQ_F010 | Intermediate | Notifications | **Partial** | Activity, New Followers, and System notification rows/counts refresh through foreground Supabase Realtime even before their section is opened. Android FCM permission, token registration/revocation, independent preferences, server dispatch, bounded delivery retries, foreground/background/terminated handling, and typed destination routing are implemented. Firebase/Vercel credentials are configured; Supabase webhook configuration and physical-device acceptance remain, while iOS/APNs is outside the MVP. Retaining reported content intentionally sends no author notification. |
-| F011 / REQ_F011 | Advanced | Administration Portal | **Partial** | The deployed functional portal includes Overview, Users, Creator Requests, grouped Reports, Appeals, and an authenticated API-backed AI-Flagged Content queue/detail/decision workflow. Assign Creator, Retain Content, and AI Approve do not require manual reasons; Creator Request rejection, Remove Creator, Remove Content, AI Reject, and both Appeal actions require 10-500 characters. Reason-free persisted actions receive stable internal audit text. Users excludes administrator profiles at the API query boundary. Final browser/device acceptance evidence remains pending. |
+| F004 / REQ_F004 | Intermediate | Social Feed | **Implemented** | Feed browsing, search, create/edit/delete, one-to-five predefined tags with `Others` fallback, image/text posts, profiles, saves/following views, deterministic collection ordering, media flows, and server-side Gemini moderation for new/edited posts are implemented and live-tested. UC004 must state one to five predefined tags, not exactly one tag. |
+| F005 / REQ_F005 | Intermediate | Post Engagement | **Implemented** | Comments/replies, likes, saves, chat sharing, private 14-day dislike hiding, and server-side Gemini moderation for every public comment are implemented and manually exercised. Pending moderation feedback prevents silent duplicate comment submission. |
+| F006 / REQ_F006 | Intermediate | Content Reporting | **Implemented** | Users submit reason-only reports for public posts and comments. The lifecycle is `pending_review` to `resolved` (Remove) or `dismissed` (Retain). The applied portal/API workflow groups cases by target, shows total/unique counts and a reason chart, preserves evidence, and supports Retain/Remove decisions. `REPORT_REVIEW_THRESHOLD=1` is only a small-population test setting and must be changed to `1000` before production release. |
+| F007 / REQ_F007 | Advanced | AI-Assisted Content Moderation | **Implemented** | The privileged API performs structured Gemini text/image moderation for posts, edits, and public comments; persists revisioned results and exact snapshots; switches once to the fallback model for explicit 429/503 responses; keeps content unpublished on failure; and routes 40%-60% cases to authenticated Admin review. Required SQL, the 15-second provider timeout, API/Admin deployment, text/image rejection, retry, and administrator decision flows were applied and exercised. |
+| F008 / REQ_F008 | Advanced | Parent Supervision | **Implemented / UAT pending** | Server-authoritative parent/child linking, role enforcement, dashboards, foreground screen-time thresholds, location-aware Check-In, foreground-only 10-second live SOS location, OpenStreetMap detail maps, multi-parent acknowledgement/timeline/resolution, safety records, supervision notifications, and two-party unlink flows are implemented. Historical Check-In/SOS reads are authorized only for records created within each active relationship window; screen-time, live sharing, and writes stop after unlinking. Password reauthentication is intentionally excluded from the accepted unlink flow. Extended multi-account/device acceptance remains part of UAT. |
+| F009 / REQ_F009 | Intermediate | Real-Time Communication | **Implemented** | Direct/group realtime chat, group administration, text/image/shared-post messages, read state, clear chat, and member-only access are implemented. Message requests remain intentionally dormant. Direct-chat entry and every send use the current follow relationship, composer state updates after follow changes, and group candidates are limited to Followers and Following. Existing history stays readable after both users unfollow. The consolidated creator/chat follower-gate SQL was applied and manually verified. |
+| F010 / REQ_F010 | Intermediate | Notifications | **Partial / UAT pending** | Activity, New Followers, and System notifications refresh through foreground Realtime. Android FCM permission, token lifecycle, preferences, server dispatch, bounded delivery retries, foreground/background/terminated handling, typed routing, Firebase credentials, Vercel environment, and Supabase database webhook are implemented/configured. Physical-device end-to-end FCM UAT remains; iOS/APNs is a future improvement. |
+| F011 / REQ_F011 | Advanced | Administration Portal | **Implemented** | The deployed portal includes Overview, Users, Creator Requests, grouped Reports, Appeals, and authenticated AI-Flagged Content workflows. Completed moderation tabs show administrator decisions only; available images use contained/enlarged review; missing media has a safe state; Admin GETs use bounded retry, stale-data preservation, and request ordering. Required/optional decision reasons, authorization, safe errors, and audit text are enforced. Vercel deployment and smoke testing succeeded. |
 
 ## Current mobile implementation
 
@@ -107,7 +160,7 @@ Implemented:
 - Waterfall feed with Feeds, Following, and Saves modes, refresh, filtering, and image/text posts; moderation-status badges use the same top-left card placement for both post types.
 - Search across posts and profiles with local/server history.
 - Own/other profiles, follow graph, avatar editing/caching, post grids, and settings.
-- Settings includes a Verified Badge page with eligibility requirements, current follower progress, an application statement, and pending, rejected/reapply, and verified states. The repository displays the temporary **2-follower MVP/UAT threshold**, disables ineligible applications, submits through a protected RPC, and applies the same rule to direct inserts through RLS. The focused `creator_follower_gate.sql` migration still requires live application and verification. Rejected applicants are directed to System notifications for the administrator's reason.
+- Settings includes a Verified Badge page with eligibility requirements, current follower progress, an application statement, and pending, rejected/reapply, and verified states. The temporary **2-follower MVP/UAT threshold** is enforced in the UI, protected RPC, and RLS insert boundary. The consolidated creator/chat follower-gate SQL was applied and manually verified. Rejected applicants are directed to System notifications for the administrator's reason.
 - Verified creator identity uses the same CyanZone-cyan rosette with a white tick across mobile profile, follow, and search surfaces.
 - Post creation/editing with up to nine images, custom picker/camera, tags, and storage cleanup.
 - Post detail, like/dislike/save/share, comments/replies/mentions, comment likes, pinning, reporting, editing, and soft removal.
@@ -169,14 +222,11 @@ Implemented:
 - Post-publication success notifications use the same System detail hierarchy: `Your post has completed moderation review.` briefly explains why the notification was received, while the publication result appears alone in the white reason card. New rows persist both fields separately, and the mobile model normalizes legacy greeting-only briefs.
 - A dedicated Settings > General > Notification page contains the master in-app control and the existing chat, activity, System, and new-follower switches in grouped cards.
 
-Still required:
+Remaining validation:
 
-- Live verification of Pending Administrator Review feedback and automatic
-  moderation notifications against the deployed Gemini/Supabase workflow.
-  Creator status, rejected posts, Pending-to-Approved publication,
-  reported-content removal, and both appeal outcomes have in-app notification
-  foundations; retaining reported content intentionally sends none.
-- Apply the FCM SQL migration, configure Firebase/Vercel/Supabase webhooks, and complete Android physical-device push acceptance.
+- Complete Android physical-device FCM acceptance with separate sender and
+  receiver sessions. The FCM SQL, Firebase credentials, Vercel environment,
+  database webhook, delivery endpoint, and runtime handling are configured.
 
 ### Sharing and post image preview
 
@@ -202,13 +252,16 @@ Implemented:
 - Multiple linked parents may each acknowledge once. A parent sees one bottom action: Acknowledge first, then Resolve only after their own acknowledgement. Resolve requires confirmation, is server-enforced/idempotent, and applies to all linked parents; the child cannot resolve.
 - Merged Check-In/SOS history, typed detail navigation, and a separate latest-ten realtime Supervision Notifications feed.
 - Two-party unlink requests: either participant may request; only the other participant may approve or reject; approval revokes the active link.
+- Historical Check-In and SOS reads use each relationship's `linked_at` to `revoked_at` window. A former parent may reopen records created while that link was active through an existing Supervision notification; when the Safety Records page is available again in the Parent role, it includes valid records from current and former link windows. Unlinking immediately removes access to later records, screen time, live location updates, and all supervision writes.
+- Password reauthentication is intentionally not part of the accepted unlink flow; the existing two-party approval remains the authorization boundary.
 - Repository/base-schema parity for the current Parent Supervision tables, RPCs, RLS foundations, grants, and Realtime publication entries. The SOS implementation applies GoF Facade (`SosTrackingCoordinator`), Observer (app lifecycle, coordinator listeners, and Supabase Realtime), State (SOS lifecycle/action rules), and Adapter (GPS/live-location conversion to the shared app location model) patterns without Riverpod.
 
 Still required or unverified:
 
-- Password reauthentication before sending an unlink request if the reviewed SRS requirement remains unchanged.
-- The exact former-link history rule: approved unlink stops new sharing, but retained historical-record access for the former linked pair still needs an explicit authorization implementation and acceptance test.
-- Rerunning the complete updated `supabase/parent_supervision.sql` on the intended live Supabase project and completing multi-account, 10-second movement, foreground/background/resume, location-permission, Realtime, map-tile failure, concurrent acknowledgement, resolution, and physical-device acceptance.
+- Extended multi-account, 10-second movement, foreground/background/resume,
+  location-permission, Realtime, map-tile failure, concurrent acknowledgement,
+  resolution, former-link history authorization, and physical-device acceptance
+  during UAT.
 
 ## Backend, database, and Administration Portal
 
@@ -240,6 +293,8 @@ GET  /admin/moderation-cases/:caseId
 POST /admin/moderation-cases/:caseId/decision
 POST /moderation/posts/:postId
 POST /moderation/comments/:commentId
+POST /push/events
+GET  /maintenance/rejected-posts
 ```
 
 All `/admin/*` casework routes require a valid bearer session belonging to an
@@ -271,9 +326,21 @@ Implemented:
 - User search/filter/detail and confirmed assign/remove creator controls. Assigning creator access requires no manual reason and automatically uses the existing creator-award notification trigger; removal requires a 10-500 character reason and sends the removal notification. Administrator profiles are excluded from Users rows and totals by the API repository. Suspend/Reactivate is hidden from the current Users scope, while its API/RPC foundation remains available. Permanent user deletion is intentionally unavailable. Creator identity uses the same CyanZone-cyan rosette with a white tick as the mobile app; **Approved** remains a content-moderation status and is not an identity badge.
 - User detail exposes a latest-five horizontal post carousel whose side controls appear only on real overflow. Cards and the filter-free four-column **See All** grid use explicit top-aligned columns and block-level media regions so `object-cover` thumbnails fill edge-to-edge without inline white gaps. The large Post Detail viewer keeps stage-bounded `object-contain` images fully visible, with side Previous/Next controls, bottom dots, title, full content, tags, publication date, moderation status, and approved comments/replies.
 - Creator Request Pending/Approved/Rejected queues reuse the exact Users recent-post carousel, placeholder, and Post Detail viewer alongside profile evidence and confirmed approval/rejection. Administrator decision text is carried into the applicant's structured verification notification.
-- Grouped Report queues for Pending Review, Resolved, and Dismissed with two-line target previews, visibility evidence, a horizontal report-reason pie chart/legend, post-only **View Post >** access to the shared Post Detail viewer, inline comment evidence, and confirmed Retain/Remove decisions. Retain requires no manual reason and sends no author notification; Remove requires a 10-500 character reason and sends the existing removal notification. The current `REPORT_REVIEW_THRESHOLD=1` is for functional testing; set it to `1000` before deployment.
+- Grouped Report queues for Pending Review, Resolved, and Dismissed with two-line target previews, visibility evidence, a horizontal report-reason pie chart/legend, post-only **View Post >** access to the shared Post Detail viewer, inline comment evidence, and confirmed Retain/Remove decisions. Retain requires no manual reason and sends no author notification; Remove requires a 10-500 character reason and sends the existing removal notification. `REPORT_REVIEW_THRESHOLD=1` is for small-population testing; set it to `1000` before production release.
 - Appeal Pending/Approved/Rejected queues support administrator-rejected AI-flagged and report-removed posts, preserve original moderation evidence, allow one owner-only mobile submission, and enforce the administrator outcome as final. Both administrator actions require a 10-500 character reason and send an outcome notification; only the original eligible moderation notification shows appeal status/action.
 - AI-Flagged Content uses the authenticated API-backed queue/detail/status/score/decision workflow, count-free queue tabs, and confirmation dialogs. Approve requires no manual reason; Reject requires a 10-500 character reason. Decisions are persisted through the service-role API and feed the existing moderation notification foundations.
+- Pending AI cases remain separate from completed cases. Approved and Rejected
+  tabs include only administrator decisions, never automatic Gemini outcomes.
+- Moderation evidence uses immutable snapshots. Available images are contained
+  without cropping and support an enlarged preview; deleted historical media
+  renders an explicit unavailable state while text evidence remains reviewable.
+- Idempotent Admin GET requests use one bounded retry, per-tab stale-data
+  preservation, request ordering, and safe request telemetry to reduce
+  disruptive failures after an idle serverless period.
+- Administrator-rejected posts are eligible for secure cleanup after seven
+  days only when the same revision remains rejected. The daily maintenance job
+  removes Storage objects before the post row and redacts image metadata from
+  the retained audit snapshot.
 
 Reason-free persisted Assign Creator and Retain Content requests are converted by
 the API service to stable internal audit reasons before the existing non-null SQL
@@ -303,8 +370,14 @@ supabase/post_editing.sql
 supabase/comment_moderation.sql
 supabase/comment_mentions.sql
 supabase/chat.sql
+supabase/parent_supervision.sql
+supabase/parent_supervision_history_access.sql
 supabase/admin_portal.sql
 supabase/ai_moderation.sql
+supabase/registration_consent_otp.sql
+supabase/fcm_push_notifications.sql
+supabase/admin_performance_indexes.sql
+supabase/rejected_post_retention_upgrade.sql
 ```
 
 The `images` bucket stores post and chat images. Writes and deletes are scoped
@@ -333,7 +406,7 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] Require current-password verification before accepting a new mobile password.
 - [x] Enforce the 12-character uppercase/lowercase/number/symbol policy on mobile registration, mobile password change, and administrator bootstrap without invalidating existing login passwords.
 - [x] Display Terms and Conditions and Privacy Policy during registration and require explicit consent before submission.
-- [x] Implement the email OTP entry, validation, resend/error states, and account-activation gate in the repository; live Supabase configuration remains pending.
+- [x] Implement and configure the email OTP entry, validation, resend/error states, and account-activation gate.
 - [ ] Verify inactive/unverified normal users cannot enter protected mobile functions.
 - [ ] Add widget/integration tests for all F001/F002 main and alternate flows.
 
@@ -350,12 +423,12 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] Connect the implemented Approved/Rejected notification foundations and Pending Administrator Review feedback through the real Gemini workflow.
 - [x] Add text, image, combined-content, comment, timeout, quota, malformed-response, and retry tests.
 - [x] Apply the initial live Supabase migration and deploy the API/Admin clients.
-- [ ] Reapply the current enum-cast migration correction, deploy the timeout correction, and capture final 20-second/device acceptance evidence.
+- [x] Apply the enum-cast correction, deploy the 15-second provider timeout, and verify the live text/image moderation flow.
 
 ### 3. Reporting, appeals, and Administration Portal
 
 - [x] Prevent the same user from creating multiple unresolved reports for the same post/comment in repository SQL.
-- [x] Group the queue by post/comment target without automatic removal; use `REPORT_REVIEW_THRESHOLD=1` only for functional testing and change it to `1000` before deployment.
+- [x] Group the queue by post/comment target without automatic removal; use `REPORT_REVIEW_THRESHOLD=1` only for functional testing and change it to `1000` before production release.
 - [x] Simplify report storage to reason-only `pending_review`, `resolved`, and `dismissed` records; commit the manual migration without applying it remotely.
 - [x] Replace the temporary AI-Flagged Content mock adapter/data with Gemini-backed moderation records and authenticated API reads/decisions.
 - [x] Build the User-Reported Content queue with total/unique counts, a reason pie chart/legend, two-line content previews, shared post evidence, inline comment evidence, and Retain/Remove actions.
@@ -364,11 +437,11 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] On approved appeal, publish the content; on rejected appeal, retain rejection; record an owner notification in both cases.
 - [x] Build user listing/search/detail with public profile, true published-post counts, latest-five horizontal carousel, See All grid, complete post media/content/status, and approved comment/reply review.
 - [x] Build confirmed assign/remove verified creator controls mapped consistently to `is_content_creator`.
-- [x] Replace the informational 10,000-follower creator requirement with the approved **2-follower MVP/UAT threshold** in the mobile UI and authoritative RPC/RLS submission boundary. Live application of `creator_follower_gate.sql` remains a deployment step, and the production threshold must be revisited after UAT.
+- [x] Replace the informational 10,000-follower creator requirement with the approved **2-follower MVP/UAT threshold** in the mobile UI and authoritative RPC/RLS submission boundary. The consolidated follower-gate SQL was applied; the production threshold must be revisited after UAT.
 - [x] Record creator assignment/removal, creator-request rejection with the administrator's reason, rejected-post, Pending-to-Approved publication, reported-content removal, and both appeal-outcome notifications; Retain intentionally sends none.
 - [x] Replace placeholder dashboard links/metrics with functional SRS pages; advanced analytics remain out of scope.
 - [x] Add administrator authorization, RLS, API, audit, component, and responsive browser workflow tests.
-- [ ] Inspect and verify `supabase/admin_portal.sql` against the live Supabase project before acceptance or deployment. The user reports that the current script was applied, but repository tests do not prove the hosted object state.
+- [x] Apply the current `supabase/admin_portal.sql` and verify the deployed portal/API flows used by the smoke test.
 
 ### 4. Parent Supervision
 
@@ -386,9 +459,10 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] Add the live SOS event timeline and per-parent Acknowledge-to-Resolve action replacement with resolve confirmation and server-side enforcement.
 - [x] Build filtered Safety Check-In and SOS history with type, date, time, message, available location, and detail navigation.
 - [x] Implement server-authoritative two-party unlink request, approval, and rejection outcomes.
-- [ ] Add current-password reauthentication before an unlink request if the reviewed SRS password-verification requirement remains authoritative.
-- [ ] Verify that approved unlink stops new supervision sharing and implement the required former-linked-pair access to preserved historical records.
-- [ ] Inspect the applied Parent Supervision SQL and run RLS/integration/device acceptance for every role, relationship state, permission outcome, and former-link history rule. The user reports that `parent_supervision.sql` was applied, but live evidence has not been captured.
+- [x] Preserve former-parent read access only to Check-In/SOS records created inside each link's active time window; keep later records, screen time, live sharing, and writes unavailable after unlinking.
+- [x] Keep the accepted two-party unlink flow without current-password reauthentication.
+- [x] Apply `parent_supervision_history_access.sql` to the hosted Supabase project.
+- [ ] Run RLS/integration/device acceptance for every role, relationship state, permission outcome, and former-link history rule.
 
 ### 5. Notifications and FCM
 
@@ -399,7 +473,8 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] Respect independent in-app/phone preferences and intended-recipient authorization.
 - [x] Handle foreground, background, and terminated app states with versioned safe destinations.
 - [x] Add bounded retry, deduplication, invalid-token cleanup, and delivery status records.
-- [ ] Apply the live SQL/webhook/Firebase configuration and complete Android device acceptance.
+- [x] Apply the live FCM SQL and configure Firebase credentials, Vercel variables, and the Supabase database webhook.
+- [ ] Complete Android FCM end-to-end physical-device UAT.
 - [ ] Add iOS/APNs delivery (future improvement).
 
 ### 6. Chat conformance
@@ -409,7 +484,7 @@ Complete these items against the exact SRS flows and rules. Check an item only a
 - [x] Recheck the current follow relationship for every direct-message send, and block the Messages preview and room composer when neither user follows the other while preserving history.
 - [x] Restrict group member choices and repository SQL validation to Followers and Following as required by the SRS.
 - [x] Keep existing direct/group member authorization, sender/timestamp display, group-admin removal, member rename, and current-user-only clear-chat behavior covered by regression tests.
-- [ ] Rerun the updated complete `supabase/chat.sql`, then verify direct-chat entry, direct-send revocation after the final unfollow, and group-member rejection with live test accounts. The previously applied script does not contain `can_send_chat_message` or these latest function definitions.
+- [x] Apply the consolidated creator/chat follower-gate SQL and verify direct-chat entry/send revocation and immediate composer refresh with live accounts.
 
 ### 7. Non-functional requirements and release evidence
 
@@ -435,7 +510,7 @@ to satisfy these checks remain delivery work until that acceptance pass.
 - [ ] Complete an RLS/security review for normal users, administrators, linked families, reports, moderation, appeals, and notifications.
 - [ ] Validate untrusted inputs again at the API/database boundary, not only in client forms.
 - [ ] Verify HTTPS and secret handling in deployed environments.
-- [ ] Add and verify Vercel deployment configuration for the Administration Portal and API.
+- [x] Add and verify Vercel deployment configuration for the Administration Portal and API.
 - [ ] Test the Administration Portal on the latest Chrome and Edge versions used for project testing.
 - [ ] Test the mobile app on the supported Android devices and common smartphone screen sizes.
 - [ ] Run end-to-end interoperability tests across mobile, API, Administration Portal, Supabase, Gemini, and FCM.
@@ -451,9 +526,43 @@ Passing unit/widget tests and builds do not prove the SRS timing, concurrency, u
 | Reliability | **Partial / Unverified** | Crash-free workflow run, consistent graceful failures, two-retry behavior, and restart/network recovery tests. |
 | Maintainability | **Partial** | Component separation and environment configuration exist; API/AI workflow documentation, traceability, and broader reusable test coverage remain. |
 | Security | **Partial** | Supabase Auth/RLS and server-only secret architecture exist; OTP, consent, location permission, final family RLS, moderation/admin authorization, and deployment review remain. |
-| Portability | **Partial / Unverified** | Android device/screen tests, Chrome/Edge tests, Vercel deployment, environment-only configuration verification, and end-to-end interoperability tests remain. |
+| Portability | **Partial / Unverified** | Vercel deployment and environment-only configuration are verified. Broader Android screen/device coverage, Chrome/Edge acceptance, FCM UAT, and complete interoperability evidence remain. |
 
 ## Verification state
+
+Latest complete automated verification on **September 15, 2026**:
+
+```powershell
+cd apps/mobile
+flutter test
+flutter analyze
+
+cd ../../apps/admin
+npm test
+npm run typecheck
+npm run build
+
+cd ../../services/api
+npm test
+npm run typecheck
+npm run build
+```
+
+Observed:
+
+- Mobile: **498 tests passed** and `flutter analyze` reported no issues.
+- Administration Portal: **61 tests passed**; TypeScript checking and the Vite
+  production build passed.
+- Express API: **148 tests passed**; TypeScript checking and production build
+  passed.
+- Deployed API: `/health` returned HTTP 200; the maintenance endpoint returned
+  HTTP 401 without its Cron bearer credential; the Vercel response confirmed
+  `sin1` execution near Supabase `ap-southeast-1`.
+- Deployed Admin/API projects both reported **Ready** after the latest merge and
+  redeployment.
+
+This automated evidence does not replace the deferred two-account Android FCM
+test or the final SRS non-functional/UAT measurements.
 
 Focused direct-chat relationship regression run directly in the user's
 PowerShell environment on **September 3, 2026**:
@@ -597,48 +706,70 @@ Observed:
   payload and moderation retry regressions, and the full analyzer reports no
   issues.
 
-Not covered by this verification:
-
-- Live Supabase migration/application state. The user reports that the previous
-  `parent_supervision.sql`, `chat.sql`, and `admin_portal.sql` were applied, but
-  remote objects were not inspected in this workspace. The newly updated
-  `parent_supervision.sql` and `chat.sql` must be rerun. Local SQL contract regressions validate
-  repository text and behavior contracts but do not prove that hosted tables,
-  functions, triggers, grants, RLS policies, and Realtime publication match it.
-- Live Gemini/Supabase configuration, Vercel push environment/webhook setup, or
-  final device acceptance. The API code and client integrations are implemented,
-  but hosted configuration and acceptance evidence are still required.
-- Android physical-device location, background/terminated notification, or full screen-size acceptance. The latest OTP build was installed on the Android 16 device, but its pixel comparison remains pending because the device was locked during capture.
-- Latest Chrome and Edge acceptance outside the in-app browser.
-- Vercel deployment.
-- SRS performance, concurrency, usability, reliability, recovery, and security acceptance.
+The September 7 results above are retained as historical evidence. Later work
+completed the Supabase migrations, Gemini/Vercel deployment, Android FCM
+configuration, chat/creator follower gates, mobile refactor, Admin read
+optimization, and rejected-post retention workflow. Refer to the September 15
+verification block for the current automated baseline.
 
 ## Next-chat handoff
 
-- Start by reading this file; it is the canonical project and SRS-delivery handover. Use `docs/superpowers/plans/2026-08-02-realtime-system-notifications-and-appeals.md` for the detailed history of the completed notification/admin revisions.
-- Parent Supervision now includes foreground-only 10-second live SOS tracking, latest-point storage, multi-parent acknowledgement events, the live SOS timeline, per-parent Acknowledge-to-Resolve actions, resolve confirmation, and reusable OpenStreetMap views for SOS and Check-In details. The repository implementation is on `feature/AI-Moderation`; rerun the complete updated `supabase/parent_supervision.sql` before live testing.
-- The Gemini moderation implementation has been hardened: database inserts cannot self-approve, shared image writes are owner-scoped, provider safety blocks are separated from ordinary errors, CORS/Vercel entry configuration is explicit, mobile retains same-record retries across restarts, and Admin cases show immutable submitted snapshots. The API uses `gemini-3.5-flash-lite` as primary with one bounded `gemini-3.8-flash` fallback for HTTP 429/503. Request-level SDK retries are disabled, other network timeouts are not duplicated, each provider call allows 15 seconds, and mobile allows 30 seconds for the complete request. The API and Admin portal are deployed on Vercel, and a live primary-model smoke test passed on September 8, 2026. The updated `ai_moderation.sql` enum-cast fix and API timeout configuration still require redeployment and live verification.
-- The user reports that the previous `supabase/parent_supervision.sql`, `supabase/chat.sql`, and `supabase/admin_portal.sql` were applied. Before live acceptance, rerun the newly updated complete `supabase/parent_supervision.sql` and `supabase/chat.sql`; repository files and local tests alone do not update or verify Supabase.
-- Message requests are now hidden/dormant. The Messages screen does not load or show them, and active profile/search/follower actions use `open_direct_conversation`, which requires a follow row in either direction. Existing accepted chat history remains readable after both users unfollow, while the Messages preview and chat-room composer become follow-required and `send_chat_message` rejects new direct messages.
-- The creator-application repository implementation now displays follower progress against the approved 2-follower MVP/UAT target, disables ineligible submission, and enforces the same threshold through an RPC and RLS. Run and verify `supabase/creator_follower_gate.sql` on the hosted project before live acceptance, then revisit the production threshold after UAT.
-- Registration consent/OTP is implemented in the repository, including the combined legal page, centered six-cell OTP input, inline borderless Back action, and the existing resend/recovery behavior. The user has confirmed real six-digit Supabase/Brevo email delivery and verification. The remaining F002 boundary is running/verifying `supabase/registration_consent_otp.sql`, independently checking hosted activation state, and completing the OTP screen pixel comparison after the device is unlocked. The 2-follower creator-gate migration and remaining live Gemini/Vercel acceptance still require verification. Do not report any unverified boundary as complete.
-- The user will perform the final non-functional acceptance evidence after all implementation work is complete.
-- Run all terminal commands directly in the user's PowerShell environment outside the Codex sandbox and use `apply_patch` for manual edits.
+- Start by reading this file. It is the canonical implementation and
+  SRS-delivery handover for the documentation phase.
+- Treat current MVP development as complete. Do not reopen architecture or UI
+  work without a reproducible defect, an SRS gap, or measured UAT evidence.
+- Prepare the Software Design Specification around the six agreed GoF patterns:
+  Factory Method, Adapter, Facade, Strategy, Observer, and State. Repository may
+  be documented separately but is not part of that six-pattern count.
+- Use the implemented-pattern table in this overview together with the cited
+  production classes and tests as the source of truth for the SDS. Historical
+  agent implementation plans were removed during final repository cleanup.
+- Keep message requests dormant, private chat outside Gemini moderation, and
+  the creator threshold at two followers for MVP/UAT unless requirements are
+  deliberately revised.
+- The next operational task is Android FCM end-to-end UAT with suitable account
+  and device coverage, followed by the final functional/non-functional
+  acceptance record.
 
-## Recommended implementation order
+## Remaining validation before final submission
 
-Immediate implementation sequence updated on September 7, 2026:
+1. Complete Android FCM physical-device UAT, including foreground, background,
+   terminated, permission-denied, token refresh, preference, and destination
+   routing cases.
+2. Record the SRS functional UAT evidence and the non-functional timing,
+   concurrency, stability, usability, recovery, security, browser, and device
+   checks listed above.
+3. Revisit the temporary two-follower creator threshold after UAT and record the
+   final production decision.
+4. Confirm `REPORT_REVIEW_THRESHOLD=1000` in the production API environment
+   before the production release; keep `1` only for the current small UAT data.
+5. Complete multi-account acceptance for the applied Parent Supervision
+   historical-access policy.
+6. Produce the Software Design Specification and final report from the verified
+   implementation rather than from older phase plans.
 
-1. Create the Gemini API key, apply the revised `ai_moderation.sql`, and deploy/configure the API and Admin Portal on Vercel.
-2. Verify the implemented F007 Gemini workflow with real-provider post, image, comment, admin-review, rejection, and same-record retry paths.
-3. Apply and verify Android FCM push delivery, notification preferences, and safe deep links.
+## Future improvements
 
-Before MVP/UAT completion:
-
-4. Apply and verify `supabase/creator_follower_gate.sql` so the implemented 2-follower MVP/UAT UI and authoritative backend gate are live; revisit the production value after UAT.
-5. Rerun the updated complete `supabase/parent_supervision.sql` and `supabase/chat.sql`, then verify the SOS lifecycle/location rules, direct-chat entry/send revocation, and group-member relationship checks with live accounts. Dormant message-request rows and functions remain stored.
-6. Verify the remaining repository SQL against the intended Supabase project, then verify the Administration Portal/API deployment and cross-surface flows.
-7. Hand the completed build to the user for the final non-functional acceptance evidence pass.
+- Add iOS push delivery through APNs/FCM and complete iOS lifecycle testing.
+- Restore message-request UX only if future requirements need messaging before
+  a follow relationship; keep the dormant backend foundation isolated until
+  then.
+- Add end-to-end encryption, calls, audio messages, stickers, and reactions if
+  private-chat scope expands.
+- Replace or formalize the public OpenStreetMap tile source for production-scale
+  use, including provider terms, quotas, attribution, caching, and failure
+  monitoring.
+- Add advanced administrator analytics, predefined-tag administration, and
+  creator analytics after core UAT is stable.
+- Introduce pagination or further query/index/cache tuning only where UAT timing
+  and server telemetry identify a real bottleneck. Do not add microservices,
+  read replicas, or full CQRS solely for perceived slowness.
+- Review and upgrade Flutter, Node, Vite, Supabase, Firebase, Gemini SDK, and
+  other dependencies in a dedicated regression-tested maintenance cycle.
+- Improve OTP delivery diagnostics and resend guidance for provider rate-limit
+  or repeated-registration edge cases.
+- Expand automated end-to-end, migration, accessibility, multi-device, and
+  disaster-recovery coverage.
 
 ## Risks and conventions
 
@@ -695,8 +826,14 @@ GEMINI_MODEL
 GEMINI_FALLBACK_MODEL
 GEMINI_TIMEOUT_MS
 CORS_ALLOWED_ORIGINS
+PUSH_WEBHOOK_SECRET
+FIREBASE_PROJECT_ID
+FIREBASE_CLIENT_EMAIL
+FIREBASE_PRIVATE_KEY
+CRON_SECRET
 ```
 
 Set `REPORT_REVIEW_THRESHOLD=1` only while performing functional tests with the current small user population. Set it to `1000` before any deployment.
 
-FCM server credentials and any Vercel-specific environment values must be added through secure deployment configuration; never commit them.
+FCM, Cron, Gemini, Supabase service-role, and other server credentials must be
+stored through secure deployment configuration and must never be committed.

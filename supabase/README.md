@@ -167,6 +167,13 @@ rerunning the complete file keeps existing alerts and records, creates the live
 SOS objects, and backfills available legacy SOS coordinates and timeline events
 where the stored data is sufficient.
 
+After the complete migration, existing projects must also run
+`parent_supervision_history_access.sql`. This focused, rerunnable policy upgrade
+allows a former parent to read only Check-In and SOS records created while that
+specific link was active. It does not restore screen-time access, live sharing,
+or any write permission after unlinking. Fresh projects receive the same
+policies from `schema.sql`.
+
 Verify the six core module tables:
 
 ```sql
@@ -254,11 +261,11 @@ unresolved child SOS when the app returns. Resolution prevents further server
 location updates. OpenStreetMap tiles are a best-effort visual layer for the
 MVP/UAT and do not affect coordinate capture or Supabase updates when tiles are
 unavailable. In-app Realtime notifications remain independent from Android FCM
-delivery. The FCM code is implemented, while the live Firebase, Vercel,
-Supabase webhook, and physical-device setup is still manual. Supervision
-Notifications remain separate from Messages notifications. Physical-device
-GPS, lifecycle, multi-account, Realtime, and push evidence remains part of the
-manual acceptance pass.
+delivery. Firebase, Vercel, the FCM SQL, and Supabase webhooks are configured;
+physical-device push validation remains part of UAT. Supervision Notifications
+remain separate from Messages notifications. Physical-device GPS, lifecycle,
+multi-account, Realtime, and push evidence remains part of the manual
+acceptance pass.
 
 ## 5. Configure Authentication
 
@@ -565,9 +572,9 @@ After the base notification tables and triggers exist, apply
 `supabase/fcm_push_notifications.sql`. It is safe to rerun and adds protected
 per-device tokens, delivery records, notification preferences, and the RPCs
 used by the API. Then configure the two Supabase `INSERT` Database Webhooks
-described in `docs/setup.md`. Android FCM delivery is implemented in code but
-is not live until Firebase, Vercel, the SQL file, both webhooks, and a fresh
-physical-device build are configured. iOS/APNs remains future work.
+described in `docs/setup.md`. The current project has completed these hosted
+configuration steps; end-to-end physical-device FCM UAT remains. A fresh
+installation must repeat every step. iOS/APNs remains future work.
 
 ## 7. Client Usage
 
