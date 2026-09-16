@@ -7,7 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/app.dart';
 import 'src/app_dependencies.dart';
+import 'src/bootstrap/cyanzone_startup_error_page.dart';
 import 'src/core/config/api_config.dart';
+import 'src/core/theme/app_theme.dart';
 import 'src/core/config/supabase_config.dart';
 import 'src/features/notifications/data/firebase_push_notification_gateway.dart';
 
@@ -20,6 +22,28 @@ Future<void> cyanZoneFirebaseMessagingBackgroundHandler(
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _runProductionApp();
+}
+
+Future<void> _runProductionApp() async {
+  try {
+    final dependencies = await _initializeProductionApp();
+    runApp(CyanZoneApp(dependencies: dependencies));
+  } catch (_) {
+    runApp(
+      MaterialApp(
+        title: 'CyanZone',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light,
+        home: CyanZoneStartupErrorPage(
+          onRetry: _runProductionApp,
+        ),
+      ),
+    );
+  }
+}
+
+Future<AppDependencies> _initializeProductionApp() async {
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
@@ -35,10 +59,9 @@ Future<void> main() async {
     anonKey: SupabaseConfig.anonKey,
   );
 
-  final dependencies = AppDependencies.production(
+  return AppDependencies.production(
     Supabase.instance.client,
     apiBaseUrl: ApiConfig.baseUrl,
     pushNotificationGateway: FirebasePushNotificationGateway(),
   );
-  runApp(CyanZoneApp(dependencies: dependencies));
 }

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
 import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/cyanzone_wordmark.dart';
 import '../../../core/widgets/shimmer_skeleton.dart';
 import '../../chat/presentation/chat_page.dart';
 import '../../posts/data/aspect_ratio_cache.dart';
@@ -875,11 +876,8 @@ class _HomeAppBarState extends State<_HomeAppBar>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(
-                  'assets/images/logo.png',
-                  height: 54,
-                  fit: BoxFit.contain,
-                  semanticLabel: 'CyanZone logo',
+                const CyanZoneWordmark(
+                  fontSize: 25,
                 ),
                 const SizedBox(width: 2),
                 const Icon(

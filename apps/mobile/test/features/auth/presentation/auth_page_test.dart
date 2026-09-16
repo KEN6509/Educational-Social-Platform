@@ -31,6 +31,12 @@ void main() {
     );
   }
 
+  Future<void> tapLogin(WidgetTester tester) async {
+    final submit = find.widgetWithText(FilledButton, 'Log in');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+  }
+
   testWidgets('login delegates trimmed email and password', (tester) async {
     await pumpAuthPage(tester);
 
@@ -42,7 +48,7 @@ void main() {
       find.byKey(const ValueKey('login-password-field')),
       'Secret123!',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
+    await tapLogin(tester);
     await tester.pump();
 
     expect(authGateway.signInEmail, 'child@example.com');
@@ -296,7 +302,7 @@ void main() {
       find.byKey(const ValueKey('login-password-field')),
       'Secret123!',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
+    await tapLogin(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('Enter the 6-digit code'), findsOneWidget);
@@ -316,7 +322,7 @@ void main() {
       find.byKey(const ValueKey('login-password-field')),
       'wrong-password',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
+    await tapLogin(tester);
     await tester.pump();
 
     expect(find.text('Invalid login credentials'), findsOneWidget);
@@ -335,7 +341,7 @@ void main() {
       find.byKey(const ValueKey('login-password-field')),
       'Secret123!',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
+    await tapLogin(tester);
     await tester.pump();
 
     expect(

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/security/password_policy.dart';
+import '../../../core/widgets/cyanzone_wordmark.dart';
 import '../../../core/widgets/password_checklist.dart';
 import '../domain/auth_gateway.dart';
 import '../domain/pending_registration_store.dart';
@@ -217,8 +218,9 @@ class _AuthPageState extends State<AuthPage> {
                               textAlign: TextAlign.center,
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                height: 1.12,
+                                fontFamily: 'Pacifico',
+                                fontWeight: FontWeight.w400,
+                                height: 1.3,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -329,38 +331,18 @@ class _BrandMark extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          width: 92,
-          height: 92,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.86)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x330B1F3E),
-                blurRadius: 28,
-                offset: Offset(0, 18),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Image.asset(
-              'assets/images/logo_transparent.png',
-              semanticLabel: 'CyanZone logo',
-              fit: BoxFit.contain,
-            ),
-          ),
+        Image.asset(
+          'assets/images/cyanzone_logo_white_transparent.png',
+          width: 136,
+          height: 136,
+          semanticLabel: 'CyanZone logo',
+          fit: BoxFit.contain,
         ),
-        const SizedBox(height: 14),
-        Text(
-          'CyanZone',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0,
-              ),
+        const SizedBox(height: 2),
+        const CyanZoneWordmark(
+          color: Colors.white,
+          fontSize: 36,
+          textAlign: TextAlign.center,
         ),
       ],
     );

@@ -36,10 +36,11 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/app_icon.png"
+  remove_alpha_ios: true
+  image_path: "assets/images/cyanzone_app_icon.png"
   min_sdk_android: 21
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/app_icon.png"
+  adaptive_icon_background: "assets/images/cyanzone_app_icon_background.png"
+  adaptive_icon_foreground: "assets/images/cyanzone_app_icon_foreground.png"
 
 flutter:
   uses-material-design: true
@@ -49,3 +50,7 @@ flutter:
     - assets/images/logo_transparent.png
     - assets/images/app_icon.png
     - .env
+  fonts:
+    - family: Pacifico
+      fonts:
+        - asset: assets/fonts/Pacifico-Regular.ttf
