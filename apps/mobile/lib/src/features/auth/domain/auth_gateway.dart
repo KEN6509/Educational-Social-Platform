@@ -6,6 +6,7 @@ enum RegistrationOutcome {
 }
 
 enum AuthFailureReason {
+  emailAlreadyRegistered,
   emailNotConfirmed,
   invalidOtp,
   expiredOtp,

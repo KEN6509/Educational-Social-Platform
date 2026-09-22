@@ -28,7 +28,7 @@ final class SupabaseAuthGateway implements AuthGateway {
 
   @override
   Future<RegistrationOutcome> register(RegistrationRequest request) async {
-    final hasSession = await _guard(() => _api.signUp(
+    final response = await _guard(() => _api.signUp(
           email: request.email,
           password: request.password,
           data: {
@@ -40,7 +40,14 @@ final class SupabaseAuthGateway implements AuthGateway {
           },
         ));
 
-    return hasSession
+    if (!response.hasSession && response.identityCount == 0) {
+      throw const AuthFailure(
+        'An account with this email already exists.',
+        reason: AuthFailureReason.emailAlreadyRegistered,
+      );
+    }
+
+    return response.hasSession
         ? RegistrationOutcome.signedIn
         : RegistrationOutcome.confirmationRequired;
   }
