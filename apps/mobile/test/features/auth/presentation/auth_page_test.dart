@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cyanzone_mobile/src/features/auth/domain/auth_gateway.dart';
@@ -126,6 +127,96 @@ void main() {
       find.text('Unable to create this account. Please try again.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('confirmed duplicate shows inline email error and skips OTP',
+      (tester) async {
+    authGateway.registrationError = const AuthFailure(
+      'An account with this email already exists.',
+      reason: AuthFailureReason.emailAlreadyRegistered,
+    );
+    await pumpAuthPage(tester);
+
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('register-name-field')),
+      'Ming Jiang',
+    );
+    final emailField = find.byKey(const ValueKey('register-email-field'));
+    await tester.enterText(emailField, 'ming@example.com');
+    await tester.enterText(
+      find.byKey(const ValueKey('register-password-field')),
+      'StrongPass12!',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-confirm-password-field')),
+      'StrongPass12!',
+    );
+    final consent = find.byKey(const ValueKey('registration-consent-checkbox'));
+    await tester.ensureVisible(consent);
+    await tester.tap(consent);
+    final submit = find.widgetWithText(FilledButton, 'Create account');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pump();
+
+    const errorText = 'An account with this email already exists.';
+    expect(
+      find.descendant(of: emailField, matching: find.text(errorText)),
+      findsOneWidget,
+    );
+    expect(find.text('Enter the 6-digit code'), findsNothing);
+    expect(pendingStore.email, isNull);
+
+    await tester.enterText(emailField, 'new@example.com');
+    await tester.pump();
+    expect(find.text(errorText), findsNothing);
+  });
+
+  testWidgets('registration fields are disabled while signup is in flight',
+      (tester) async {
+    authGateway.registrationCompleter = Completer<RegistrationOutcome>();
+    await pumpAuthPage(tester);
+
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('register-name-field')),
+      'Ming Jiang',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-email-field')),
+      'ming@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-password-field')),
+      'StrongPass12!',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-confirm-password-field')),
+      'StrongPass12!',
+    );
+    final consent = find.byKey(const ValueKey('registration-consent-checkbox'));
+    await tester.ensureVisible(consent);
+    await tester.tap(consent);
+    final submit = find.widgetWithText(FilledButton, 'Create account');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<TextFormField>(
+            find.byKey(const ValueKey('register-email-field')),
+          )
+          .enabled,
+      isFalse,
+    );
+
+    authGateway.registrationCompleter!
+        .complete(RegistrationOutcome.confirmationRequired);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('accepted registration opens OTP with normalized email',

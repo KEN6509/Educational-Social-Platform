@@ -1,5 +1,15 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+final class SupabaseSignUpResponse {
+  const SupabaseSignUpResponse({
+    required this.hasSession,
+    required this.identityCount,
+  });
+
+  final bool hasSession;
+  final int? identityCount;
+}
+
 abstract interface class SupabaseAuthApi {
   bool get hasConfirmedSession;
 
@@ -7,7 +17,7 @@ abstract interface class SupabaseAuthApi {
 
   Future<void> signIn({required String email, required String password});
 
-  Future<bool> signUp({
+  Future<SupabaseSignUpResponse> signUp({
     required String email,
     required String password,
     required Map<String, dynamic> data,
@@ -41,7 +51,7 @@ final class GoTrueSupabaseAuthApi implements SupabaseAuthApi {
   }
 
   @override
-  Future<bool> signUp({
+  Future<SupabaseSignUpResponse> signUp({
     required String email,
     required String password,
     required Map<String, dynamic> data,
@@ -51,7 +61,10 @@ final class GoTrueSupabaseAuthApi implements SupabaseAuthApi {
       password: password,
       data: data,
     );
-    return response.session != null;
+    return SupabaseSignUpResponse(
+      hasSession: response.session != null,
+      identityCount: response.user?.identities?.length,
+    );
   }
 
   @override

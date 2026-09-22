@@ -20,6 +20,7 @@ final class RegistrationState {
     this.pendingEmail,
     this.resendSecondsRemaining = 0,
     this.message,
+    this.emailError,
     this.isSuccessMessage = false,
   });
 
@@ -27,6 +28,7 @@ final class RegistrationState {
   final String? pendingEmail;
   final int resendSecondsRemaining;
   final String? message;
+  final String? emailError;
   final bool isSuccessMessage;
 
   bool get showsOtp => switch (phase) {
@@ -50,6 +52,7 @@ final class RegistrationState {
     Object? pendingEmail = _unset,
     int? resendSecondsRemaining,
     Object? message = _unset,
+    Object? emailError = _unset,
     bool? isSuccessMessage,
   }) {
     return RegistrationState(
@@ -60,6 +63,9 @@ final class RegistrationState {
       resendSecondsRemaining:
           resendSecondsRemaining ?? this.resendSecondsRemaining,
       message: identical(message, _unset) ? this.message : message as String?,
+      emailError: identical(emailError, _unset)
+          ? this.emailError
+          : emailError as String?,
       isSuccessMessage: isSuccessMessage ?? this.isSuccessMessage,
     );
   }
@@ -112,6 +118,7 @@ final class RegistrationController extends ChangeNotifier {
     _setState(_state.copyWith(
       phase: RegistrationPhase.submitting,
       message: null,
+      emailError: null,
       isSuccessMessage: false,
     ));
 
@@ -137,9 +144,12 @@ final class RegistrationController extends ChangeNotifier {
       }
       return outcome;
     } on AuthFailure catch (error) {
+      final isDuplicate =
+          error.reason == AuthFailureReason.emailAlreadyRegistered;
       _setState(_state.copyWith(
         phase: RegistrationPhase.editing,
-        message: error.message,
+        message: isDuplicate ? null : error.message,
+        emailError: isDuplicate ? error.message : null,
         isSuccessMessage: false,
       ));
       return null;
@@ -249,6 +259,11 @@ final class RegistrationController extends ChangeNotifier {
       message: null,
       isSuccessMessage: false,
     ));
+  }
+
+  void clearEmailError() {
+    if (_state.emailError == null) return;
+    _setState(_state.copyWith(emailError: null));
   }
 
   @override

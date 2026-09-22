@@ -48,6 +48,90 @@ void main() {
     });
   });
 
+  test('confirmed duplicate registration maps to an email field failure',
+      () async {
+    api.signUpResponse = const SupabaseSignUpResponse(
+      hasSession: false,
+      identityCount: 0,
+    );
+    final gateway = SupabaseAuthGateway.fromApi(api);
+
+    await expectLater(
+      gateway.register(RegistrationRequest(
+        name: 'Ming Jiang',
+        email: 'ming@example.com',
+        password: 'StrongPass12!',
+        termsVersion: '1.0',
+        privacyVersion: '1.0',
+        consentAcceptedAt: DateTime.utc(2026, 9, 4, 9),
+      )),
+      throwsA(
+        isA<AuthFailure>()
+            .having(
+              (error) => error.reason,
+              'reason',
+              AuthFailureReason.emailAlreadyRegistered,
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              'An account with this email already exists.',
+            ),
+      ),
+    );
+  });
+
+  test('unverified registration still requires confirmation', () async {
+    api.signUpResponse = const SupabaseSignUpResponse(
+      hasSession: false,
+      identityCount: 1,
+    );
+    final gateway = SupabaseAuthGateway.fromApi(api);
+
+    final outcome = await gateway.register(RegistrationRequest(
+      name: 'Ming Jiang',
+      email: 'ming@example.com',
+      password: 'StrongPass12!',
+      termsVersion: '1.0',
+      privacyVersion: '1.0',
+      consentAcceptedAt: DateTime.utc(2026, 9, 4, 9),
+    ));
+
+    expect(outcome, RegistrationOutcome.confirmationRequired);
+  });
+
+  test('explicit existing-user errors map to an email field failure', () async {
+    api.signUpError = const AuthException(
+      'User already registered',
+      code: 'user_already_exists',
+    );
+    final gateway = SupabaseAuthGateway.fromApi(api);
+
+    await expectLater(
+      gateway.register(RegistrationRequest(
+        name: 'Ming Jiang',
+        email: 'ming@example.com',
+        password: 'StrongPass12!',
+        termsVersion: '1.0',
+        privacyVersion: '1.0',
+        consentAcceptedAt: DateTime.utc(2026, 9, 4, 9),
+      )),
+      throwsA(
+        isA<AuthFailure>()
+            .having(
+              (error) => error.reason,
+              'reason',
+              AuthFailureReason.emailAlreadyRegistered,
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              'An account with this email already exists.',
+            ),
+      ),
+    );
+  });
+
   test('verification and resend use signup OTP', () async {
     final gateway = SupabaseAuthGateway.fromApi(api);
 
@@ -127,7 +211,10 @@ final class FakeSupabaseAuthApi implements SupabaseAuthApi {
   final _stateController = StreamController<bool>.broadcast();
 
   bool isConfirmedSession = false;
-  bool signUpHasSession = false;
+  SupabaseSignUpResponse signUpResponse = const SupabaseSignUpResponse(
+    hasSession: false,
+    identityCount: 1,
+  );
   Object? signInError;
   Object? signUpError;
   Object? verifyError;
@@ -151,7 +238,7 @@ final class FakeSupabaseAuthApi implements SupabaseAuthApi {
   }
 
   @override
-  Future<bool> signUp({
+  Future<SupabaseSignUpResponse> signUp({
     required String email,
     required String password,
     required Map<String, dynamic> data,
@@ -160,7 +247,7 @@ final class FakeSupabaseAuthApi implements SupabaseAuthApi {
     signUpEmail = email;
     signUpPassword = password;
     signUpData = data;
-    return signUpHasSession;
+    return signUpResponse;
   }
 
   @override

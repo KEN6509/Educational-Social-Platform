@@ -19,6 +19,7 @@ final class FakeAuthGateway implements AuthGateway {
   String? get registrationPassword => registrationRequest?.password;
   Object? registrationError;
   RegistrationOutcome registrationOutcome = RegistrationOutcome.signedIn;
+  Completer<RegistrationOutcome>? registrationCompleter;
   String? verificationEmail;
   String? verificationToken;
   Object? verificationError;
@@ -51,6 +52,10 @@ final class FakeAuthGateway implements AuthGateway {
       throw error;
     }
     registrationRequest = request;
+    final completer = registrationCompleter;
+    if (completer != null) {
+      return completer.future;
+    }
     return registrationOutcome;
   }
 

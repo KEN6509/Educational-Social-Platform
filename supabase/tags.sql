@@ -1,3 +1,8 @@
+-- The tag-request workflow is not implemented by the mobile app or
+-- Administration Portal. Remove the obsolete table if an older version of
+-- this migration created it.
+drop table if exists public.tag_requests;
+
 create table if not exists public.tag_categories (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
@@ -18,41 +23,19 @@ create table if not exists public.tags (
   unique (category_id, position)
 );
 
-create table if not exists public.tag_requests (
-  id uuid primary key default gen_random_uuid(),
-  requester_id uuid not null references public.profiles(id) on delete cascade,
-  requested_name text not null check (char_length(requested_name) between 2 and 60),
-  reason text check (reason is null or char_length(reason) <= 500),
-  status public.creator_request_status not null default 'pending',
-  reviewed_by uuid references public.profiles(id) on delete set null,
-  reviewed_at timestamptz,
-  admin_note text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
 create index if not exists tags_category_position_idx
 on public.tags(category_id, position);
 
 create index if not exists tags_active_slug_idx
 on public.tags(is_active, slug);
 
-create index if not exists tag_requests_requester_idx
-on public.tag_requests(requester_id, created_at desc);
-
 drop trigger if exists set_tags_updated_at on public.tags;
 create trigger set_tags_updated_at
 before update on public.tags
 for each row execute function public.set_updated_at();
 
-drop trigger if exists set_tag_requests_updated_at on public.tag_requests;
-create trigger set_tag_requests_updated_at
-before update on public.tag_requests
-for each row execute function public.set_updated_at();
-
 alter table public.tag_categories enable row level security;
 alter table public.tags enable row level security;
-alter table public.tag_requests enable row level security;
 
 drop policy if exists "Signed-in users can view tag categories" on public.tag_categories;
 create policy "Signed-in users can view tag categories"
@@ -76,25 +59,6 @@ using (is_active = true);
 drop policy if exists "Admins can manage tags" on public.tags;
 create policy "Admins can manage tags"
 on public.tags for all
-to authenticated
-using (public.is_current_user_admin())
-with check (public.is_current_user_admin());
-
-drop policy if exists "Users can request tags" on public.tag_requests;
-create policy "Users can request tags"
-on public.tag_requests for insert
-to authenticated
-with check (requester_id = auth.uid());
-
-drop policy if exists "Users can view own tag requests" on public.tag_requests;
-create policy "Users can view own tag requests"
-on public.tag_requests for select
-to authenticated
-using (requester_id = auth.uid() or public.is_current_user_admin());
-
-drop policy if exists "Admins can review tag requests" on public.tag_requests;
-create policy "Admins can review tag requests"
-on public.tag_requests for update
 to authenticated
 using (public.is_current_user_admin())
 with check (public.is_current_user_admin());
