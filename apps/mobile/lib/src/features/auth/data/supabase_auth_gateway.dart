@@ -82,6 +82,13 @@ final class SupabaseAuthGateway implements AuthGateway {
     final code = (error.code ?? '').toLowerCase();
     final message = error.message.toLowerCase();
 
+    if (code == 'user_already_exists' ||
+        message.contains('user already registered')) {
+      return const AuthFailure(
+        'An account with this email already exists.',
+        reason: AuthFailureReason.emailAlreadyRegistered,
+      );
+    }
     if (code == 'email_not_confirmed' ||
         message.contains('email not confirmed')) {
       return const AuthFailure(

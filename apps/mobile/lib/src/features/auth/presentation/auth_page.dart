@@ -433,6 +433,7 @@ class _AuthPanel extends StatelessWidget {
               if (isRegistering) ...[
                 TextFormField(
                   key: const ValueKey('register-name-field'),
+                  enabled: !isLoading,
                   controller: nameController,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.name],
@@ -455,6 +456,7 @@ class _AuthPanel extends StatelessWidget {
                 key: ValueKey(
                   isRegistering ? 'register-email-field' : 'login-email-field',
                 ),
+                enabled: !isLoading,
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
@@ -480,6 +482,7 @@ class _AuthPanel extends StatelessWidget {
                       ? 'register-password-field'
                       : 'login-password-field',
                 ),
+                enabled: !isLoading,
                 controller: passwordController,
                 obscureText: !showPassword,
                 textInputAction:
@@ -520,6 +523,7 @@ class _AuthPanel extends StatelessWidget {
                 const SizedBox(height: 14),
                 TextFormField(
                   key: const ValueKey('register-confirm-password-field'),
+                  enabled: !isLoading,
                   controller: confirmPasswordController,
                   obscureText: !showConfirmPassword,
                   textInputAction: TextInputAction.done,

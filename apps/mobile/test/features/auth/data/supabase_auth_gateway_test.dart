@@ -100,6 +100,38 @@ void main() {
     expect(outcome, RegistrationOutcome.confirmationRequired);
   });
 
+  test('explicit existing-user errors map to an email field failure', () async {
+    api.signUpError = const AuthException(
+      'User already registered',
+      code: 'user_already_exists',
+    );
+    final gateway = SupabaseAuthGateway.fromApi(api);
+
+    await expectLater(
+      gateway.register(RegistrationRequest(
+        name: 'Ming Jiang',
+        email: 'ming@example.com',
+        password: 'StrongPass12!',
+        termsVersion: '1.0',
+        privacyVersion: '1.0',
+        consentAcceptedAt: DateTime.utc(2026, 9, 4, 9),
+      )),
+      throwsA(
+        isA<AuthFailure>()
+            .having(
+              (error) => error.reason,
+              'reason',
+              AuthFailureReason.emailAlreadyRegistered,
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              'An account with this email already exists.',
+            ),
+      ),
+    );
+  });
+
   test('verification and resend use signup OTP', () async {
     final gateway = SupabaseAuthGateway.fromApi(api);
 
