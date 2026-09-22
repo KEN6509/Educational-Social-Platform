@@ -47,6 +47,27 @@ void main() {
     expect(controller.state.resendSecondsRemaining, 1);
   });
 
+  test('confirmed duplicate stays editing with an email field error', () async {
+    authGateway.registrationError = const AuthFailure(
+      'An account with this email already exists.',
+      reason: AuthFailureReason.emailAlreadyRegistered,
+    );
+
+    await controller.register(request);
+
+    expect(controller.state.phase, RegistrationPhase.editing);
+    expect(controller.state.pendingEmail, isNull);
+    expect(
+      controller.state.emailError,
+      'An account with this email already exists.',
+    );
+    expect(controller.state.message, isNull);
+    expect(store.email, isNull);
+
+    controller.clearEmailError();
+    expect(controller.state.emailError, isNull);
+  });
+
   test('restore resumes the OTP step without restoring secrets', () async {
     store.email = 'ming@example.com';
 
