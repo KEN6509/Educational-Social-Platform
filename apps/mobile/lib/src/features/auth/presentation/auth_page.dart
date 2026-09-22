@@ -257,6 +257,9 @@ class _AuthPageState extends State<AuthPage> {
                                     formKey: _formKey,
                                     nameController: _nameController,
                                     emailController: _emailController,
+                                    emailError: _isRegistering
+                                        ? _registrationState.emailError
+                                        : null,
                                     passwordController: _passwordController,
                                     confirmPasswordController:
                                         _confirmPasswordController,
@@ -280,6 +283,8 @@ class _AuthPageState extends State<AuthPage> {
                                             PasswordPolicy.evaluate(value);
                                       });
                                     },
+                                    onEmailChanged:
+                                        _registrationController.clearEmailError,
                                     onTogglePassword: () => setState(
                                       () => _showPassword = !_showPassword,
                                     ),
@@ -358,6 +363,7 @@ class _AuthPanel extends StatelessWidget {
     required this.formKey,
     required this.nameController,
     required this.emailController,
+    required this.emailError,
     required this.passwordController,
     required this.confirmPasswordController,
     required this.showPassword,
@@ -368,6 +374,7 @@ class _AuthPanel extends StatelessWidget {
     required this.onModeChanged,
     required this.onConsentChanged,
     required this.onPasswordChanged,
+    required this.onEmailChanged,
     required this.onTogglePassword,
     required this.onToggleConfirmPassword,
     required this.onSubmit,
@@ -380,6 +387,7 @@ class _AuthPanel extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController nameController;
   final TextEditingController emailController;
+  final String? emailError;
   final TextEditingController passwordController;
   final TextEditingController confirmPasswordController;
   final bool showPassword;
@@ -390,6 +398,7 @@ class _AuthPanel extends StatelessWidget {
   final ValueChanged<bool> onModeChanged;
   final ValueChanged<bool> onConsentChanged;
   final ValueChanged<String> onPasswordChanged;
+  final VoidCallback onEmailChanged;
   final VoidCallback onTogglePassword;
   final VoidCallback onToggleConfirmPassword;
   final VoidCallback onSubmit;
@@ -450,6 +459,7 @@ class _AuthPanel extends StatelessWidget {
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
                 autofillHints: const [AutofillHints.email],
+                forceErrorText: isRegistering ? emailError : null,
                 decoration: const InputDecoration(
                   labelText: 'Email',
                   prefixIcon: Icon(Icons.alternate_email_rounded),
@@ -461,6 +471,7 @@ class _AuthPanel extends StatelessWidget {
                   }
                   return null;
                 },
+                onChanged: isRegistering ? (_) => onEmailChanged() : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
