@@ -31,6 +31,35 @@ abstract interface class ContentModerationGateway {
   Future<ContentModerationResult> moderateComment(String commentId);
 }
 
+String moderationRejectionMessage({
+  required String subject,
+  required double? riskScore,
+  required String? reason,
+}) {
+  final parts = <String>[_asSentence(subject.trim())];
+  if (riskScore != null) {
+    parts.add('AI risk score: ${_formatRiskScore(riskScore)}%.');
+  }
+  final explanation = reason?.trim();
+  if (explanation != null && explanation.isNotEmpty) {
+    parts.add('Reason: ${_asSentence(explanation)}');
+  }
+  return parts.join(' ');
+}
+
+String _formatRiskScore(double value) {
+  if (value == value.roundToDouble()) return value.toStringAsFixed(0);
+  return value
+      .toStringAsFixed(2)
+      .replaceFirst(RegExp(r'0+$'), '')
+      .replaceFirst(RegExp(r'\.$'), '');
+}
+
+String _asSentence(String value) {
+  if (value.isEmpty) return value;
+  return RegExp(r'[.!?]$').hasMatch(value) ? value : '$value.';
+}
+
 final class ContentModerationFailure implements Exception {
   const ContentModerationFailure(
     this.message, {

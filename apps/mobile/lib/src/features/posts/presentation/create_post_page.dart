@@ -290,9 +290,11 @@ class _CreatePostPageState extends State<CreatePostPage> {
           if (_isEditing && mounted) Navigator.of(context).pop(true);
         case ContentModerationState.rejected:
           _showModerationMessage(
-            result.reason?.trim().isNotEmpty == true
-                ? 'Post was not published: ${result.reason}'
-                : 'Post was not published.',
+            moderationRejectionMessage(
+              subject: 'Post was not published',
+              riskScore: result.riskScore,
+              reason: result.reason,
+            ),
           );
         case ContentModerationState.superseded:
           _showModerationMessage(

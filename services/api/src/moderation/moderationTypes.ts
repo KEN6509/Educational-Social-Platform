@@ -1,18 +1,6 @@
-export const MODERATION_PROMPT_VERSION = 'cyanzone-moderation-v2';
+export const MODERATION_PROMPT_VERSION = 'cyanzone-moderation-v3';
 
-export const MODERATION_CATEGORIES = [
-  'harassmentBullying',
-  'hate',
-  'sexual',
-  'violenceDanger',
-  'selfHarm',
-  'spamScam',
-  'privacyExposure',
-] as const;
-
-export type ModerationCategory = (typeof MODERATION_CATEGORIES)[number];
 export type ModerationTargetType = 'post' | 'comment';
-export type ModerationEvidenceSource = 'text' | 'image' | 'both';
 export type SupportedImageMimeType =
   | 'image/png'
   | 'image/jpeg'
@@ -34,12 +22,9 @@ export type ModerationTarget = {
 };
 
 export type ModerationProviderResult = {
-  recommendedDecision: ModerationDecision;
   overallRiskScore: number;
-  categoryScores: Record<ModerationCategory, number>;
   evidence: string[];
   userReason: string;
-  evidenceSource: ModerationEvidenceSource;
   model: string;
   promptVersion: string;
   providerAttempts?: number;
@@ -111,22 +96,12 @@ export interface ModerationRepository {
 
 export type ModerationDecision = 'approved' | 'admin_review' | 'rejected';
 
-export function decideModeration(
-  result: Pick<ModerationProviderResult, 'overallRiskScore' | 'recommendedDecision'>,
-): ModerationDecision {
-  const scoreDecision = result.overallRiskScore < 40
+export function decideModeration(overallRiskScore: number): ModerationDecision {
+  return overallRiskScore < 40
     ? 'approved'
-    : result.overallRiskScore <= 60
+    : overallRiskScore <= 60
       ? 'admin_review'
       : 'rejected';
-  const severity: Record<ModerationDecision, number> = {
-    approved: 0,
-    admin_review: 1,
-    rejected: 2,
-  };
-  return severity[result.recommendedDecision] > severity[scoreDecision]
-    ? result.recommendedDecision
-    : scoreDecision;
 }
 
 export interface ModerationProvider {
@@ -159,11 +134,9 @@ export class ModerationProviderError extends Error {
 
 export class GeminiInputSafetyError extends ModerationProviderError {
   readonly ratings: unknown;
-  readonly evidenceSource?: ModerationEvidenceSource;
 
   constructor(
     ratings: unknown = undefined,
-    evidenceSource?: ModerationEvidenceSource,
     providerAttempts?: number,
   ) {
     super('Gemini blocked the moderation input for safety reasons', {
@@ -172,6 +145,5 @@ export class GeminiInputSafetyError extends ModerationProviderError {
     });
     this.name = 'GeminiInputSafetyError';
     this.ratings = ratings;
-    this.evidenceSource = evidenceSource;
   }
 }

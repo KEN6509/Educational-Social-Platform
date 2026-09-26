@@ -94,6 +94,16 @@ void main() {
     expect(page, contains('Future<void> _checkConnection()'));
   });
 
+  test('Edit Profile reports a successful update before refreshing', () {
+    final widgets = _read('profile_header_widgets.dart');
+
+    expect(
+      widgets,
+      contains('AppFeedback.showSuccess('),
+    );
+    expect(widgets, contains("'Profile updated successfully.'"));
+  });
+
   test('Follow Lists delegate detailed widgets', () {
     final page = _read('follow_list_page.dart');
     final widgets = _read('follow_list_widgets.dart');

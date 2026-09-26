@@ -951,7 +951,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
         case ContentModerationState.rejected:
           AppFeedback.showError(
             context,
-            result.reason ?? 'Comment was not posted.',
+            moderationRejectionMessage(
+              subject: 'Comment was not posted',
+              riskScore: result.riskScore,
+              reason: result.reason,
+            ),
           );
         case ContentModerationState.superseded:
           AppFeedback.show(

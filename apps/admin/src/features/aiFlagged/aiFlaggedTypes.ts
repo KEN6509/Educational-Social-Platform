@@ -12,7 +12,6 @@ export type AiFlaggedCase = {
   content: string;
   imageUrls: string[];
   riskScore: number;
-  categoryScores: Record<string, number>;
   evidence: string[];
   userReason: string;
   model: string;

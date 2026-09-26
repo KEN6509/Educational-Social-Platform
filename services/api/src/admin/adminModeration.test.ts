@@ -26,7 +26,6 @@ const caseView: AiModerationCaseView = {
   content: 'Post content',
   imageUrls: ['https://project.supabase.co/images/a.jpg'],
   riskScore: 50,
-  categoryScores: { hate: 50 },
   evidence: ['test evidence'],
   userReason: 'Needs review',
   model: 'gemini-3.8-flash',

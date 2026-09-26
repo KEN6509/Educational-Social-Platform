@@ -28,7 +28,6 @@ const pendingCase = {
   content: 'Content under review',
   imageUrls: ['https://cdn.example.test/image.jpg'],
   riskScore: 50,
-  categoryScores: { hate: 50 },
   evidence: ['Ambiguous phrase'],
   userReason: 'Needs a human check.',
   model: 'gemini-3.8-flash',
