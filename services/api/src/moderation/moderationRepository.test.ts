@@ -140,22 +140,11 @@ test('calls moderation RPCs with exact revision, owner, and claim arguments', as
   await repository.applyResult('case-1', 3, {
     claimToken: 'claim-1',
     state: 'approved',
-    recommendedDecision: 'approved',
     overallRiskScore: 10,
-    categoryScores: {
-      harassmentBullying: 0,
-      hate: 0,
-      sexual: 0,
-      violenceDanger: 0,
-      selfHarm: 0,
-      spamScam: 0,
-      privacyExposure: 0,
-    },
     evidence: ['safe'],
     userReason: 'safe',
-    evidenceSource: 'text',
     model: 'gemini-3.8-flash',
-    promptVersion: 'cyanzone-moderation-v2',
+    promptVersion: 'cyanzone-moderation-v3',
     attemptCount: 1,
   });
   await repository.markFailed('case-1', 3, {
@@ -175,6 +164,7 @@ test('calls moderation RPCs with exact revision, owner, and claim arguments', as
   );
   assert.equal(rpcCalls[0].args.p_owner_id, 'member-1');
   assert.equal(rpcCalls[1].args.p_expected_revision, 3);
+  assert.deepEqual(rpcCalls[1].args.p_category_scores, {});
   assert.equal(rpcCalls[2].args.p_claim_token, 'claim-1');
 });
 

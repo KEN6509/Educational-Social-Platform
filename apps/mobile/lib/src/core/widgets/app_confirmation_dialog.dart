@@ -34,6 +34,7 @@ Future<bool?> showAppDialog({
       secondaryLabel: secondaryLabel,
       primaryKey: primaryKey,
       cancelKey: secondaryKey,
+      scrollable: information,
     ),
   );
 }
@@ -82,6 +83,7 @@ class AppConfirmationDialog extends StatelessWidget {
     this.secondaryLabel = 'Cancel',
     this.primaryKey,
     this.cancelKey,
+    this.scrollable = false,
     super.key,
   });
 
@@ -95,9 +97,77 @@ class AppConfirmationDialog extends StatelessWidget {
   final String? secondaryLabel;
   final Key? primaryKey;
   final Key? cancelKey;
+  final bool scrollable;
 
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 58,
+          height: 58,
+          decoration: BoxDecoration(
+            color: iconBackgroundColor,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: iconColor, size: 30),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 14,
+            height: 1.42,
+          ),
+        ),
+        const SizedBox(height: 22),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: FilledButton(
+            key: primaryKey,
+            style: FilledButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.compact),
+              ),
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(primaryLabel),
+          ),
+        ),
+        if (secondaryLabel case final label?) ...[
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            height: 42,
+            child: TextButton(
+              key: cancelKey,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.textSecondary,
+              ),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(label),
+            ),
+          ),
+        ],
+      ],
+    );
+
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 28),
       backgroundColor: Colors.transparent,
@@ -114,72 +184,7 @@ class AppConfirmationDialog extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                color: iconBackgroundColor,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: iconColor, size: 30),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 14,
-                height: 1.42,
-              ),
-            ),
-            const SizedBox(height: 22),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: FilledButton(
-                key: primaryKey,
-                style: FilledButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: AppColors.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadii.compact),
-                  ),
-                ),
-                onPressed: () => Navigator.of(context).pop(true),
-                child: Text(primaryLabel),
-              ),
-            ),
-            if (secondaryLabel case final label?) ...[
-              const SizedBox(height: 6),
-              SizedBox(
-                width: double.infinity,
-                height: 42,
-                child: TextButton(
-                  key: cancelKey,
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                  ),
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(label),
-                ),
-              ),
-            ],
-          ],
-        ),
+        child: scrollable ? SingleChildScrollView(child: content) : content,
       ),
     );
   }

@@ -12,20 +12,9 @@ import {
 } from './geminiModerationGateway.js';
 
 const safeResponse = {
-  recommendedDecision: 'approved',
   overallRiskScore: 12,
-  categoryScores: {
-    harassmentBullying: 1,
-    hate: 0,
-    sexual: 0,
-    violenceDanger: 2,
-    selfHarm: 0,
-    spamScam: 4,
-    privacyExposure: 1,
-  },
   evidence: ['No harmful signal found'],
   userReason: 'This content appears safe for the CyanZone community.',
-  evidenceSource: 'text',
 };
 
 const commentTarget: ModerationTarget = {
@@ -136,12 +125,11 @@ test('loads trusted image bytes and sends every image to Gemini as inline data',
   assert.deepEqual(imageParts?.map((part) => part.uri), [undefined, undefined]);
   assert.equal(result.model, 'gemini-3.5-flash-lite');
   assert.equal(result.providerAttempts, 1);
-  assert.equal(result.promptVersion, 'cyanzone-moderation-v2');
+  assert.equal(result.promptVersion, 'cyanzone-moderation-v3');
   assert.equal(result.overallRiskScore, 12);
-  assert.equal(result.recommendedDecision, 'approved');
 });
 
-test('gives Gemini an explicit youth-safety enforcement contract', async () => {
+test('gives Gemini a score-only youth-safety contract matching system thresholds', async () => {
   let request: GeminiInteractionRequest | undefined;
   const gateway = createGateway(async (input) => {
     request = input;
@@ -157,8 +145,10 @@ test('gives Gemini an explicit youth-safety enforcement contract', async () => {
   });
 
   assert.match(request?.system_instruction ?? '', /direct hostile profanity/i);
-  assert.match(request?.system_instruction ?? '', /recommendedDecision/i);
-  assert.match(request?.system_instruction ?? '', /rejected/i);
+  assert.match(request?.system_instruction ?? '', /0(?:\.00)?\s*(?:-|–)\s*39\.99/);
+  assert.match(request?.system_instruction ?? '', /40\s*(?:-|–)\s*60/);
+  assert.match(request?.system_instruction ?? '', />\s*60\s*(?:-|–)\s*100/);
+  assert.doesNotMatch(request?.system_instruction ?? '', /recommendedDecision/i);
 });
 
 test('sends comment text without image parts', async () => {
@@ -177,6 +167,16 @@ test('sends comment text without image parts', async () => {
 
   assert.equal(request?.input.filter((part) => part.type === 'image').length, 0);
   assert.equal(request?.input.filter((part) => part.type === 'text').length, 1);
+});
+
+test('normalizes structured risk scores to database precision', async () => {
+  const gateway = createGateway(async () => ({
+    output_text: JSON.stringify({ ...safeResponse, overallRiskScore: 60.001 }),
+  }));
+
+  const result = await gateway.moderate(commentTarget);
+
+  assert.equal(result.overallRiskScore, 60);
 });
 
 test('rejects malformed structured output as a non-retryable provider error', async () => {
@@ -241,7 +241,6 @@ test('recognizes explicit blocked safety metadata without relying on message tex
           blocked: true,
         },
       ],
-      evidenceSource: 'image',
     };
   });
 
@@ -249,7 +248,6 @@ test('recognizes explicit blocked safety metadata without relying on message tex
     gateway.moderate({ targetType: 'post', content: 'blocked', tags: [], images: [] }),
     (error: unknown) =>
       error instanceof GeminiInputSafetyError &&
-      error.evidenceSource === 'image' &&
       Array.isArray(error.ratings),
   );
   assert.equal(calls, 1);
@@ -334,7 +332,6 @@ test('preserves a safety block raised on the second provider call', async () => 
     if (calls === 1) throw { status: 503, message: 'unavailable' };
     throw new GeminiInputSafetyError(
       [{ category: 'HARM_CATEGORY_HATE_SPEECH', blocked: true }],
-      'text',
     );
   });
 
@@ -342,8 +339,7 @@ test('preserves a safety block raised on the second provider call', async () => 
     gateway.moderate(commentTarget),
     (error: unknown) =>
       error instanceof GeminiInputSafetyError &&
-      error.providerAttempts === 2 &&
-      error.evidenceSource === 'text',
+      error.providerAttempts === 2,
   );
   assert.equal(calls, 2);
 });

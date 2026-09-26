@@ -126,6 +126,11 @@ class _ProfileHeader extends StatelessWidget {
                         ),
                       );
                       if (result == true) {
+                        if (!context.mounted) return;
+                        AppFeedback.showSuccess(
+                          context,
+                          'Profile updated successfully.',
+                        );
                         onRefresh();
                       }
                     },

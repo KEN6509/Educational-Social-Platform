@@ -20,22 +20,11 @@ const member = { id: 'member-1', email: 'member@cyanzone.test' };
 
 function providerResult(score: number): ModerationProviderResult {
   return {
-    recommendedDecision: 'approved',
     overallRiskScore: score,
-    categoryScores: {
-      harassmentBullying: score,
-      hate: score,
-      sexual: score,
-      violenceDanger: score,
-      selfHarm: score,
-      spamScam: score,
-      privacyExposure: score,
-    },
     evidence: ['test evidence'],
     userReason: 'test reason',
-    evidenceSource: 'text',
     model: 'gemini-3.8-flash',
-    promptVersion: 'cyanzone-moderation-v2',
+    promptVersion: 'cyanzone-moderation-v3',
   };
 }
 
@@ -144,6 +133,26 @@ for (const [score, expected] of [
   });
 }
 
+for (const [rawScore, storedScore, expected] of [
+  [1e-7, 0, 'approved'],
+  [39.994, 39.99, 'approved'],
+  [39.995, 40, 'admin_review'],
+  [59.999, 60, 'admin_review'],
+  [60.001, 60, 'admin_review'],
+  [60.005, 60.01, 'rejected'],
+] as const) {
+  test(`normalizes ${rawScore} to ${storedScore} before deciding and persisting`, async () => {
+    const harness = createHarness();
+    harness.provider.moderate = async () => providerResult(rawScore);
+
+    const response = await harness.service.moderate('post', 'post-1', member);
+
+    assert.equal(response.caseState, expected);
+    assert.equal(response.riskScore, storedScore);
+    assert.equal(harness.persistedResult?.overallRiskScore, storedScore);
+  });
+}
+
 test('returns a live processing case without invoking Gemini twice', async () => {
   const harness = createHarness();
   harness.setPrepared(processingCase({ shouldProcess: false }));
@@ -177,23 +186,22 @@ test('invokes the provider once and persists its exact attempt count', async () 
   assert.equal(harness.persistedResult?.model, 'gemini-3.8-flash');
 });
 
-test('honors an explicit Gemini rejection even when its numeric risk score is low', async () => {
+test('uses the risk score as the sole decision input and preserves the explanation', async () => {
   const harness = createHarness();
   harness.provider.moderate = async () => ({
     ...providerResult(30),
-    recommendedDecision: 'rejected',
-    categoryScores: {
-      ...providerResult(30).categoryScores,
-      harassmentBullying: 30,
-    },
     evidence: ['fuck you'],
     userReason: 'Direct hostile profanity targets another person.',
   });
 
   const response = await harness.service.moderate('post', 'post-1', member);
 
-  assert.equal(response.caseState, 'rejected');
-  assert.equal(harness.persistedResult?.state, 'rejected');
+  assert.equal(response.caseState, 'approved');
+  assert.equal(harness.persistedResult?.state, 'approved');
+  assert.equal(
+    harness.persistedResult?.userReason,
+    'Direct hostile profanity targets another person.',
+  );
 });
 
 test('safety-blocked input is fail-closed as a score-100 rejection', async () => {
@@ -214,7 +222,6 @@ test('persists the exact attempt count when the second provider call is safety-b
   harness.provider.moderate = async () => {
     throw new GeminiInputSafetyError(
       [{ category: 'HARM_CATEGORY_HATE_SPEECH', blocked: true }],
-      'text',
       2,
     );
   };
@@ -225,7 +232,7 @@ test('persists the exact attempt count when the second provider call is safety-b
   assert.equal(harness.persistedResult?.providerAttempts, 2);
 });
 
-test('safety-blocked input maps only supplied categories and preserves evidence source', async () => {
+test('safety-blocked input records a score-100 explanation and concrete evidence', async () => {
   const harness = createHarness();
   harness.provider.moderate = async () => {
     throw new GeminiInputSafetyError(
@@ -236,16 +243,14 @@ test('safety-blocked input maps only supplied categories and preserves evidence 
           blocked: true,
         },
       ],
-      'image',
     );
   };
 
   await harness.service.moderate('post', 'post-1', member);
 
-  assert.equal(harness.persistedResult?.categoryScores.hate, 100);
-  assert.equal(harness.persistedResult?.categoryScores.harassmentBullying, 0);
-  assert.equal(harness.persistedResult?.categoryScores.sexual, 0);
-  assert.equal(harness.persistedResult?.evidenceSource, 'image');
+  assert.equal(harness.persistedResult?.overallRiskScore, 100);
+  assert.match(harness.persistedResult?.userReason ?? '', /safety/i);
+  assert.match(harness.persistedResult?.evidence.join(' ') ?? '', /hate/i);
 });
 
 test('final provider failure marks the case and exposes retryable 503 semantics', async () => {

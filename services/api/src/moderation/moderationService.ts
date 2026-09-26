@@ -1,16 +1,13 @@
 import {
   GeminiInputSafetyError,
   MODERATION_PROMPT_VERSION,
-  MODERATION_CATEGORIES,
   decideModeration,
+  normalizeModerationScore,
   ModerationProviderError,
-  type ModerationCategory,
   type ModerationCase,
-  type ModerationEvidenceSource,
   type ModerationProvider,
   type ModerationProviderResult,
   type ModerationRepository,
-  type ModerationTarget,
   type ModerationTargetType,
   type PersistedModerationResult,
 } from './moderationTypes.js';
@@ -111,8 +108,12 @@ export function createModerationService(
       }
 
       try {
-        const providerResult = await provider.moderate(target.target);
-        const state = decideModeration(providerResult);
+        const rawResult = await provider.moderate(target.target);
+        const providerResult = {
+          ...rawResult,
+          overallRiskScore: normalizeModerationScore(rawResult.overallRiskScore),
+        };
+        const state = decideModeration(providerResult.overallRiskScore);
         return await applyResult(
           repository,
           moderationCase,
@@ -122,7 +123,7 @@ export function createModerationService(
         );
       } catch (error) {
         if (error instanceof GeminiInputSafetyError) {
-          const safetyResult = createSafetyResult(error, target.target);
+          const safetyResult = createSafetyResult(error);
           return await applyResult(
             repository,
             moderationCase,
@@ -182,12 +183,8 @@ async function applyResult(
 
 function createSafetyResult(
   error: GeminiInputSafetyError,
-  target: ModerationTarget,
 ): ModerationProviderResult {
-  const categoryScores = Object.fromEntries(
-    MODERATION_CATEGORIES.map((category) => [category, 0]),
-  ) as Record<ModerationCategory, number>;
-  const blockedCategories: ModerationCategory[] = [];
+  const blockedCategories: string[] = [];
 
   if (Array.isArray(error.ratings)) {
     for (const rating of error.ratings) {
@@ -195,31 +192,24 @@ function createSafetyResult(
       const details = rating as Record<string, unknown>;
       const category = mapGeminiSafetyCategory(details.category);
       if (!category) continue;
-      const score = safetyRatingScore(details);
-      categoryScores[category] = Math.max(categoryScores[category], score);
       if (details.blocked === true) blockedCategories.push(category);
     }
   }
 
-  const evidenceSource: ModerationEvidenceSource = error.evidenceSource ??
-    (target.images.length > 0 ? 'both' : 'text');
   const categoryLabel = blockedCategories.length > 0
     ? ` (${[...new Set(blockedCategories)].join(', ')})`
     : '';
   return {
-    recommendedDecision: 'rejected',
     overallRiskScore: 100,
-    categoryScores,
     evidence: [`Gemini blocked the input under its safety policy${categoryLabel}.`],
     userReason: 'This content could not be cleared by automated safety checks.',
-    evidenceSource,
     model: 'gemini-safety-policy',
     promptVersion: MODERATION_PROMPT_VERSION,
     providerAttempts: error.providerAttempts,
   };
 }
 
-function mapGeminiSafetyCategory(value: unknown): ModerationCategory | null {
+function mapGeminiSafetyCategory(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const category = value.toUpperCase();
   if (category.includes('HARASSMENT') || category.includes('BULLY')) {
@@ -234,24 +224,6 @@ function mapGeminiSafetyCategory(value: unknown): ModerationCategory | null {
     return 'selfHarm';
   }
   return null;
-}
-
-function safetyRatingScore(rating: Record<string, unknown>): number {
-  if (rating.blocked === true) return 100;
-  if (typeof rating.probabilityScore === 'number') {
-    const raw = rating.probabilityScore;
-    return Math.max(0, Math.min(100, raw <= 1 ? raw * 100 : raw));
-  }
-  const probability = typeof rating.probability === 'string'
-    ? rating.probability.toUpperCase()
-    : '';
-  return ({
-    NEGLIGIBLE: 0,
-    LOW: 25,
-    MEDIUM: 50,
-    HIGH: 75,
-    VERY_HIGH: 100,
-  } as Record<string, number>)[probability] ?? 0;
 }
 
 function toResponse(moderationCase: ModerationCase): ModerationResponse {

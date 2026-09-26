@@ -278,7 +278,6 @@ async function hydrateModerationCases(
         : String(target?.content ?? ''),
       imageUrls: snapshotImages ?? imageMap.get(String(row.target_id)) ?? [],
       riskScore: Number(row.overall_risk_score ?? 0),
-      categoryScores: row.category_scores && typeof row.category_scores === 'object' ? row.category_scores : {},
       evidence: Array.isArray(row.evidence) ? row.evidence.filter((item: unknown): item is string => typeof item === 'string') : [],
       userReason: String(row.user_reason ?? ''),
       model: String(row.model ?? ''),

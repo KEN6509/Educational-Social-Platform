@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../core/widgets/app_feedback.dart';
 import '../application/moderation_submission_coordinator.dart';
 import '../domain/content_moderation.dart';
 import '../domain/pending_moderation_retry.dart';
+import 'moderation_result_feedback.dart';
 
 class PendingModerationRetryBanner extends StatefulWidget {
   const PendingModerationRetryBanner({
@@ -56,30 +56,31 @@ class _PendingModerationRetryBannerState
   Future<void> _retryAll() async {
     if (_retrying) return;
     setState(() => _retrying = true);
-    var completed = 0;
-    String? errorMessage;
-    for (final target in List<PendingModerationTarget>.of(_targets)) {
+    final targets = List<PendingModerationTarget>.of(_targets);
+    final messages = <String>[];
+    for (final (index, target) in targets.indexed) {
+      final label = targets.length > 1 ? 'Item ${index + 1}: ' : '';
       try {
         final result = await widget.controller.retry(target);
-        if (result.state != ContentModerationState.failed &&
-            result.state != ContentModerationState.processing) {
-          completed += 1;
-        }
+        messages.add('$label${moderationRetryOutcomeMessage(
+          type: target.type,
+          result: result,
+        )}');
       } on ContentModerationFailure catch (error) {
-        errorMessage = error.message;
+        final subject = target.type == PendingModerationTargetType.post
+            ? 'Post'
+            : 'Comment';
+        messages.add('$label$subject: ${error.message}');
       }
     }
     await _refresh();
     if (!mounted) return;
     setState(() => _retrying = false);
-    if (errorMessage != null) {
-      AppFeedback.showError(context, errorMessage);
-    } else if (completed > 0) {
-      AppFeedback.showSuccess(
+    if (messages.isNotEmpty) {
+      await showModerationResultDetails(
         context,
-        completed == 1
-            ? 'Moderation updated for 1 item.'
-            : 'Moderation updated for $completed items.',
+        title: targets.length == 1 ? 'Moderation result' : 'Moderation results',
+        message: messages.join('\n\n'),
       );
     }
   }
