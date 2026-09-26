@@ -20,6 +20,7 @@ import 'filter_page.dart';
 import 'create_post_validation.dart';
 import 'post_submission_error.dart';
 import 'content_moderation_scope.dart';
+import 'moderation_result_feedback.dart';
 
 class CreatePostPage extends StatefulWidget {
   const CreatePostPage({
@@ -289,8 +290,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
           widget.onPostCreated();
           if (_isEditing && mounted) Navigator.of(context).pop(true);
         case ContentModerationState.rejected:
-          _showModerationMessage(
-            moderationRejectionMessage(
+          await showModerationResultDetails(
+            context,
+            message: moderationRejectionMessage(
               subject: 'Post was not published',
               riskScore: result.riskScore,
               reason: result.reason,

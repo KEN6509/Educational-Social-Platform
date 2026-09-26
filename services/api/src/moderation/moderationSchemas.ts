@@ -1,7 +1,14 @@
 import { z } from 'zod';
-import type { ModerationProviderResult } from './moderationTypes.js';
+import {
+  normalizeModerationScore,
+  type ModerationProviderResult,
+} from './moderationTypes.js';
 
-const score = z.number().finite().min(0).max(100);
+const score = z.number()
+  .finite()
+  .min(0)
+  .max(100)
+  .transform(normalizeModerationScore);
 
 export const moderationResultSchema = z.object({
   overallRiskScore: score,

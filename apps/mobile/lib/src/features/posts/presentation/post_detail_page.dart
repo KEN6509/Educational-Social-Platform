@@ -30,6 +30,7 @@ import 'comment_reply_visibility.dart';
 import 'post_feedback_snackbar.dart';
 import 'report_post_page.dart';
 import 'content_moderation_scope.dart';
+import 'moderation_result_feedback.dart';
 
 part 'post_detail_media.dart';
 part 'post_share_sheet.dart';
@@ -949,9 +950,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
             kind: AppFeedbackKind.warning,
           );
         case ContentModerationState.rejected:
-          AppFeedback.showError(
+          await showModerationResultDetails(
             context,
-            moderationRejectionMessage(
+            message: moderationRejectionMessage(
               subject: 'Comment was not posted',
               riskScore: result.riskScore,
               reason: result.reason,

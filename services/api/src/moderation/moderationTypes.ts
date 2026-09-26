@@ -96,6 +96,12 @@ export interface ModerationRepository {
 
 export type ModerationDecision = 'approved' | 'admin_review' | 'rejected';
 
+export function normalizeModerationScore(score: number): number {
+  // Shift the decimal exponent so midpoint values such as 39.995 round correctly.
+  const [mantissa, exponent = '0'] = score.toString().split('e');
+  return Math.round(Number(`${mantissa}e${Number(exponent) + 2}`)) / 100;
+}
+
 export function decideModeration(overallRiskScore: number): ModerationDecision {
   return overallRiskScore < 40
     ? 'approved'

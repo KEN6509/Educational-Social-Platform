@@ -2,6 +2,7 @@ import {
   GeminiInputSafetyError,
   MODERATION_PROMPT_VERSION,
   decideModeration,
+  normalizeModerationScore,
   ModerationProviderError,
   type ModerationCase,
   type ModerationProvider,
@@ -107,7 +108,11 @@ export function createModerationService(
       }
 
       try {
-        const providerResult = await provider.moderate(target.target);
+        const rawResult = await provider.moderate(target.target);
+        const providerResult = {
+          ...rawResult,
+          overallRiskScore: normalizeModerationScore(rawResult.overallRiskScore),
+        };
         const state = decideModeration(providerResult.overallRiskScore);
         return await applyResult(
           repository,

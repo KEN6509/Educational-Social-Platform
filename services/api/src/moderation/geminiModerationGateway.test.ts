@@ -169,6 +169,16 @@ test('sends comment text without image parts', async () => {
   assert.equal(request?.input.filter((part) => part.type === 'text').length, 1);
 });
 
+test('normalizes structured risk scores to database precision', async () => {
+  const gateway = createGateway(async () => ({
+    output_text: JSON.stringify({ ...safeResponse, overallRiskScore: 60.001 }),
+  }));
+
+  const result = await gateway.moderate(commentTarget);
+
+  assert.equal(result.overallRiskScore, 60);
+});
+
 test('rejects malformed structured output as a non-retryable provider error', async () => {
   let calls = 0;
   const gateway = createGateway(async () => {

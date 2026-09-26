@@ -133,6 +133,26 @@ for (const [score, expected] of [
   });
 }
 
+for (const [rawScore, storedScore, expected] of [
+  [1e-7, 0, 'approved'],
+  [39.994, 39.99, 'approved'],
+  [39.995, 40, 'admin_review'],
+  [59.999, 60, 'admin_review'],
+  [60.001, 60, 'admin_review'],
+  [60.005, 60.01, 'rejected'],
+] as const) {
+  test(`normalizes ${rawScore} to ${storedScore} before deciding and persisting`, async () => {
+    const harness = createHarness();
+    harness.provider.moderate = async () => providerResult(rawScore);
+
+    const response = await harness.service.moderate('post', 'post-1', member);
+
+    assert.equal(response.caseState, expected);
+    assert.equal(response.riskScore, storedScore);
+    assert.equal(harness.persistedResult?.overallRiskScore, storedScore);
+  });
+}
+
 test('returns a live processing case without invoking Gemini twice', async () => {
   const harness = createHarness();
   harness.setPrepared(processingCase({ shouldProcess: false }));
