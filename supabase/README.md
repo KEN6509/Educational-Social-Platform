@@ -95,6 +95,34 @@ The `images` bucket is shared by post images and chat image messages. Current
 cleanup paths remove objects for deleted posts, unsent image messages, and group
 conversations deleted after the final member exits.
 
+### Profile name policy
+
+Fresh projects receive the profile-name constraint from `schema.sql`. For an
+existing project, check the current data before running
+`profile_name_policy.sql`:
+
+```sql
+select id, name, char_length(btrim(name)) as trimmed_length
+from public.profiles
+where char_length(btrim(name)) not between 1 and 24;
+```
+
+The query must return zero rows. If it returns any row, correct that profile
+deliberately before continuing. Then run the complete
+`profile_name_policy.sql`; it stops without replacing the constraint when
+invalid historical data is present.
+
+Verify the installed constraint:
+
+```sql
+select conname, convalidated
+from pg_constraint
+where conrelid = 'public.profiles'::regclass
+  and conname = 'profiles_name_length_check';
+```
+
+Expected result: one row with `convalidated` set to `true`.
+
 ## 4. Create Database Schema
 
 Run `schema.sql` in the Supabase SQL editor after `storage.sql`.
