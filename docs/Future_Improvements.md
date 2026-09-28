@@ -2,6 +2,28 @@
 
 This document records useful improvements that are outside the CyanZone MVP scope.
 
+## Before Public Deployment
+
+CyanZone is currently developed as a Final Year Project (FYP) with a limited
+implementation schedule. The following compliance and privacy improvements are
+important but time-consuming, so they are deferred until after the academic
+submission. The current build is intended for controlled FYP demonstrations and
+testing with trusted users. These items must be completed before CyanZone is
+released publicly or submitted as a production app:
+
+- **Account deletion:** Add an in-app account-deletion flow and a public webpage
+  where users can request deletion of their account and associated data.
+- **Public privacy policy and Data Safety:** Publish the privacy policy on a
+  publicly accessible website and complete the Google Play Data Safety
+  declarations for the personal and sensitive data processed by CyanZone.
+- **User blocking:** Add clearly labelled controls for users to report and block
+  other users, in addition to the existing content-reporting and moderation
+  features.
+- **Existing-email privacy:** Revisit the explicit existing-account registration
+  message because it can reveal whether an email address is registered. Before
+  deployment, use a more privacy-preserving response or introduce suitable
+  protections such as server-side rate limiting, CAPTCHA, and abuse monitoring.
+
 ## iOS Push Notifications
 
 For the MVP, CyanZone will provide phone push notifications on Android through
