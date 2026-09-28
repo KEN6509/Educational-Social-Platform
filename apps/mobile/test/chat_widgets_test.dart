@@ -13,6 +13,7 @@ import 'package:cyanzone_mobile/src/features/chat/presentation/chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_room_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_widgets.dart';
 import 'package:cyanzone_mobile/src/core/widgets/unread_badge.dart';
+import 'package:cyanzone_mobile/src/core/widgets/bottom_safe_surface.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/create_group_chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/notification_sections_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/system_notification_detail_page.dart';
@@ -130,6 +131,48 @@ void main() {
       find.byKey(const ValueKey('mention-suggestion-u1')),
     );
     expect(allTop.dy, lessThan(memberTop.dy));
+  });
+
+  testWidgets('chat composer owns the physical bottom and insets controls',
+      (tester) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(412, 915),
+            padding: EdgeInsets.only(bottom: 34),
+            viewPadding: EdgeInsets.only(bottom: 34),
+          ),
+          child: ChatRoomPage(
+            conversation: ChatConversation.fromMap({
+              'id': 'responsive-room',
+              'type': 'direct',
+              'request_status': 'accepted',
+              'unread_count': 0,
+              'other_user_name': 'Ming',
+            }),
+            loadMessages: () async => const [],
+            markRead: (_) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final surfaceFinder = find.byType(BottomSafeSurface);
+    final surface = tester.widget<BottomSafeSurface>(surfaceFinder);
+    expect(surface.color, chatWhatsappBackground);
+    expect(tester.getBottomLeft(surfaceFinder).dy, 915);
+    expect(
+      tester.getBottomLeft(surfaceFinder).dy -
+          tester.getBottomLeft(find.byType(TextField)).dy,
+      greaterThanOrEqualTo(34),
+    );
   });
 
   testWidgets('mention suggestions overlay chat with four-row viewport',
