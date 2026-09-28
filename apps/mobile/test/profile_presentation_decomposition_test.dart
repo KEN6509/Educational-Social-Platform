@@ -94,6 +94,16 @@ void main() {
     expect(page, contains('Future<void> _checkConnection()'));
   });
 
+  test('Edit Profile validates the shared name field before saving', () {
+    final page = _read('edit_profile_page.dart');
+    final widgets = _read('edit_profile_widgets.dart');
+
+    expect(page, contains('final _formKey = GlobalKey<FormState>()'));
+    expect(page, contains('_formKey.currentState?.validate()'));
+    expect(widgets, contains('ProfileNameFormField('));
+    expect(widgets, contains('key: formKey'));
+  });
+
   test('Edit Profile reports a successful update before refreshing', () {
     final widgets = _read('profile_header_widgets.dart');
 

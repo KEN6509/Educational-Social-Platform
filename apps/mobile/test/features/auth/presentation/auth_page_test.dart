@@ -56,6 +56,61 @@ void main() {
     expect(authGateway.signInPassword, 'Secret123!');
   });
 
+  testWidgets('registration shows and enforces the shared name policy',
+      (tester) async {
+    await pumpAuthPage(tester);
+
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+
+    expect(find.text('1–24 characters'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('register-name-field')),
+      '   ',
+    );
+    final submit = find.widgetWithText(FilledButton, 'Create account');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pump();
+
+    expect(find.text('Name is required.'), findsOneWidget);
+    expect(authGateway.registrationRequest, isNull);
+  });
+
+  testWidgets('registration accepts and normalizes a one-character name',
+      (tester) async {
+    authGateway.registrationOutcome = RegistrationOutcome.confirmationRequired;
+    await pumpAuthPage(tester);
+
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('register-name-field')),
+      ' K ',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-email-field')),
+      'ken@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-password-field')),
+      'StrongPass12!',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('register-confirm-password-field')),
+      'StrongPass12!',
+    );
+    final consent = find.byKey(const ValueKey('registration-consent-checkbox'));
+    await tester.ensureVisible(consent);
+    await tester.tap(consent);
+    final submit = find.widgetWithText(FilledButton, 'Create account');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(authGateway.registrationRequest?.name, 'K');
+  });
+
   testWidgets('registration requires consent before calling the gateway',
       (tester) async {
     await pumpAuthPage(tester);

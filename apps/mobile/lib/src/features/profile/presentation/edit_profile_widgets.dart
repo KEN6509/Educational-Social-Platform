@@ -2,6 +2,7 @@ part of 'edit_profile_page.dart';
 
 class _EditProfileBody extends StatelessWidget {
   const _EditProfileBody({
+    required this.formKey,
     required this.profile,
     required this.selectedImage,
     required this.nameController,
@@ -9,6 +10,7 @@ class _EditProfileBody extends StatelessWidget {
     required this.onPickImage,
   });
 
+  final GlobalKey<FormState> formKey;
   final UserProfile profile;
   final File? selectedImage;
   final TextEditingController nameController;
@@ -17,30 +19,56 @@ class _EditProfileBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          const SizedBox(height: 32),
-          _EditProfileAvatar(
-            profile: profile,
-            selectedImage: selectedImage,
-            onTap: onPickImage,
-          ),
-          const SizedBox(height: 48),
-          _EditProfileInput(
-            label: 'Username',
-            controller: nameController,
-            hint: 'Enter your name',
-            maxLength: 24,
-          ),
-          _EditProfileInput(
-            label: 'Bio',
-            controller: bioController,
-            hint: 'Add a bio to your profile',
-            maxLines: 5,
-            maxLength: 150,
-          ),
-        ],
+    return Form(
+      key: formKey,
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 32),
+            _EditProfileAvatar(
+              profile: profile,
+              selectedImage: selectedImage,
+              onTap: onPickImage,
+            ),
+            const SizedBox(height: 48),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4, bottom: 8),
+                    child: Text(
+                      'Username',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  ProfileNameFormField(
+                    controller: nameController,
+                    decoration: appInputDecoration(
+                      hintText: 'Enter your name',
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _EditProfileInput(
+              label: 'Bio',
+              controller: bioController,
+              hint: 'Add a bio to your profile',
+              maxLines: 5,
+              maxLength: 150,
+            ),
+          ],
+        ),
       ),
     );
   }
