@@ -10,6 +10,7 @@ import 'src/app_dependencies.dart';
 import 'src/bootstrap/cyanzone_startup_error_page.dart';
 import 'src/core/config/api_config.dart';
 import 'src/core/theme/app_theme.dart';
+import 'src/core/theme/app_system_ui.dart';
 import 'src/core/config/supabase_config.dart';
 import 'src/features/notifications/data/firebase_push_notification_gateway.dart';
 
@@ -44,6 +45,7 @@ Future<void> _runProductionApp() async {
 }
 
 Future<AppDependencies> _initializeProductionApp() async {
+  await configureCyanZoneSystemUi();
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
