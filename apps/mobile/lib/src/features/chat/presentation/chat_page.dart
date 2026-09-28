@@ -17,6 +17,10 @@ import '../../../core/widgets/unread_badge.dart';
 
 typedef ConversationLoader = Future<List<ChatConversation>> Function();
 typedef CountLoader = Future<Map<NotificationSection, int>> Function();
+typedef NotificationSectionOpener = Future<NotificationSection?> Function(
+  BuildContext context,
+  NotificationSection section,
+);
 
 enum _MessageFilter { all, unread, groups }
 
@@ -26,11 +30,13 @@ class ChatPage extends StatefulWidget {
     this.loadConversations,
     this.loadCounts,
     this.onBadgeCountChanged,
+    this.openNotificationSection,
   });
 
   final ConversationLoader? loadConversations;
   final CountLoader? loadCounts;
   final ValueChanged<int>? onBadgeCountChanged;
+  final NotificationSectionOpener? openNotificationSection;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -53,6 +59,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   RealtimeChannel? _channel;
   late final AsyncRefreshCoordinator _refreshCoordinator;
   late Future<_ChatHomeState> _future;
+  _ChatHomeState _latestHomeState = const _ChatHomeState();
+  int _homeLoadGeneration = 0;
   late Future<List<ChatParticipant>> _eligiblePeopleFuture;
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
@@ -107,6 +115,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   }
 
   Future<_ChatHomeState> _load() async {
+    final generation = ++_homeLoadGeneration;
     await _restoreCachedHome();
     final conversationsFuture = _loadConversations();
     final countsFuture = _loadCounts();
@@ -117,6 +126,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       conversations: conversations,
       counts: counts,
     );
+    if (generation != _homeLoadGeneration) return _latestHomeState;
+
+    _latestHomeState = homeState;
+    _cachedCounts = counts;
+    unawaited(_saveCountsCache(counts));
     widget.onBadgeCountChanged?.call(
       ChatRepository.bottomChatBadgeCount(
         notificationCounts: counts,
@@ -143,11 +157,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   Future<Map<NotificationSection, int>> _loadCounts() async {
     try {
-      final counts = await (widget.loadCounts?.call() ??
+      return await (widget.loadCounts?.call() ??
           _repo.fetchUnreadNotificationCounts());
-      _cachedCounts = counts;
-      await _saveCountsCache(counts);
-      return counts;
     } catch (_) {
       return _cachedCounts;
     }
@@ -396,7 +407,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         body: FutureBuilder<_ChatHomeState>(
           future: _future,
           builder: (context, snapshot) {
-            final state = snapshot.data ?? const _ChatHomeState();
+            final state = _latestHomeState;
             final conversations = state.conversations;
             final unreadFilterCount = conversations
                 .where((conversation) => conversation.unreadCount > 0)
@@ -605,13 +616,41 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   }
 
   Future<void> _openNotifications(NotificationSection section) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => NotificationSectionsPage(initialSection: section),
+    final opener = widget.openNotificationSection;
+    final readSection = opener != null
+        ? await opener(context, section)
+        : await Navigator.of(context).push<NotificationSection>(
+            MaterialPageRoute(
+              builder: (_) => NotificationSectionsPage(initialSection: section),
+            ),
+          );
+    if (!mounted) return;
+    if (readSection != null) {
+      _applySectionReadLocally(readSection);
+    }
+    unawaited(_refresh(includeEligiblePeople: false));
+  }
+
+  void _applySectionReadLocally(NotificationSection section) {
+    final counts = Map<NotificationSection, int>.of(_latestHomeState.counts)
+      ..[section] = 0;
+    final next = _ChatHomeState(
+      conversations: _latestHomeState.conversations,
+      counts: counts,
+    );
+    _homeLoadGeneration += 1;
+    _latestHomeState = next;
+    _cachedCounts = counts;
+    setState(() {
+      _future = Future.value(next);
+    });
+    widget.onBadgeCountChanged?.call(
+      ChatRepository.bottomChatBadgeCount(
+        notificationCounts: counts,
+        conversations: next.conversations,
       ),
     );
-    if (!mounted) return;
-    await _refresh(includeEligiblePeople: false);
+    unawaited(_saveCountsCache(counts));
   }
 
   Future<void> _openRoom(ChatConversation conversation) async {

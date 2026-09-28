@@ -1295,6 +1295,126 @@ void main() {
     expect(find.text('Open activity'), findsOneWidget);
   });
 
+  testWidgets('successful notification read returns the read section',
+      (tester) async {
+    NotificationSection? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: ElevatedButton(
+              onPressed: () async {
+                result = await Navigator.of(context).push<NotificationSection>(
+                  MaterialPageRoute(
+                    builder: (_) => NotificationSectionsPage(
+                      initialSection: NotificationSection.system,
+                      loadNotifications: (_) async => const [],
+                      markSectionRead: (_) async {},
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Open system'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open system'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+
+    expect(result, NotificationSection.system);
+  });
+
+  testWidgets('failed notification read stays open and allows retry',
+      (tester) async {
+    var shouldFail = true;
+    NotificationSection? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: ElevatedButton(
+              onPressed: () async {
+                result = await Navigator.of(context).push<NotificationSection>(
+                  MaterialPageRoute(
+                    builder: (_) => NotificationSectionsPage(
+                      initialSection: NotificationSection.system,
+                      loadNotifications: (_) async => const [],
+                      markSectionRead: (_) async {
+                        if (shouldFail) throw Exception('offline');
+                      },
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Open system'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open system'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pump();
+
+    expect(find.text('System Notifications'), findsOneWidget);
+    expect(result, isNull);
+    expect(
+      find.text('Could not mark notifications as read. Please try again.'),
+      findsOneWidget,
+    );
+
+    shouldFail = false;
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+    expect(result, NotificationSection.system);
+  });
+
+  testWidgets(
+      'confirmed notification read clears shortcut and shell badge before refresh',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final refreshCounts = Completer<Map<NotificationSection, int>>();
+    var loads = 0;
+    final badgeCounts = <int>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async => const [],
+          loadCounts: () {
+            loads += 1;
+            if (loads == 1) {
+              return Future.value(
+                const {NotificationSection.system: 1},
+              );
+            }
+            return refreshCounts.future;
+          },
+          onBadgeCountChanged: badgeCounts.add,
+          openNotificationSection: (_, section) async => section,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(badgeCounts.last, 1);
+
+    await tester.tap(find.text('System'));
+    await tester.pump();
+
+    expect(badgeCounts.last, 0);
+    expect(find.text('1'), findsNothing);
+
+    refreshCounts.complete(const {NotificationSection.system: 0});
+    await tester.pumpAndSettle();
+    expect(badgeCounts.last, 0);
+  });
+
   test('ChatPage exposes badge callback for shell refreshes', () {
     final chatPageSource =
         File('lib/src/features/chat/presentation/chat_page.dart')

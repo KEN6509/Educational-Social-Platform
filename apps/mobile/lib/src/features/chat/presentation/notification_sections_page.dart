@@ -201,13 +201,13 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
 
   Future<void> _markCurrentSectionRead() async {
     if (_markedRead || _section == NotificationSection.chat) return;
-    _markedRead = true;
     final marker = widget.markSectionRead;
     if (marker != null) {
       await marker(_section);
-      return;
+    } else {
+      await _repo.markNotificationsReadForSection(_section);
     }
-    await _repo.markNotificationsReadForSection(_section);
+    _markedRead = true;
   }
 
   Future<void> _close() async {
@@ -215,10 +215,18 @@ class _NotificationSectionsPageState extends State<NotificationSectionsPage>
     setState(() => _isClosing = true);
     try {
       await _markCurrentSectionRead();
-    } catch (_) {}
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isClosing = false);
+      AppFeedback.showError(
+        context,
+        'Could not mark notifications as read. Please try again.',
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() => _allowPop = true);
-    Navigator.of(context).pop(true);
+    Navigator.of(context).pop(_section);
   }
 
   Future<void> _openActivityPost(ChatNotification notification) async {
