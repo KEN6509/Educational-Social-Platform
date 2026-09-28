@@ -617,13 +617,17 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   Future<void> _openNotifications(NotificationSection section) async {
     final opener = widget.openNotificationSection;
-    final readSection = opener != null
-        ? await opener(context, section)
-        : await Navigator.of(context).push<NotificationSection>(
-            MaterialPageRoute(
-              builder: (_) => NotificationSectionsPage(initialSection: section),
-            ),
-          );
+    NotificationSection? readSection;
+    if (opener != null) {
+      readSection = await opener(context, section);
+    } else {
+      final navigator = Navigator.of(context);
+      readSection = await navigator.push<NotificationSection>(
+        MaterialPageRoute(
+          builder: (_) => NotificationSectionsPage(initialSection: section),
+        ),
+      );
+    }
     if (!mounted) return;
     if (readSection != null) {
       _applySectionReadLocally(readSection);

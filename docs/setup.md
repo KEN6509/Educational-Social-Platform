@@ -253,6 +253,23 @@ Deploy the Express API and Admin Portal only after the local checks pass:
    `CRON_SECRET` configured in the API project and inspect the Cron logs for
    processed, deleted, skipped, and failed counts.
 
+### Firebase credential mismatch recovery
+
+`messaging/mismatched-credential` means the Firebase Admin service account and
+the Android registration token belong to different Firebase projects. CyanZone
+Android is registered with Firebase project `fyp040605`. Set
+`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` from
+one service account in that project for both the Vercel Preview and Production
+environments. Preserve the private key's escaped newlines, then redeploy the
+API. Never commit, print, log, or include the credential in screenshots.
+
+After redeployment, create fresh Chat, System, and Follower notifications while
+the recipient app is in the background or normally terminated. Confirm that
+their newest `push_deliveries` rows have status `delivered` and
+`success_count > 0`, with no `messaging/mismatched-credential` error. A
+force-stopped Android app is excluded from this check because Android blocks
+delivery until the user opens the app again.
+
 Never put the service-role key or Gemini key in Admin/mobile variables. After
 deployment, verify one approved, one administrator-review, one rejected, and
 one retry/failure moderation path with test content; also verify that the
