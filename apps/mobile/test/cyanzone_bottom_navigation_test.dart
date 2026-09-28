@@ -90,7 +90,7 @@ void main() {
           matching: find.byType(BottomSafeSurface),
         ),
       );
-      expect(surface.color, AppColors.background);
+      expect(surface.color, Colors.transparent);
       expect(tester.getBottomLeft(navigation).dy, 915);
       expect(
         tester.getSize(navigation).height,
@@ -122,6 +122,7 @@ void main() {
           .first,
     );
     final decoration = decorated.decoration as BoxDecoration;
+    expect(decoration.color, AppColors.surface);
     expect(decoration.borderRadius, BorderRadius.circular(AppRadii.navigation));
   });
 

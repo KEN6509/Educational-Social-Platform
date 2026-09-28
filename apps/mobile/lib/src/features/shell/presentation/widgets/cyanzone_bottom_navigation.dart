@@ -19,7 +19,7 @@ class CyanZoneBottomNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BottomSafeSurface(
-      color: AppColors.background,
+      color: Colors.transparent,
       padding: const EdgeInsets.all(AppLayout.floatingNavigationOuterMargin),
       child: SizedBox(
         height: AppLayout.floatingNavigationHeight,
