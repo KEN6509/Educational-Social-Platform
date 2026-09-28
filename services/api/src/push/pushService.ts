@@ -220,13 +220,33 @@ function createMessage(
   for (const [key, value] of Object.entries(destination)) {
     if (value != null) data[key] = String(value);
   }
+  const presentation = pushPresentationFor(source);
   return {
     token,
-    title: source.title || 'CyanZone',
-    body: source.body || 'You have a new CyanZone notification.',
+    title: presentation.title,
+    body: presentation.body,
     data,
     channelId: destination.route === 'sos' ? 'cyanzone_safety' : 'cyanzone_default',
   };
+}
+
+export function pushPresentationFor(
+  source: PushSourceRecord,
+): {title: string; body: string} {
+  const fallback = {
+    title: source.title || 'CyanZone',
+    body: source.body || 'You have a new CyanZone notification.',
+  };
+  if (source.eventType !== 'chat_message') return fallback;
+
+  const sender = source.actorName?.trim() || null;
+  if (source.conversationType === 'group') {
+    return {
+      title: source.conversationTitle?.trim() || fallback.title,
+      body: sender ? `${sender}: ${fallback.body}` : fallback.body,
+    };
+  }
+  return {title: sender || fallback.title, body: fallback.body};
 }
 
 async function sendInBatches(

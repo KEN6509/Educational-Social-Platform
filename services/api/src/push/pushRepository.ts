@@ -17,6 +17,9 @@ export type PushSourceRecord = {
   messageId: string | null;
   actionType: string | null;
   actionPayload: Record<string, unknown>;
+  actorName: string | null;
+  conversationType: string | null;
+  conversationTitle: string | null;
   linkId: string | null;
   checkInId: string | null;
   sosId: string | null;
@@ -102,7 +105,7 @@ export function createPushRepository(client: PushSupabaseClient): PushRepository
 
     async loadSource(sourceTable, sourceId) {
       const columns = sourceTable === 'notifications'
-        ? 'id,user_id,type,title,body,created_at,actor_id,post_id,comment_id,conversation_id,message_id,action_type,action_payload'
+        ? 'id,user_id,type,title,body,created_at,actor_id,post_id,comment_id,conversation_id,message_id,action_type,action_payload,actor:profiles!notifications_actor_id_fkey(name),conversation:chat_conversations!notifications_conversation_id_fkey(type,title)'
         : 'id,user_id,event_type,title,body,created_at,link_id,check_in_id,sos_id,child_id';
       const result = await client
         .from(sourceTable)
@@ -199,6 +202,13 @@ function mapSource(
     messageId: nullableString(row.message_id),
     actionType: nullableString(row.action_type),
     actionPayload: isRecord(row.action_payload) ? row.action_payload : {},
+    actorName: isRecord(row.actor) ? nullableString(row.actor.name) : null,
+    conversationType: isRecord(row.conversation)
+      ? nullableString(row.conversation.type)
+      : null,
+    conversationTitle: isRecord(row.conversation)
+      ? nullableString(row.conversation.title)
+      : null,
     linkId: nullableString(row.link_id),
     checkInId: nullableString(row.check_in_id),
     sosId: nullableString(row.sos_id),

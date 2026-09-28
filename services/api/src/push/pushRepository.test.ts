@@ -67,6 +67,7 @@ test('push repository calls service-role device registration and delivery RPCs',
 });
 
 test('push repository reloads the authoritative notification and recipient preferences', async () => {
+  let selectedNotificationColumns = '';
   const tables: Record<string, Record<string, unknown>> = {
     notifications: {
       id: 'notification-1',
@@ -77,6 +78,8 @@ test('push repository reloads the authoritative notification and recipient prefe
       created_at: '2026-09-10T12:00:00.000Z',
       conversation_id: 'conversation-1',
       action_payload: {route: 'conversation'},
+      actor: {name: 'Ken'},
+      conversation: {type: 'group', title: 'Study Group'},
     },
     notification_preferences: {
       push_enabled: true,
@@ -90,12 +93,15 @@ test('push repository reloads the authoritative notification and recipient prefe
     from: (table) => {
       const value = tables[table];
       return {
-        select: () => ({
-          eq: () => ({
-            eq: () => Promise.resolve({data: value ? [value] : [], error: null}),
-            maybeSingle: () => Promise.resolve({data: value ?? null, error: null}),
-          }),
-        }),
+        select: (columns: string) => {
+          if (table === 'notifications') selectedNotificationColumns = columns;
+          return {
+            eq: () => ({
+              eq: () => Promise.resolve({data: value ? [value] : [], error: null}),
+              maybeSingle: () => Promise.resolve({data: value ?? null, error: null}),
+            }),
+          };
+        },
       };
     },
     rpc: async () => ({data: null, error: null}),
@@ -108,5 +114,13 @@ test('push repository reloads the authoritative notification and recipient prefe
   assert.equal(source?.userId, 'user-1');
   assert.equal(source?.conversationId, 'conversation-1');
   assert.equal(source?.createdAt, '2026-09-10T12:00:00.000Z');
+  assert.equal(source?.actorName, 'Ken');
+  assert.equal(source?.conversationType, 'group');
+  assert.equal(source?.conversationTitle, 'Study Group');
+  assert.match(selectedNotificationColumns, /notifications_actor_id_fkey/);
+  assert.match(
+    selectedNotificationColumns,
+    /notifications_conversation_id_fkey/,
+  );
   assert.deepEqual(preferences, {pushEnabled: true, categoryEnabled: true});
 });
