@@ -23,6 +23,7 @@ void main() {
     expect(AppSpacing.section, 24);
     expect(AppSpacing.xl, 32);
     expect(AppInsets.page.horizontal, 40);
+    expect(AppInsets.snackbar, const EdgeInsets.fromLTRB(16, 0, 16, 8));
     expect(AppRadii.dialog, 22);
     expect(AppRadii.navigation, 28);
     expect(AppLayout.floatingNavigationHeight, 62);
@@ -39,6 +40,7 @@ void main() {
     expect(theme.snackBarTheme.backgroundColor, AppColors.surface);
     expect(theme.snackBarTheme.actionTextColor, AppColors.cyan);
     expect(theme.snackBarTheme.disabledActionTextColor, AppColors.textMuted);
+    expect(theme.snackBarTheme.elevation, 4);
     expect(theme.dialogTheme.backgroundColor, AppColors.surface);
   });
 }

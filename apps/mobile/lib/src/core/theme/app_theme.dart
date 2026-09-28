@@ -75,7 +75,7 @@ class AppTheme {
         backgroundColor: AppColors.surface,
         actionTextColor: AppColors.cyan,
         disabledActionTextColor: AppColors.textMuted,
-        elevation: 10,
+        elevation: 4,
         contentTextStyle: const TextStyle(
           color: AppColors.textPrimary,
           fontSize: 14,

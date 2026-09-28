@@ -28,7 +28,7 @@ abstract final class AppFeedback {
         SnackBar(
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.surface,
-          elevation: 10,
+          elevation: 4,
           margin: AppInsets.snackbar,
           duration: duration ?? Duration(seconds: actions.isEmpty ? 4 : 6),
           shape: RoundedRectangleBorder(

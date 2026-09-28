@@ -27,6 +27,8 @@ void main() {
     final snackbar = tester.widget<SnackBar>(find.byType(SnackBar));
     expect(snackbar.behavior, SnackBarBehavior.floating);
     expect(snackbar.backgroundColor, AppColors.surface);
+    expect(snackbar.elevation, 4);
+    expect(snackbar.margin, const EdgeInsets.fromLTRB(16, 0, 16, 8));
     expect(snackbar.duration, const Duration(seconds: 4));
     expect(find.byIcon(Icons.error_outline_rounded), findsOneWidget);
     expect(find.text('Unable to save'), findsOneWidget);
