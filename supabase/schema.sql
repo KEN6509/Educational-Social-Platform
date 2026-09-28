@@ -48,7 +48,8 @@ $$;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null unique,
-  name text not null,
+  name text not null
+    check (char_length(btrim(name)) between 1 and 24),
   avatar_url text,
   bio text,
   is_content_creator boolean not null default false,

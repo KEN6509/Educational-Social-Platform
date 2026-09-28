@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/security/password_policy.dart';
+import '../../../core/validation/profile_name_policy.dart';
 import '../../../core/widgets/cyanzone_wordmark.dart';
 import '../../../core/widgets/password_checklist.dart';
+import '../../../core/widgets/profile_name_form_field.dart';
 import '../domain/auth_gateway.dart';
 import '../domain/pending_registration_store.dart';
 import '../domain/registration_request.dart';
@@ -101,7 +103,7 @@ class _AuthPageState extends State<AuthPage> {
       }
       await _registrationController.register(
         RegistrationRequest(
-          name: _nameController.text.trim(),
+          name: ProfileNamePolicy.normalize(_nameController.text),
           email: email,
           password: password,
           termsVersion: LegalPolicy.termsVersion,
@@ -431,24 +433,16 @@ class _AuthPanel extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               if (isRegistering) ...[
-                TextFormField(
-                  key: const ValueKey('register-name-field'),
+                ProfileNameFormField(
+                  fieldKey: const ValueKey('register-name-field'),
                   enabled: !isLoading,
                   controller: nameController,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.name],
                   decoration: const InputDecoration(
                     labelText: 'Name',
-                    helperText: 'This appears on your profile.',
                     prefixIcon: Icon(Icons.badge_outlined),
                   ),
-                  validator: (value) {
-                    final name = value?.trim() ?? '';
-                    if (name.length < 2) {
-                      return 'Enter your name.';
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 14),
               ],

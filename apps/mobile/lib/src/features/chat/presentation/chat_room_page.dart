@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_confirmation_dialog.dart';
+import '../../../core/widgets/bottom_safe_surface.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
 import '../../posts/presentation/post_detail_page.dart';
@@ -1131,74 +1132,71 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                       ),
                     ),
                     if (_canSendMessages == true)
-                      SafeArea(
+                      BottomSafeSurface(
                         key: _composerKey,
-                        top: false,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              SizedBox.square(
-                                dimension: 44,
-                                child: IconButton(
-                                  onPressed:
-                                      _isPickingImage ? null : _sendImage,
-                                  icon: Icon(
-                                    _isPickingImage
-                                        ? Icons.hourglass_empty_rounded
-                                        : Icons.image_outlined,
+                        color: chatWhatsappBackground,
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            SizedBox.square(
+                              dimension: 44,
+                              child: IconButton(
+                                onPressed: _isPickingImage ? null : _sendImage,
+                                icon: Icon(
+                                  _isPickingImage
+                                      ? Icons.hourglass_empty_rounded
+                                      : Icons.image_outlined,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                controller: _controller,
+                                focusNode: _inputFocusNode,
+                                minLines: 1,
+                                maxLines: 4,
+                                onChanged: _handleComposerChanged,
+                                decoration: InputDecoration(
+                                  hintText: 'Message...',
+                                  filled: true,
+                                  fillColor: chatInput,
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                    borderSide: BorderSide.none,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextField(
-                                  controller: _controller,
-                                  focusNode: _inputFocusNode,
-                                  minLines: 1,
-                                  maxLines: 4,
-                                  onChanged: _handleComposerChanged,
-                                  decoration: InputDecoration(
-                                    hintText: 'Message...',
-                                    filled: true,
-                                    fillColor: chatInput,
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(22),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                  ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox.square(
+                              dimension: 44,
+                              child: IconButton(
+                                onPressed: _isSending ? null : _send,
+                                color: const Color(0xFF128C7E),
+                                icon: Icon(
+                                  _isSending
+                                      ? Icons.hourglass_empty_rounded
+                                      : Icons.send_rounded,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              SizedBox.square(
-                                dimension: 44,
-                                child: IconButton(
-                                  onPressed: _isSending ? null : _send,
-                                  color: const Color(0xFF128C7E),
-                                  icon: Icon(
-                                    _isSending
-                                        ? Icons.hourglass_empty_rounded
-                                        : Icons.send_rounded,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       )
                     else
-                      SafeArea(
+                      BottomSafeSurface(
                         key: const ValueKey('chat-send-permission-state'),
-                        top: false,
+                        color: chatWhatsappBackground,
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                         child: Container(
                           width: double.infinity,
-                          margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 13,

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cyanzone_mobile/src/core/theme/app_design_tokens.dart';
+import 'package:cyanzone_mobile/src/core/widgets/bottom_safe_surface.dart';
 import 'package:cyanzone_mobile/src/features/shell/presentation/widgets/cyanzone_bottom_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +20,7 @@ void main() {
         MaterialApp(
           home: MediaQuery(
             data: const MediaQueryData(
+              padding: EdgeInsets.only(bottom: 24),
               viewPadding: EdgeInsets.only(bottom: 24),
               textScaler: TextScaler.linear(1.3),
             ),
@@ -55,6 +57,48 @@ void main() {
     });
   }
 
+  for (final bottomInset in const [0.0, 34.0]) {
+    testWidgets('navigation owns the bottom with $bottomInset inset',
+        (tester) async {
+      tester.view.physicalSize = const Size(412, 915);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: const Size(412, 915),
+              padding: EdgeInsets.only(bottom: bottomInset),
+              viewPadding: EdgeInsets.only(bottom: bottomInset),
+            ),
+            child: const Scaffold(
+              bottomNavigationBar: CyanZoneBottomNavigation(
+                selectedIndex: 0,
+                onTap: _noop,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final navigation = find.byType(CyanZoneBottomNavigation);
+      final surface = tester.widget<BottomSafeSurface>(
+        find.descendant(
+          of: navigation,
+          matching: find.byType(BottomSafeSurface),
+        ),
+      );
+      expect(surface.color, Colors.transparent);
+      expect(tester.getBottomLeft(navigation).dy, 915);
+      expect(
+        tester.getSize(navigation).height,
+        AppLayout.floatingNavigationClearance + bottomInset,
+      );
+    });
+  }
+
   testWidgets('uses the rounded surface token for the navigation pill',
       (tester) async {
     await tester.pumpWidget(
@@ -78,6 +122,7 @@ void main() {
           .first,
     );
     final decoration = decorated.decoration as BoxDecoration;
+    expect(decoration.color, AppColors.surface);
     expect(decoration.borderRadius, BorderRadius.circular(AppRadii.navigation));
   });
 

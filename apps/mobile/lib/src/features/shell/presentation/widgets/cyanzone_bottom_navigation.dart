@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_design_tokens.dart';
+import '../../../../core/widgets/bottom_safe_surface.dart';
 import '../../../../core/widgets/unread_badge.dart';
 
 class CyanZoneBottomNavigation extends StatelessWidget {
@@ -17,15 +18,9 @@ class CyanZoneBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppLayout.floatingNavigationOuterMargin,
-        AppLayout.floatingNavigationOuterMargin,
-        AppLayout.floatingNavigationOuterMargin,
-        AppLayout.floatingNavigationOuterMargin + bottomInset,
-      ),
+    return BottomSafeSurface(
+      color: Colors.transparent,
+      padding: const EdgeInsets.all(AppLayout.floatingNavigationOuterMargin),
       child: SizedBox(
         height: AppLayout.floatingNavigationHeight,
         child: DecoratedBox(

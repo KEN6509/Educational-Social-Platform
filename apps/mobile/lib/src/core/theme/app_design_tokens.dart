@@ -31,7 +31,7 @@ abstract final class AppInsets {
   static const page = EdgeInsets.symmetric(horizontal: AppSpacing.page);
   static const compact = EdgeInsets.all(AppSpacing.md);
   static const component = EdgeInsets.all(AppSpacing.lg);
-  static const snackbar = EdgeInsets.fromLTRB(16, 0, 16, 18);
+  static const snackbar = EdgeInsets.fromLTRB(16, 0, 16, 8);
 }
 
 abstract final class AppRadii {

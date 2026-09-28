@@ -13,6 +13,7 @@ import 'package:cyanzone_mobile/src/features/chat/presentation/chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_room_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_widgets.dart';
 import 'package:cyanzone_mobile/src/core/widgets/unread_badge.dart';
+import 'package:cyanzone_mobile/src/core/widgets/bottom_safe_surface.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/create_group_chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/notification_sections_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/system_notification_detail_page.dart';
@@ -130,6 +131,48 @@ void main() {
       find.byKey(const ValueKey('mention-suggestion-u1')),
     );
     expect(allTop.dy, lessThan(memberTop.dy));
+  });
+
+  testWidgets('chat composer owns the physical bottom and insets controls',
+      (tester) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(412, 915),
+            padding: EdgeInsets.only(bottom: 34),
+            viewPadding: EdgeInsets.only(bottom: 34),
+          ),
+          child: ChatRoomPage(
+            conversation: ChatConversation.fromMap({
+              'id': 'responsive-room',
+              'type': 'direct',
+              'request_status': 'accepted',
+              'unread_count': 0,
+              'other_user_name': 'Ming',
+            }),
+            loadMessages: () async => const [],
+            markRead: (_) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final surfaceFinder = find.byType(BottomSafeSurface);
+    final surface = tester.widget<BottomSafeSurface>(surfaceFinder);
+    expect(surface.color, chatWhatsappBackground);
+    expect(tester.getBottomLeft(surfaceFinder).dy, 915);
+    expect(
+      tester.getBottomLeft(surfaceFinder).dy -
+          tester.getBottomLeft(find.byType(TextField)).dy,
+      greaterThanOrEqualTo(34),
+    );
   });
 
   testWidgets('mention suggestions overlay chat with four-row viewport',
@@ -1250,6 +1293,126 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Open activity'), findsOneWidget);
+  });
+
+  testWidgets('successful notification read returns the read section',
+      (tester) async {
+    NotificationSection? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: ElevatedButton(
+              onPressed: () async {
+                result = await Navigator.of(context).push<NotificationSection>(
+                  MaterialPageRoute(
+                    builder: (_) => NotificationSectionsPage(
+                      initialSection: NotificationSection.system,
+                      loadNotifications: (_) async => const [],
+                      markSectionRead: (_) async {},
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Open system'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open system'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+
+    expect(result, NotificationSection.system);
+  });
+
+  testWidgets('failed notification read stays open and allows retry',
+      (tester) async {
+    var shouldFail = true;
+    NotificationSection? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: ElevatedButton(
+              onPressed: () async {
+                result = await Navigator.of(context).push<NotificationSection>(
+                  MaterialPageRoute(
+                    builder: (_) => NotificationSectionsPage(
+                      initialSection: NotificationSection.system,
+                      loadNotifications: (_) async => const [],
+                      markSectionRead: (_) async {
+                        if (shouldFail) throw Exception('offline');
+                      },
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Open system'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open system'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pump();
+
+    expect(find.text('System Notifications'), findsOneWidget);
+    expect(result, isNull);
+    expect(
+      find.text('Could not mark notifications as read. Please try again.'),
+      findsOneWidget,
+    );
+
+    shouldFail = false;
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+    expect(result, NotificationSection.system);
+  });
+
+  testWidgets(
+      'confirmed notification read clears shortcut and shell badge before refresh',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final refreshCounts = Completer<Map<NotificationSection, int>>();
+    var loads = 0;
+    final badgeCounts = <int>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatPage(
+          loadConversations: () async => const [],
+          loadCounts: () {
+            loads += 1;
+            if (loads == 1) {
+              return Future.value(
+                const {NotificationSection.system: 1},
+              );
+            }
+            return refreshCounts.future;
+          },
+          onBadgeCountChanged: badgeCounts.add,
+          openNotificationSection: (_, section) async => section,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(badgeCounts.last, 1);
+
+    await tester.tap(find.text('System'));
+    await tester.pump();
+
+    expect(badgeCounts.last, 0);
+    expect(find.text('1'), findsNothing);
+
+    refreshCounts.complete(const {NotificationSection.system: 0});
+    await tester.pumpAndSettle();
+    expect(badgeCounts.last, 0);
   });
 
   test('ChatPage exposes badge callback for shell refreshes', () {

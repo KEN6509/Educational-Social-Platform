@@ -6,8 +6,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/friendly_error.dart';
 import '../../../core/theme/app_input_decoration.dart';
-import '../../../core/widgets/app_feedback.dart';
 import '../../../core/theme/app_design_tokens.dart';
+import '../../../core/validation/profile_name_policy.dart';
+import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/profile_name_form_field.dart';
 import '../data/user_profile.dart';
 import '../data/profile_repository.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
@@ -25,6 +27,7 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _bioController;
   late final ProfileRepository _profileRepository;
@@ -83,6 +86,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Future<void> _saveProfile() async {
     if (_isSaving) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final normalizedName = ProfileNamePolicy.normalize(_nameController.text);
 
     setState(() => _isSaving = true);
 
@@ -110,7 +116,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       // Update Profile Info
       await _profileRepository.updateProfile(
         userId: userId,
-        name: _nameController.text.trim(),
+        name: normalizedName,
         bio: _bioController.text.trim(),
         avatarUrl: avatarUrl,
       );
@@ -221,6 +227,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ),
                 )
               : _EditProfileBody(
+                  formKey: _formKey,
                   profile: widget.profile,
                   selectedImage: _selectedImage,
                   nameController: _nameController,

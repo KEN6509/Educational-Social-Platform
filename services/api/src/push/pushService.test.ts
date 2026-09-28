@@ -5,6 +5,7 @@ import {
   categoryFor,
   createPushService,
   destinationFor,
+  pushPresentationFor,
 } from './pushService.js';
 import type {
   PushRepository,
@@ -28,6 +29,9 @@ function source(overrides: Partial<PushSourceRecord> = {}): PushSourceRecord {
     messageId: 'message-1',
     actionType: null,
     actionPayload: {},
+    actorName: null,
+    conversationType: null,
+    conversationTitle: null,
     linkId: null,
     checkInId: null,
     sosId: null,
@@ -59,6 +63,65 @@ test('push event categories and destinations cover notification sources', () => 
       sosId: 'sos-1',
     })).route,
     'sos',
+  );
+});
+
+test('direct chat push uses the sender name and original message', () => {
+  assert.deepEqual(
+    pushPresentationFor(source({
+      conversationType: 'direct',
+      actorName: 'Ken',
+      body: "How's it going?",
+    })),
+    {
+      title: 'Ken',
+      body: "How's it going?",
+    },
+  );
+});
+
+test('group chat push uses the group name and sender-prefixed message', () => {
+  assert.deepEqual(
+    pushPresentationFor(source({
+      conversationType: 'group',
+      conversationTitle: 'Classmates',
+      actorName: 'Ken',
+      body: "How's going guys?",
+    })),
+    {
+      title: 'Classmates',
+      body: "Ken: How's going guys?",
+    },
+  );
+});
+
+test('chat push safely falls back when related names are unavailable', () => {
+  assert.deepEqual(
+    pushPresentationFor(source({
+      conversationType: 'group',
+      conversationTitle: null,
+      actorName: null,
+    })),
+    {
+      title: 'New message',
+      body: 'A friend sent a message.',
+    },
+  );
+});
+
+test('non-chat push keeps its stored presentation', () => {
+  assert.deepEqual(
+    pushPresentationFor(source({
+      eventType: 'new_follower',
+      title: 'New follower',
+      body: 'Someone followed you.',
+      actorName: 'Ken',
+      conversationType: 'direct',
+    })),
+    {
+      title: 'New follower',
+      body: 'Someone followed you.',
+    },
   );
 });
 
