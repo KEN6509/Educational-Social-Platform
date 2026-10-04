@@ -163,7 +163,8 @@ void main() {
     expect(result, isFalse);
   });
 
-  testWidgets('moderation feedback keeps OK near its message and clear of the card edge',
+  testWidgets(
+      'moderation feedback keeps OK near its message and clear of the card edge',
       (tester) async {
     const message =
         'Comment was not posted. AI risk score: 85%. Reason: This comment '
@@ -176,6 +177,7 @@ void main() {
             onPressed: () => showModerationResultDetails(
               context,
               message: message,
+              balancedInformationSpacing: true,
             ),
             child: const Text('Open moderation result'),
           ),

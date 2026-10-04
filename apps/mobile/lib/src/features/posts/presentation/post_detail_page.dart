@@ -952,6 +952,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
         case ContentModerationState.rejected:
           await showModerationResultDetails(
             context,
+            balancedInformationSpacing: true,
             message: moderationRejectionMessage(
               subject: 'Comment was not posted',
               riskScore: result.riskScore,

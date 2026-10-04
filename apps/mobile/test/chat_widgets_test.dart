@@ -2249,6 +2249,34 @@ void main() {
     );
   });
 
+  testWidgets('approved-comment detail links to its post without a post title',
+      (tester) async {
+    String? openedPostId;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'approved-comment-1',
+            'type': 'system',
+            'post_id': 'post-1',
+            'comment_id': 'comment-1',
+            'title': 'Your comment was posted successfully',
+            'body': 'Your comment passed moderation.',
+            'created_at': '2026-08-02T01:10:00',
+            'action_payload': {'template_type': 'comment_approved'},
+          }),
+          openRejectedPost: (postId) async => openedPostId = postId,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('View comment'), findsOneWidget);
+    await tester.tap(find.text('View comment'));
+    await tester.pump();
+    expect(openedPostId, 'post-1');
+  });
+
   testWidgets('rejected system detail opens post and submits valid appeal',
       (tester) async {
     var openedPost = false;
