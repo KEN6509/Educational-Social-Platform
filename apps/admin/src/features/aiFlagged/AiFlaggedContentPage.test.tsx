@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -56,7 +56,42 @@ describe('AiFlaggedContentPage', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  it('adds newly pending cases to the open queue on its refresh interval', async () => {
+    vi.useFakeTimers();
+    vi.mocked(adminApi.get).mockReset()
+      .mockResolvedValueOnce({ items: [], page: 1, pageSize: 20, total: 0 })
+      .mockResolvedValue({ items: [pendingCase], page: 1, pageSize: 20, total: 1 });
+
+    render(<AiFlaggedContentPage />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText('No pending cases.')).toBeVisible();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(screen.getAllByText('A reviewed post')[0]).toBeVisible();
+    expect(adminApi.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes on return to the visible tab and stops polling after unmount', async () => {
+    vi.useFakeTimers();
+    const view = render(<AiFlaggedContentPage />);
+    await act(async () => { await Promise.resolve(); });
+    expect(adminApi.get).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(adminApi.get).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+    expect(adminApi.get).toHaveBeenCalledTimes(2);
+    view.unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(adminApi.get).toHaveBeenCalledTimes(2);
+    Reflect.deleteProperty(document, 'visibilityState');
   });
 
   it('loads genuine cases from the moderation API with evidence and images', async () => {

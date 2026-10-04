@@ -5,7 +5,7 @@ import {
   MessageSquare,
   ShieldAlert,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AsyncState } from '../../components/casework/AsyncState';
 import { CaseworkList } from '../../components/casework/CaseworkList';
@@ -51,17 +51,19 @@ export function AiFlaggedContentPage() {
   const activeQueue = queues[status];
   const rows = activeQueue.rows;
 
-  async function load(statusToLoad = status) {
+  const load = useCallback(async (statusToLoad: AiFlaggedStatus, background = false) => {
     const generation = ++requestGeneration.current;
-    setQueues((current) => ({
-      ...current,
-      [statusToLoad]: {
-        ...current[statusToLoad],
-        loadState: current[statusToLoad].rows.length > 0 ? 'ready' : 'loading',
-        errorMessage: 'Casework could not be loaded.',
-        refreshError: null,
-      },
-    }));
+    if (!background) {
+      setQueues((current) => ({
+        ...current,
+        [statusToLoad]: {
+          ...current[statusToLoad],
+          loadState: current[statusToLoad].rows.length > 0 ? 'ready' : 'loading',
+          errorMessage: 'Casework could not be loaded.',
+          refreshError: null,
+        },
+      }));
+    }
     try {
       const page = await loadAiFlaggedCases(statusToLoad);
       if (generation !== requestGeneration.current) return;
@@ -81,31 +83,42 @@ export function AiFlaggedContentPage() {
       );
     } catch (error) {
       if (generation !== requestGeneration.current) return;
-      const existingRows = queues[statusToLoad].rows;
       setQueues((current) => ({
         ...current,
         [statusToLoad]: {
           ...current[statusToLoad],
-          loadState: existingRows.length > 0 ? 'ready' : 'error',
+          loadState: current[statusToLoad].rows.length > 0 ? 'ready' : 'error',
           errorMessage: error instanceof AdminApiError
             ? error.message
             : 'Casework could not be loaded.',
-          refreshError: existingRows.length > 0
+          refreshError: current[statusToLoad].rows.length > 0
             ? error instanceof AdminApiError
               ? error.message
               : 'Casework could not be refreshed.'
             : null,
         },
       }));
-      if (existingRows.length === 0) {
-        setSelectedId(null);
-      }
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load(status);
-  }, [status]);
+  }, [status, load]);
+
+  useEffect(() => {
+    if (decision !== null || isSubmitting) return;
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void load(status, true);
+    };
+    const interval = window.setInterval(refresh, 15_000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [status, decision, isSubmitting, load]);
 
   const selected = useMemo(
     () => rows.find((item) => item.id === selectedId) ?? rows[0] ?? null,
