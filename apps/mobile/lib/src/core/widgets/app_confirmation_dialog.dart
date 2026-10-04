@@ -12,6 +12,7 @@ Future<bool?> showAppDialog({
   required String message,
   required String primaryLabel,
   String? secondaryLabel,
+  bool balancedInformationSpacing = false,
   Key? primaryKey,
   Key? secondaryKey,
 }) {
@@ -35,6 +36,7 @@ Future<bool?> showAppDialog({
       primaryKey: primaryKey,
       cancelKey: secondaryKey,
       scrollable: information,
+      balancedInformationSpacing: balancedInformationSpacing,
     ),
   );
 }
@@ -84,6 +86,7 @@ class AppConfirmationDialog extends StatelessWidget {
     this.primaryKey,
     this.cancelKey,
     this.scrollable = false,
+    this.balancedInformationSpacing = false,
     super.key,
   });
 
@@ -98,6 +101,7 @@ class AppConfirmationDialog extends StatelessWidget {
   final Key? primaryKey;
   final Key? cancelKey;
   final bool scrollable;
+  final bool balancedInformationSpacing;
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +137,7 @@ class AppConfirmationDialog extends StatelessWidget {
             height: 1.42,
           ),
         ),
-        const SizedBox(height: 22),
+        SizedBox(height: balancedInformationSpacing ? 16 : 22),
         SizedBox(
           width: double.infinity,
           height: 48,
@@ -172,7 +176,12 @@ class AppConfirmationDialog extends StatelessWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 28),
       backgroundColor: Colors.transparent,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          28,
+          20,
+          balancedInformationSpacing ? 24 : 12,
+        ),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadii.dialog),

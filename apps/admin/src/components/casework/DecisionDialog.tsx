@@ -7,6 +7,7 @@ type Props = {
   consequence: string;
   confirmLabel: string;
   isSubmitting: boolean;
+  error?: string | null;
   onCancel: () => void;
   onConfirm: () => void;
   tone?: 'primary' | 'danger';
@@ -18,6 +19,7 @@ export function DecisionDialog({
   consequence,
   confirmLabel,
   isSubmitting,
+  error,
   onCancel,
   onConfirm,
   tone = 'primary',
@@ -68,6 +70,11 @@ export function DecisionDialog({
         <p className="mt-2 text-sm leading-6 text-slate-600" id="decision-consequence">
           {consequence}
         </p>
+        {error ? (
+          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700" role="alert">
+            {error}
+          </p>
+        ) : null}
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <button
             className="h-11 rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-45"

@@ -43,6 +43,7 @@ export function AiFlaggedContentPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [decision, setDecision] = useState<'approved' | 'rejected' | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false);
@@ -115,11 +116,13 @@ export function AiFlaggedContentPage() {
     setStatus(value as AiFlaggedStatus);
     setSaved(false);
     setReason('');
+    setDecisionError(null);
     setMobileDetail(false);
   }
 
   async function confirmDecision() {
     if (!selected || !decision) return;
+    setDecisionError(null);
     setIsSubmitting(true);
     try {
       await decideAiFlaggedCase(selected.id, decision, reason.trim());
@@ -128,18 +131,9 @@ export function AiFlaggedContentPage() {
       setSaved(true);
       await load(status);
     } catch (error) {
-      setQueues((current) => ({
-        ...current,
-        [status]: {
-          ...current[status],
-          errorMessage: error instanceof AdminApiError
-            ? error.message
-            : 'The moderation decision could not be saved.',
-          refreshError: error instanceof AdminApiError
-            ? error.message
-            : 'The moderation decision could not be saved.',
-        },
-      }));
+      setDecisionError(error instanceof AdminApiError
+        ? error.message
+        : 'The moderation decision could not be saved.');
     } finally {
       setIsSubmitting(false);
     }
@@ -284,9 +278,13 @@ export function AiFlaggedContentPage() {
               <DecisionDialog
                 confirmLabel={decision === 'approved' ? 'Confirm approval' : 'Confirm rejection'}
                 consequence="This updates the content moderation status in the review queue."
+                error={decisionError}
                 isOpen={decision !== null}
                 isSubmitting={isSubmitting}
-                onCancel={() => setDecision(null)}
+                onCancel={() => {
+                  setDecision(null);
+                  setDecisionError(null);
+                }}
                 onConfirm={() => void confirmDecision()}
                 title={decision === 'approved' ? 'Approve content?' : 'Reject content?'}
                 tone={decision === 'rejected' ? 'danger' : 'primary'}

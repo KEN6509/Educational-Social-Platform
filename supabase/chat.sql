@@ -1871,6 +1871,58 @@ begin
 end;
 $$;
 
+create or replace function public.notify_comment_approved()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.moderation_status = 'pending'
+    and new.moderation_status = 'approved'
+  then
+    insert into public.notifications (
+      user_id,
+      type,
+      post_id,
+      comment_id,
+      title,
+      body,
+      action_type,
+      action_payload
+    )
+    select
+      new.author_id,
+      'system',
+      new.post_id,
+      new.id,
+      'Your comment was posted successfully',
+      'Your comment passed moderation and was posted successfully.',
+      'post_detail',
+      jsonb_build_object(
+        'template_type', 'comment_approved',
+        'brief', 'Your comment has completed moderation review.',
+        'decision_message', 'Your comment was posted successfully.'
+      )
+    where coalesce((
+      select (np.in_app_enabled or np.push_enabled) and np.system_enabled
+      from public.notification_preferences np
+      where np.user_id = new.author_id
+    ), true)
+      and not exists (
+        select 1
+        from public.notifications existing
+        where existing.user_id = new.author_id
+          and existing.type = 'system'
+          and existing.comment_id = new.id
+          and existing.action_payload->>'template_type' = 'comment_approved'
+      );
+  end if;
+
+  return new;
+end;
+$$;
+
 drop trigger if exists notify_new_follower_on_insert on public.follows;
 create trigger notify_new_follower_on_insert
 after insert on public.follows
@@ -1911,6 +1963,11 @@ drop trigger if exists notify_post_approved_on_update on public.posts;
 create trigger notify_post_approved_on_update
 after update of moderation_status on public.posts
 for each row execute function public.notify_post_approved();
+
+drop trigger if exists notify_comment_approved_on_update on public.comments;
+create trigger notify_comment_approved_on_update
+after update of moderation_status on public.comments
+for each row execute function public.notify_comment_approved();
 
 alter table public.chat_conversations enable row level security;
 alter table public.chat_conversation_members enable row level security;

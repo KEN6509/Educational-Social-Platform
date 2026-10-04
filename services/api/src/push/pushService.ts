@@ -237,6 +237,20 @@ export function pushPresentationFor(
     title: source.title || 'CyanZone',
     body: source.body || 'You have a new CyanZone notification.',
   };
+  if (source.sourceTable === 'notifications' && source.eventType === 'system') {
+    switch (source.actionPayload.template_type) {
+      case 'post_approved':
+        return {
+          title: 'Post Created Status',
+          body: 'Your post was published successfully.',
+        };
+      case 'comment_approved':
+        return {
+          title: 'Comment Created Status',
+          body: 'Your comment was posted successfully.',
+        };
+    }
+  }
   if (source.eventType !== 'chat_message') return fallback;
 
   const sender = source.actorName?.trim() || null;

@@ -100,6 +100,24 @@ describe('AiFlaggedContentPage', () => {
     );
   });
 
+  it('shows a failed decision inside the confirmation dialog and allows retry', async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.post).mockRejectedValueOnce(
+      new AdminApiError('server', 'Unable to complete the administrator request.', 500),
+    );
+    render(<AiFlaggedContentPage />);
+
+    await user.click(await screen.findByRole('button', { name: 'Approve content' }));
+    const dialog = screen.getByRole('dialog', { name: 'Approve content?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm approval' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Unable to complete the administrator request.',
+    );
+    expect(within(dialog).getByRole('button', { name: 'Confirm approval' })).toBeEnabled();
+    expect(adminApi.post).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores an older tab response after the administrator changes tabs', async () => {
     const user = userEvent.setup();
     let resolvePending!: (value: unknown) => void;

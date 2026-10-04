@@ -724,7 +724,7 @@ begin
 
   if v_case.target_type = 'post' then
     update public.posts
-    set moderation_status = p_decision,
+    set moderation_status = p_decision::public.moderation_status,
         moderation_reason = case when char_length(v_reason) > 0 then v_reason else moderation_reason end,
         reviewed_by = v_admin_id,
         reviewed_at = now(),
@@ -733,7 +733,7 @@ begin
     where id = v_case.target_id;
   else
     update public.comments
-    set moderation_status = p_decision,
+    set moderation_status = p_decision::public.moderation_status,
         moderation_reason = case when char_length(v_reason) > 0 then v_reason else moderation_reason end,
         updated_at = now()
     where id = v_case.target_id;

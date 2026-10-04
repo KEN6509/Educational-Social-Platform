@@ -16,6 +16,7 @@ Future<void> showModerationResultDetails(
     title: title,
     message: message,
     primaryLabel: 'OK',
+    balancedInformationSpacing: true,
   );
 }
 

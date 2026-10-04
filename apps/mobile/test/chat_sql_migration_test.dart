@@ -409,6 +409,32 @@ void main() {
     expect(sql, contains("p.moderation_status = 'removed'"));
   });
 
+  test('approved comments create one author status notification after moderation', () {
+    final sql = File('../../supabase/chat.sql').readAsStringSync();
+
+    expect(sql, contains('create or replace function public.notify_comment_approved()'));
+    expect(sql, contains("old.moderation_status = 'pending'"));
+    expect(sql, contains("new.moderation_status = 'approved'"));
+    expect(sql, contains("'template_type', 'comment_approved'"));
+    expect(sql, contains("existing.action_payload->>'template_type' = 'comment_approved'"));
+    expect(sql, contains('create trigger notify_comment_approved_on_update'));
+  });
+
+  test('admin moderation decisions cast both post and comment states to the enum', () {
+    final sql = File('../../supabase/ai_moderation.sql').readAsStringSync();
+    final decisionFunction = sql.substring(
+      sql.indexOf('create or replace function public.decide_content_moderation_case('),
+      sql.indexOf('revoke all on function public.prepare_content_moderation('),
+    );
+
+    expect(
+      RegExp(r'set moderation_status = p_decision::public\.moderation_status')
+          .allMatches(decisionFunction)
+          .length,
+      2,
+    );
+  });
+
   test('admin SQL resolves only the owner system notification reason', () {
     final sql = File('../../supabase/admin_portal.sql').readAsStringSync();
 

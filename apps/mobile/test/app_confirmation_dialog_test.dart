@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cyanzone_mobile/src/core/widgets/app_confirmation_dialog.dart';
 import 'package:cyanzone_mobile/src/core/theme/app_theme.dart';
+import 'package:cyanzone_mobile/src/features/posts/presentation/moderation_result_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -160,5 +161,37 @@ void main() {
     await tester.tap(find.text('Not now'));
     await tester.pumpAndSettle();
     expect(result, isFalse);
+  });
+
+  testWidgets('moderation feedback keeps OK near its message and clear of the card edge',
+      (tester) async {
+    const message =
+        'Comment was not posted. AI risk score: 85%. Reason: This comment '
+        'contains direct hostile profanity and targeted bullying, which '
+        'violates our safety guidelines for youth-focused spaces.';
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => showModerationResultDetails(
+              context,
+              message: message,
+            ),
+            child: const Text('Open moderation result'),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Open moderation result'));
+    await tester.pumpAndSettle();
+
+    final action = find.widgetWithText(FilledButton, 'OK');
+    final messageBottom = tester.getBottomLeft(find.text(message)).dy;
+    final actionTop = tester.getTopLeft(action).dy;
+    final actionBottom = tester.getBottomLeft(action).dy;
+    final cardBottom = tester.getBottomLeft(find.byType(Dialog)).dy;
+    expect(actionTop - messageBottom, lessThanOrEqualTo(16));
+    expect(cardBottom - actionBottom, greaterThanOrEqualTo(24));
   });
 }

@@ -326,7 +326,7 @@ Run `follow.sql` after `schema.sql`, then run `comment_mentions.sql`, then run `
 - Notification preferences and notifications
 - Activity notification triggers for follows, likes, saves, comments, and mentions
 - System notification triggers for creator badges, rejected posts, and posts
-  moving from Pending to Approved
+  and comments moving from Pending to Approved
 - Rejected-post appeal storage and submission validation
 - RLS policies and realtime publication entries for chat/notification tables
 - Structured group-chat mentions, admin-only `@all`, and per-recipient mention visit state
@@ -365,6 +365,14 @@ After running the focused upgrade, its final two read-only queries must show
 both function signatures and `send_uses_follow_gate = true`. Git pulls, mobile
 builds, GitHub merges, and Vercel deployments do not apply Supabase SQL files;
 the file must be run manually in the hosted project's SQL Editor.
+
+The current `chat.sql` also installs the comment-approval status notification.
+For an existing project with `chat.sql` already installed, the isolated change
+can be applied by running its complete `notify_comment_approved()` function
+block and `notify_comment_approved_on_update` trigger block together in the
+hosted SQL Editor. This is an exception to the full-file guidance above: those
+two blocks depend only on notification tables already installed by `chat.sql`.
+No separate upgrade file is needed. A Git pull or deployment does not run SQL.
 
 ## Creator application follower gate
 
@@ -553,6 +561,13 @@ It is designed to be rerun: table/index/policy creation is guarded and the
 functions are replaced with their current definitions. Inspect any SQL Editor
 error before retrying. The Gemini key is configured only in the API environment;
 Supabase does not call Gemini directly.
+
+For an existing project that returns SQLSTATE `42804` when an administrator
+decides an AI moderation case, run only the complete
+`create or replace function public.decide_content_moderation_case(...)` block
+from the current `ai_moderation.sql` in the hosted SQL Editor. It casts the
+validated decision text to the `public.moderation_status` enum for both posts
+and comments. Replacing that function does not rewrite existing cases.
 
 Verify the hosted objects:
 
