@@ -432,6 +432,10 @@ void main() {
     expect(notificationFunction, contains("new.moderation_status is distinct from 'approved'"));
     expect(notificationFunction,
         contains('new.tagged_user_id is distinct from v_parent_author_id'));
+    expect('and not exists ('.allMatches(notificationFunction).length, 3);
+    expect(notificationFunction, contains('existing.comment_id = new.id'));
+    expect(notificationFunction,
+        contains("existing.type in ('comment', 'comment_reply', 'mention')"));
     expect(sql, contains('drop trigger if exists notify_post_comment_on_insert on public.comments;'));
     expect(sql, contains('create trigger notify_post_comment_on_update'));
     expect(sql, contains('after update of moderation_status on public.comments'));

@@ -1530,7 +1530,13 @@ begin
       select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = v_post_author_id
-    ), true);
+    ), true)
+      and not exists (
+        select 1 from public.notifications existing
+        where existing.user_id = v_post_author_id
+          and existing.comment_id = new.id
+          and existing.type in ('comment', 'comment_reply', 'mention')
+      );
   end if;
 
   if v_parent_author_id is not null
@@ -1552,7 +1558,13 @@ begin
       select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = v_parent_author_id
-    ), true);
+    ), true)
+      and not exists (
+        select 1 from public.notifications existing
+        where existing.user_id = v_parent_author_id
+          and existing.comment_id = new.id
+          and existing.type in ('comment', 'comment_reply', 'mention')
+      );
   end if;
 
   if new.tagged_user_id is not null
@@ -1575,7 +1587,13 @@ begin
       select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = new.tagged_user_id
-    ), true);
+    ), true)
+      and not exists (
+        select 1 from public.notifications existing
+        where existing.user_id = new.tagged_user_id
+          and existing.comment_id = new.id
+          and existing.type in ('comment', 'comment_reply', 'mention')
+      );
   end if;
 
   return new;

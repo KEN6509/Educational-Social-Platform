@@ -43,6 +43,7 @@ export function AiFlaggedContentPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [decision, setDecision] = useState<'approved' | 'rejected' | null>(null);
+  const [decisionTargetId, setDecisionTargetId] = useState<string | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,13 +134,22 @@ export function AiFlaggedContentPage() {
     setMobileDetail(false);
   }
 
+  function openDecision(value: 'approved' | 'rejected') {
+    if (!selected) return;
+    // A refresh already in flight must not replace the case being confirmed.
+    requestGeneration.current += 1;
+    setDecisionTargetId(selected.id);
+    setDecision(value);
+  }
+
   async function confirmDecision() {
-    if (!selected || !decision) return;
+    if (!decisionTargetId || !decision) return;
     setDecisionError(null);
     setIsSubmitting(true);
     try {
-      await decideAiFlaggedCase(selected.id, decision, reason.trim());
+      await decideAiFlaggedCase(decisionTargetId, decision, reason.trim());
       setDecision(null);
+      setDecisionTargetId(null);
       setReason('');
       setSaved(true);
       await load(status);
@@ -279,8 +289,8 @@ export function AiFlaggedContentPage() {
                   dangerRequiresReason
                   helperText="Approval publishes eligible uncertain content. Rejection requires a clear moderation reason."
                   isSubmitting={isSubmitting}
-                  onDanger={() => setDecision('rejected')}
-                  onPrimary={() => setDecision('approved')}
+                  onDanger={() => openDecision('rejected')}
+                  onPrimary={() => openDecision('approved')}
                   onReasonChange={setReason}
                   primaryLabel="Approve content"
                   primaryRequiresReason={false}
@@ -296,6 +306,7 @@ export function AiFlaggedContentPage() {
                 isSubmitting={isSubmitting}
                 onCancel={() => {
                   setDecision(null);
+                  setDecisionTargetId(null);
                   setDecisionError(null);
                 }}
                 onConfirm={() => void confirmDecision()}

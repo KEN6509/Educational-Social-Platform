@@ -94,6 +94,33 @@ describe('AiFlaggedContentPage', () => {
     Reflect.deleteProperty(document, 'visibilityState');
   });
 
+  it('does not change the decision target when an in-flight refresh finishes', async () => {
+    const user = userEvent.setup();
+    let resolveRefresh!: (value: unknown) => void;
+    const otherCase = { ...pendingCase, id: 'case-other', title: 'Other pending post' };
+    vi.mocked(adminApi.get).mockReset()
+      .mockResolvedValueOnce({ items: [pendingCase], page: 1, pageSize: 20, total: 1 })
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveRefresh = resolve; }))
+      .mockResolvedValue({ items: [pendingCase], page: 1, pageSize: 20, total: 1 });
+
+    render(<AiFlaggedContentPage />);
+    await screen.findByRole('button', { name: 'Approve content' });
+    act(() => { window.dispatchEvent(new Event('focus')); });
+    await waitFor(() => expect(adminApi.get).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole('button', { name: 'Approve content' }));
+    await act(async () => {
+      resolveRefresh({ items: [otherCase], page: 1, pageSize: 20, total: 1 });
+    });
+
+    expect(screen.queryAllByText('Other pending post')).toHaveLength(0);
+    const dialog = screen.getByRole('dialog', { name: 'Approve content?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm approval' }));
+    expect(adminApi.post).toHaveBeenCalledWith(
+      '/admin/moderation-cases/case-1/decision',
+      { decision: 'approved', reason: '' },
+    );
+  });
+
   it('loads genuine cases from the moderation API with evidence and images', async () => {
     render(<AiFlaggedContentPage />);
 
