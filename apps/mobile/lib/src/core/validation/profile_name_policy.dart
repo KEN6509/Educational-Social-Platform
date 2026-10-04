@@ -1,7 +1,7 @@
 abstract final class ProfileNamePolicy {
   static const minLength = 1;
   static const maxLength = 24;
-  static const helperText = '1–24 characters';
+  static const helperText = 'Name must contain between 1 and 24 characters.';
   static const requiredError = 'Name is required.';
   static const lengthError = 'Name must be 1–24 characters.';
 

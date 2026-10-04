@@ -37,7 +37,7 @@ class _EditProfileBody extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Padding(
-                    padding: EdgeInsets.only(left: 4, bottom: 8),
+                    padding: EdgeInsets.only(left: 4, bottom: 4),
                     child: Text(
                       'Username',
                       style: TextStyle(
@@ -47,8 +47,22 @@ class _EditProfileBody extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4, right: 4, bottom: 8),
+                    child: Text(
+                      ProfileNamePolicy.helperText,
+                      maxLines: 2,
+                      softWrap: true,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
                   ProfileNameFormField(
                     controller: nameController,
+                    showCounter: true,
+                    showHelperText: false,
                     decoration: appInputDecoration(
                       hintText: 'Enter your name',
                       contentPadding: const EdgeInsets.symmetric(

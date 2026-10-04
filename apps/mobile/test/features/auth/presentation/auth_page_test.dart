@@ -5,6 +5,7 @@ import 'package:cyanzone_mobile/src/features/auth/domain/auth_gateway.dart';
 import 'package:cyanzone_mobile/src/features/auth/presentation/auth_page.dart';
 import 'package:cyanzone_mobile/src/features/auth/presentation/email_otp_panel.dart';
 import 'package:cyanzone_mobile/src/features/auth/presentation/registration_controller.dart';
+import 'package:cyanzone_mobile/src/core/security/password_policy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -63,7 +64,10 @@ void main() {
     await tester.tap(find.text('Create account'));
     await tester.pump();
 
-    expect(find.text('1–24 characters'), findsOneWidget);
+    expect(
+      find.text('Name must contain between 1 and 24 characters.'),
+      findsOneWidget,
+    );
     await tester.enterText(
       find.byKey(const ValueKey('register-name-field')),
       '   ',
@@ -74,6 +78,25 @@ void main() {
     await tester.pump();
 
     expect(find.text('Name is required.'), findsOneWidget);
+    expect(
+      find.text('Please follow the password requirements.'),
+      findsOneWidget,
+    );
+    expect(find.text(PasswordPolicy.validationMessage), findsNothing);
+    expect(find.text('0/24'), findsNothing);
+    final nameField = find.byKey(const ValueKey('register-name-field'));
+    expect(
+      tester
+          .widget<InputDecorator>(
+            find.descendant(
+              of: nameField,
+              matching: find.byType(InputDecorator),
+            ),
+          )
+          .decoration
+          .helperMaxLines,
+      2,
+    );
     expect(authGateway.registrationRequest, isNull);
   });
 

@@ -101,6 +101,13 @@ void main() {
     expect(page, contains('final _formKey = GlobalKey<FormState>()'));
     expect(page, contains('_formKey.currentState?.validate()'));
     expect(widgets, contains('ProfileNameFormField('));
+    expect(widgets, contains('showCounter: true'));
+    expect(widgets, contains('showHelperText: false'));
+    expect(widgets, contains('ProfileNamePolicy.helperText'));
+    expect(
+      widgets.indexOf('ProfileNamePolicy.helperText'),
+      lessThan(widgets.indexOf('ProfileNameFormField(')),
+    );
     expect(widgets, contains('key: formKey'));
   });
 
