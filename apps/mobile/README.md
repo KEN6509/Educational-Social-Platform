@@ -37,7 +37,5 @@ flutter analyze
 flutter test
 ```
 
-For current implementation details, database script order, and the documentation
-handover, read the repository root
-[`Project_Overview.md`](../../Project_Overview.md) and
+For database script order and deployment guidance, read
 [`docs/setup.md`](../../docs/setup.md).

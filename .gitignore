@@ -28,6 +28,8 @@ Thumbs.db
 # Local design exploration
 .agents/
 .superpowers/
+docs/superpowers/
+Project_Overview.md
 .tmp/
 .tmp-*/
 
