@@ -125,7 +125,7 @@ test('loads trusted image bytes and sends every image to Gemini as inline data',
   assert.deepEqual(imageParts?.map((part) => part.uri), [undefined, undefined]);
   assert.equal(result.model, 'gemini-3.5-flash-lite');
   assert.equal(result.providerAttempts, 1);
-  assert.equal(result.promptVersion, 'cyanzone-moderation-v3');
+  assert.equal(result.promptVersion, 'cyanzone-moderation-v4');
   assert.equal(result.overallRiskScore, 12);
 });
 
@@ -149,6 +149,34 @@ test('gives Gemini a score-only youth-safety contract matching system thresholds
   assert.match(request?.system_instruction ?? '', /40\s*(?:-|–)\s*60/);
   assert.match(request?.system_instruction ?? '', />\s*60\s*(?:-|–)\s*100/);
   assert.doesNotMatch(request?.system_instruction ?? '', /recommendedDecision/i);
+});
+
+test('instructs Gemini to score substantive non-violating sensitive topics for human review', async () => {
+  let request: GeminiInteractionRequest | undefined;
+  const gateway = createGateway(async (input) => {
+    request = input;
+    return { output_text: JSON.stringify(safeResponse) };
+  });
+
+  await gateway.moderate(commentTarget);
+
+  const instruction = request?.system_instruction ?? '';
+  assert.match(instruction, /sensitive but non-violating/i);
+  assert.match(instruction, /40-60 inclusive/i);
+  for (const topic of [
+    /self-harm/i,
+    /abuse/i,
+    /bullying/i,
+    /sexual topics/i,
+    /violence/i,
+    /substance use/i,
+    /personal information/i,
+  ]) {
+    assert.match(instruction, topic);
+  }
+  assert.match(instruction, /educational or help-seeking/i);
+  assert.match(instruction, /clear policy violation/i);
+  assert.match(instruction, /context rather than keywords alone/i);
 });
 
 test('sends comment text without image parts', async () => {

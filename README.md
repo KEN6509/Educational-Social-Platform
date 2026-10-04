@@ -28,7 +28,6 @@ supabase/
 docs/
   setup.md                Complete setup and deployment guide
   Future_Improvements.md  Deferred post-MVP improvements
-Project_Overview.md       Current implementation and SRS handover
 ```
 
 ## Initial Setup
@@ -57,8 +56,7 @@ flutter run
 The mobile app includes the educational feed, moderated posts/comments,
 profiles/search, Parent Supervision, direct/group chat, Android push and in-app
 notifications, safety Check-In/SOS, and offline-oriented media caching. See
-[`Project_Overview.md`](Project_Overview.md) for the current implementation
-handover.
+[`docs/setup.md`](docs/setup.md) for setup and deployment details.
 
 ### API
 

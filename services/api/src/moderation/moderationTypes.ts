@@ -1,4 +1,4 @@
-export const MODERATION_PROMPT_VERSION = 'cyanzone-moderation-v3';
+export const MODERATION_PROMPT_VERSION = 'cyanzone-moderation-v4';
 
 export type ModerationTargetType = 'post' | 'comment';
 export type SupportedImageMimeType =
