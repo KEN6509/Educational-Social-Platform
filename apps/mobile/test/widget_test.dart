@@ -141,12 +141,11 @@ void main() {
     await tester.pump();
 
     expect(
-      find.text(
-        'Use at least 12 characters with uppercase, lowercase, a number, '
-        'and a symbol such as !, @, #, \$, %, or &.',
-      ),
+      find.text('Please follow the password requirements.'),
       findsOneWidget,
     );
+    expect(find.text('At least 12 characters'), findsOneWidget);
+    expect(find.text('Contains an uppercase letter'), findsOneWidget);
   });
 
   testWidgets('registration shows and updates the live password checklist',

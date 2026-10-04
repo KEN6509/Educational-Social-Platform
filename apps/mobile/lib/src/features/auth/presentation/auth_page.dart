@@ -502,7 +502,9 @@ class _AuthPanel extends StatelessWidget {
                   if (!isRegistering) {
                     return password.isEmpty ? 'Enter your password.' : null;
                   }
-                  return PasswordPolicy.validationError(password);
+                  return PasswordPolicy.evaluate(password).isValid
+                      ? null
+                      : 'Please follow the password requirements.';
                 },
                 onChanged: isRegistering ? onPasswordChanged : null,
                 onFieldSubmitted: (_) {
