@@ -125,6 +125,36 @@ test('non-chat push keeps its stored presentation', () => {
   );
 });
 
+test('approved post push uses a concise creation status instead of the in-app greeting', () => {
+  assert.deepEqual(
+    pushPresentationFor(source({
+      eventType: 'system',
+      title: 'Your post was published successfully',
+      body: 'Hi Chan,\n\nYour post passed moderation and was published successfully.',
+      actionPayload: {template_type: 'post_approved'},
+    })),
+    {
+      title: 'Post Created Status',
+      body: 'Your post was published successfully.',
+    },
+  );
+});
+
+test('approved comment push uses its own concise creation status', () => {
+  assert.deepEqual(
+    pushPresentationFor(source({
+      eventType: 'system',
+      title: 'Your comment was posted successfully',
+      body: 'Your comment passed moderation and was posted successfully.',
+      actionPayload: {template_type: 'comment_approved'},
+    })),
+    {
+      title: 'Comment Created Status',
+      body: 'Your comment was posted successfully.',
+    },
+  );
+});
+
 test('push service reloads the source, claims once, and sends a typed message', async () => {
   const sent: PushMessage[] = [];
   const completed: unknown[] = [];

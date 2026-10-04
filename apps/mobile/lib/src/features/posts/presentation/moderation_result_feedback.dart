@@ -8,6 +8,7 @@ Future<void> showModerationResultDetails(
   BuildContext context, {
   required String message,
   String title = 'Moderation result',
+  bool balancedInformationSpacing = false,
 }) async {
   await showAppDialog(
     context: context,
@@ -16,6 +17,7 @@ Future<void> showModerationResultDetails(
     title: title,
     message: message,
     primaryLabel: 'OK',
+    balancedInformationSpacing: balancedInformationSpacing,
   );
 }
 

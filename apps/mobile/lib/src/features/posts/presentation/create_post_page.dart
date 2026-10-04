@@ -292,6 +292,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
         case ContentModerationState.rejected:
           await showModerationResultDetails(
             context,
+            balancedInformationSpacing: true,
             message: moderationRejectionMessage(
               subject: 'Post was not published',
               riskScore: result.riskScore,

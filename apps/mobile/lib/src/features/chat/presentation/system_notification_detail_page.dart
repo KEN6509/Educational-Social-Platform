@@ -122,7 +122,12 @@ class _SystemNotificationDetailPageState
       }
       if (!mounted) return;
       final result = await Navigator.of(context).push<Map<String, dynamic>>(
-        MaterialPageRoute(builder: (_) => PostDetailPage(post: post)),
+        MaterialPageRoute(
+          builder: (_) => PostDetailPage(
+            post: post,
+            initialCommentId: widget.notification.commentId,
+          ),
+        ),
       );
       if (result != null) {
         PostInteractionSync.publish(
@@ -136,7 +141,9 @@ class _SystemNotificationDetailPageState
       setState(() => _postUnavailable = true);
       AppFeedback.showWarning(
         context,
-        'This rejected post is no longer available.',
+        widget.notification.isPostRejection
+            ? 'This rejected post is no longer available.'
+            : 'This post is no longer available.',
       );
     }
   }
@@ -242,12 +249,15 @@ class _SystemNotificationDetailPageState
               ),
             ),
             if (notification.postId != null &&
-                notification.systemPostTitle != null &&
-                notification.systemPostTitle!.isNotEmpty) ...[
+                ((notification.systemPostTitle?.isNotEmpty ?? false) ||
+                    notification.systemTemplateType == 'comment_approved')) ...[
               const SizedBox(height: 12),
               _InlinePostLink(
                 enabled: !_postUnavailable,
                 onTap: _openPost,
+                label: notification.systemTemplateType == 'comment_approved'
+                    ? 'View comment'
+                    : 'View post',
               ),
             ],
             const SizedBox(height: 16),
@@ -327,10 +337,12 @@ class _InlinePostLink extends StatelessWidget {
   const _InlinePostLink({
     required this.enabled,
     required this.onTap,
+    required this.label,
   });
 
   final bool enabled;
   final VoidCallback onTap;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -342,7 +354,7 @@ class _InlinePostLink extends StatelessWidget {
         key: const ValueKey('rejected-post-inline-link'),
         onTap: enabled ? onTap : null,
         child: Text(
-          'View post',
+          label,
           style: TextStyle(
             color: enabled ? chatMentionAccent : const Color(0xFF94A3B8),
             fontSize: 16,
