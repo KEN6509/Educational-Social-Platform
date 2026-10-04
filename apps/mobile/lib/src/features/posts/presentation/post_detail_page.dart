@@ -31,6 +31,7 @@ import 'post_feedback_snackbar.dart';
 import 'report_post_page.dart';
 import 'content_moderation_scope.dart';
 import 'moderation_result_feedback.dart';
+import 'zoomable_preview_image.dart';
 
 part 'post_detail_media.dart';
 part 'post_share_sheet.dart';

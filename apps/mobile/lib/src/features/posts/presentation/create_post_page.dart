@@ -21,6 +21,7 @@ import 'create_post_validation.dart';
 import 'post_submission_error.dart';
 import 'content_moderation_scope.dart';
 import 'moderation_result_feedback.dart';
+import 'draft_image_preview_page.dart';
 
 class CreatePostPage extends StatefulWidget {
   const CreatePostPage({
@@ -136,6 +137,20 @@ class _CreatePostPageState extends State<CreatePostPage> {
     setState(() {
       _images.removeAt(index);
     });
+  }
+
+  void _previewImage(int index) {
+    final previewImages = _images.map<ImageProvider>((image) {
+      return image.isPicked
+          ? MemoryImage(image.bytes!)
+          : NetworkImage(image.url!);
+    }).toList(growable: false);
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => DraftImagePreviewPage(
+        images: previewImages,
+        initialIndex: index,
+      ),
+    ));
   }
 
   Future<void> _openTagSelection() async {
@@ -453,6 +468,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 images: _images,
                 onPick: _pickImages,
                 onRemove: _removeImage,
+                onPreview: _previewImage,
               ),
 
               const SizedBox(height: AppSpacing.section),
@@ -653,11 +669,13 @@ class _ModernImageGrid extends StatelessWidget {
     required this.images,
     required this.onPick,
     required this.onRemove,
+    required this.onPreview,
   });
 
   final List<_DraftImage> images;
   final VoidCallback onPick;
   final ValueChanged<int> onRemove;
+  final ValueChanged<int> onPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -705,17 +723,26 @@ class _ModernImageGrid extends StatelessWidget {
 
         return Stack(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: ColoredBox(
-                color: const Color(0xFFF1F5F9),
-                child: Image(
-                  image: images[index].isPicked
-                      ? MemoryImage(images[index].bytes!)
-                      : NetworkImage(images[index].url!) as ImageProvider,
-                  width: double.infinity,
-                  height: double.infinity,
-                  fit: BoxFit.cover,
+            Positioned.fill(
+              child: Semantics(
+                button: true,
+                label: 'Preview image ${index + 1}',
+                child: GestureDetector(
+                  onTap: () => onPreview(index),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: ColoredBox(
+                      color: const Color(0xFFF1F5F9),
+                      child: Image(
+                        image: images[index].isPicked
+                            ? MemoryImage(images[index].bytes!)
+                            : NetworkImage(images[index].url!) as ImageProvider,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
