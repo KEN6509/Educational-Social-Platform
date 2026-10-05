@@ -164,7 +164,7 @@ test('calls moderation RPCs with exact revision, owner, and claim arguments', as
   );
   assert.equal(rpcCalls[0].args.p_owner_id, 'member-1');
   assert.equal(rpcCalls[1].args.p_expected_revision, 3);
-  assert.deepEqual(rpcCalls[1].args.p_category_scores, {});
+  assert.equal(Object.hasOwn(rpcCalls[1].args, 'p_category_scores'), false);
   assert.equal(rpcCalls[2].args.p_claim_token, 'claim-1');
 });
 

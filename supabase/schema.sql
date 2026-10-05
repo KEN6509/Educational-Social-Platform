@@ -135,7 +135,6 @@ create table if not exists public.content_moderation_cases (
   ),
   overall_risk_score numeric(5,2)
     check (overall_risk_score between 0 and 100),
-  category_scores jsonb not null default '{}'::jsonb,
   evidence jsonb not null default '[]'::jsonb,
   user_reason text,
   provider text,
