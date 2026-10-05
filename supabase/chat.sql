@@ -1488,6 +1488,9 @@ begin
 end;
 $$;
 
+-- The replacement function reads OLD, so remove the legacy INSERT trigger first.
+drop trigger if exists notify_post_comment_on_insert on public.comments;
+
 create or replace function public.notify_post_comment()
 returns trigger
 language plpgsql
@@ -1963,7 +1966,6 @@ create trigger notify_post_favorite_on_insert
 after insert on public.saves
 for each row execute function public.notify_post_favorite();
 
-drop trigger if exists notify_post_comment_on_insert on public.comments;
 drop trigger if exists notify_post_comment_on_update on public.comments;
 create trigger notify_post_comment_on_update
 after update of moderation_status on public.comments
