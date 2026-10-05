@@ -16,6 +16,12 @@ void main() {
     expect(gridSource, contains('fit: BoxFit.cover'));
     expect(gridSource, isNot(contains('fit: BoxFit.contain')));
     expect(gridSource, contains('padding: EdgeInsets.zero'));
+    expect(gridSource, contains('final ValueChanged<int> onPreview;'));
+    expect(gridSource, contains('onTap: () => onPreview(index)'));
+    expect(gridSource, contains('onTap: () => onRemove(index)'));
+    expect(source, contains('DraftImagePreviewPage('));
+    expect(source, contains('MemoryImage(image.bytes!)'));
+    expect(source, contains('NetworkImage(image.url!)'));
     expect(
       source,
       contains('withNavigationClearance('),

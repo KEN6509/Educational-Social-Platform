@@ -18,7 +18,12 @@ void main() {
     expect(media, startsWith("part of 'post_detail_page.dart';"));
     expect(media, contains('class _PostDetailNetworkImage'));
     expect(media, contains('class _PostDetailImagePreviewPage'));
-    expect(media, contains('class _PostDetailZoomablePreviewImage'));
+    expect(media, contains('ZoomablePreviewImage('));
+    expect(media, isNot(contains('class _PostDetailZoomablePreviewImage')));
+    expect(
+        File('$presentationPath/zoomable_preview_image.dart')
+            .readAsStringSync(),
+        contains('class ZoomablePreviewImage extends StatefulWidget'));
     expect(media, contains('class _PostDetailPreviewHeader'));
     expect(media, contains('class _PostDetailImageLoadError'));
     expect(page, isNot(contains('class _PostDetailImagePreviewPage')));

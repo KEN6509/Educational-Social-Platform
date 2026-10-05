@@ -409,21 +409,69 @@ void main() {
     expect(sql, contains("p.moderation_status = 'removed'"));
   });
 
-  test('approved comments create one author status notification after moderation', () {
+  test(
+      'approved comments create one author status notification after moderation',
+      () {
     final sql = File('../../supabase/chat.sql').readAsStringSync();
 
-    expect(sql, contains('create or replace function public.notify_comment_approved()'));
+    expect(
+        sql,
+        contains(
+            'create or replace function public.notify_comment_approved()'));
     expect(sql, contains("old.moderation_status = 'pending'"));
     expect(sql, contains("new.moderation_status = 'approved'"));
     expect(sql, contains("'template_type', 'comment_approved'"));
-    expect(sql, contains("existing.action_payload->>'template_type' = 'comment_approved'"));
+    expect(
+        sql,
+        contains(
+            "existing.action_payload->>'template_type' = 'comment_approved'"));
     expect(sql, contains('create trigger notify_comment_approved_on_update'));
   });
 
-  test('admin moderation decisions cast both post and comment states to the enum', () {
+  test(
+      'comment activity is sent only after approval without duplicate recipients',
+      () {
+    final sql = File('../../supabase/chat.sql').readAsStringSync();
+    final start =
+        sql.indexOf('create or replace function public.notify_post_comment()');
+    final end =
+        sql.indexOf('create or replace function public.notify_comment_like()');
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final notificationFunction = sql.substring(start, end);
+    expect(
+        sql.indexOf(
+            'drop trigger if exists notify_post_comment_on_insert on public.comments;'),
+        lessThan(start));
+
+    expect(notificationFunction,
+        contains("old.moderation_status is distinct from 'pending'"));
+    expect(notificationFunction,
+        contains("new.moderation_status is distinct from 'approved'"));
+    expect(notificationFunction,
+        contains('new.tagged_user_id is distinct from v_parent_author_id'));
+    expect('and not exists ('.allMatches(notificationFunction).length, 3);
+    expect(notificationFunction, contains('existing.comment_id = new.id'));
+    expect(notificationFunction,
+        contains("existing.type in ('comment', 'comment_reply', 'mention')"));
+    expect(
+        sql,
+        contains(
+            'drop trigger if exists notify_post_comment_on_insert on public.comments;'));
+    expect(sql, contains('create trigger notify_post_comment_on_update'));
+    expect(
+        sql, contains('after update of moderation_status on public.comments'));
+    expect(
+        sql, isNot(contains('create trigger notify_post_comment_on_insert')));
+  });
+
+  test(
+      'admin moderation decisions cast both post and comment states to the enum',
+      () {
     final sql = File('../../supabase/ai_moderation.sql').readAsStringSync();
     final decisionFunction = sql.substring(
-      sql.indexOf('create or replace function public.decide_content_moderation_case('),
+      sql.indexOf(
+          'create or replace function public.decide_content_moderation_case('),
       sql.indexOf('revoke all on function public.prepare_content_moderation('),
     );
 

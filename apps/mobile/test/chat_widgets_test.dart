@@ -597,7 +597,10 @@ void main() {
     final mediaSource =
         File('lib/src/features/posts/presentation/post_detail_media.dart')
             .readAsStringSync();
-    final source = '$pageSource\n$mediaSource';
+    final zoomSource =
+        File('lib/src/features/posts/presentation/zoomable_preview_image.dart')
+            .readAsStringSync();
+    final source = '$pageSource\n$mediaSource\n$zoomSource';
     final carouselStart = pageSource.indexOf('PageView.builder');
     final carouselEnd = pageSource.indexOf('if (visibleImageUrls.length > 1)');
     expect(carouselStart, greaterThanOrEqualTo(0));
@@ -637,7 +640,8 @@ void main() {
     expect(source, contains('maxScale: 4.8'));
     expect(source, contains('boundaryMargin: const EdgeInsets.all(160)'));
     expect(source, contains('panEnabled: _canPanImage'));
-    expect(source, contains('_canPanImage = scale > 1.01'));
+    expect(source, contains('final canPanImage = scale > 1.01'));
+    expect(source, contains('_canPanImage = canPanImage'));
     expect(source, contains('_settleToScale(4)'));
     expect(source, contains('_matrixWithPreservedViewportPoint'));
     expect(source, contains('targetTranslation'));

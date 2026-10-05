@@ -1488,6 +1488,9 @@ begin
 end;
 $$;
 
+-- The replacement function reads OLD, so remove the legacy INSERT trigger first.
+drop trigger if exists notify_post_comment_on_insert on public.comments;
+
 create or replace function public.notify_post_comment()
 returns trigger
 language plpgsql
@@ -1498,6 +1501,12 @@ declare
   v_post_author_id uuid;
   v_parent_author_id uuid;
 begin
+  if old.moderation_status is distinct from 'pending'
+    or new.moderation_status is distinct from 'approved'
+  then
+    return new;
+  end if;
+
   select p.author_id into v_post_author_id
   from public.posts p
   where p.id = new.post_id;
@@ -1524,7 +1533,13 @@ begin
       select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = v_post_author_id
-    ), true);
+    ), true)
+      and not exists (
+        select 1 from public.notifications existing
+        where existing.user_id = v_post_author_id
+          and existing.comment_id = new.id
+          and existing.type in ('comment', 'comment_reply', 'mention')
+      );
   end if;
 
   if v_parent_author_id is not null
@@ -1546,12 +1561,19 @@ begin
       select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = v_parent_author_id
-    ), true);
+    ), true)
+      and not exists (
+        select 1 from public.notifications existing
+        where existing.user_id = v_parent_author_id
+          and existing.comment_id = new.id
+          and existing.type in ('comment', 'comment_reply', 'mention')
+      );
   end if;
 
   if new.tagged_user_id is not null
     and new.tagged_user_id <> new.author_id
     and new.tagged_user_id is distinct from v_post_author_id
+    and new.tagged_user_id is distinct from v_parent_author_id
   then
     insert into public.notifications (user_id, type, actor_id, post_id, comment_id, title, body, action_type, action_payload)
     select
@@ -1568,7 +1590,13 @@ begin
       select (np.in_app_enabled or np.push_enabled) and np.activity_enabled
       from public.notification_preferences np
       where np.user_id = new.tagged_user_id
-    ), true);
+    ), true)
+      and not exists (
+        select 1 from public.notifications existing
+        where existing.user_id = new.tagged_user_id
+          and existing.comment_id = new.id
+          and existing.type in ('comment', 'comment_reply', 'mention')
+      );
   end if;
 
   return new;
@@ -1938,9 +1966,9 @@ create trigger notify_post_favorite_on_insert
 after insert on public.saves
 for each row execute function public.notify_post_favorite();
 
-drop trigger if exists notify_post_comment_on_insert on public.comments;
-create trigger notify_post_comment_on_insert
-after insert on public.comments
+drop trigger if exists notify_post_comment_on_update on public.comments;
+create trigger notify_post_comment_on_update
+after update of moderation_status on public.comments
 for each row execute function public.notify_post_comment();
 
 drop trigger if exists notify_comment_like_on_insert on public.comment_likes;
