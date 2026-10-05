@@ -249,6 +249,31 @@ export function pushPresentationFor(
           title: 'Comment Created Status',
           body: 'Your comment was posted successfully.',
         };
+      case 'post_rejected':
+        return {
+          title: 'Post Created Status',
+          body: 'Your post was rejected. Open CyanZone to view the reason and appeal options.',
+        };
+      case 'post_appeal_approved':
+        return {
+          title: 'Post Appeal Status',
+          body: 'Your appeal was approved. Your post is available again.',
+        };
+      case 'post_appeal_rejected':
+        return {
+          title: 'Post Appeal Status',
+          body: 'Your appeal was rejected. Open CyanZone to view the decision.',
+        };
+      case 'reported_post_removed':
+        return {
+          title: 'Post Moderation Status',
+          body: 'Your post was removed after review. Open CyanZone for details.',
+        };
+      case 'reported_comment_removed':
+        return {
+          title: 'Comment Moderation Status',
+          body: 'Your comment was removed after review. Open CyanZone for details.',
+        };
     }
   }
   if (source.eventType !== 'chat_message') return fallback;
