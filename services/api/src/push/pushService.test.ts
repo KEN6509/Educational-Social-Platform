@@ -155,6 +155,53 @@ test('approved comment push uses its own concise creation status', () => {
   );
 });
 
+test('rejected post push keeps the detailed reason out of the lock-screen message', () => {
+  assert.deepEqual(
+    pushPresentationFor(source({
+      eventType: 'system',
+      title: 'Post has been rejected',
+      body: 'Hi Chan,\n\nAn administrator rejected your post. Reason: sensitive details.',
+      actionPayload: {template_type: 'post_rejected'},
+    })),
+    {
+      title: 'Post Created Status',
+      body: 'Your post was rejected. Open CyanZone to view the reason and appeal options.',
+    },
+  );
+});
+
+test('appeal decision pushes use concise status messages', () => {
+  for (const [template, expectedBody] of [
+    ['post_appeal_approved', 'Your appeal was approved. Your post is available again.'],
+    ['post_appeal_rejected', 'Your appeal was rejected. Open CyanZone to view the decision.'],
+  ] as const) {
+    assert.deepEqual(
+      pushPresentationFor(source({
+        eventType: 'system',
+        body: 'A longer in-app appeal decision with details.',
+        actionPayload: {template_type: template},
+      })),
+      {title: 'Post Appeal Status', body: expectedBody},
+    );
+  }
+});
+
+test('reported-content removal pushes identify the affected content concisely', () => {
+  for (const [template, expectedTitle, expectedBody] of [
+    ['reported_post_removed', 'Post Moderation Status', 'Your post was removed after review. Open CyanZone for details.'],
+    ['reported_comment_removed', 'Comment Moderation Status', 'Your comment was removed after review. Open CyanZone for details.'],
+  ] as const) {
+    assert.deepEqual(
+      pushPresentationFor(source({
+        eventType: 'system',
+        body: 'An administrator removed your content after reviewing reports.',
+        actionPayload: {template_type: template},
+      })),
+      {title: expectedTitle, body: expectedBody},
+    );
+  }
+});
+
 test('push service reloads the source, claims once, and sends a typed message', async () => {
   const sent: PushMessage[] = [];
   const completed: unknown[] = [];
