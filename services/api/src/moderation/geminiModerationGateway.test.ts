@@ -145,7 +145,7 @@ test('gives Gemini a score-only youth-safety contract matching system thresholds
   });
 
   assert.match(request?.system_instruction ?? '', /direct hostile profanity/i);
-  assert.match(request?.system_instruction ?? '', /0(?:\.00)?\s*(?:-|–)\s*39\.99/);
+  assert.match(request?.system_instruction ?? '', /Score <40 for ordinary safe content/i);
   assert.match(request?.system_instruction ?? '', /40\s*(?:-|–)\s*60/);
   assert.match(request?.system_instruction ?? '', />\s*60\s*(?:-|–)\s*100/);
   assert.doesNotMatch(request?.system_instruction ?? '', /recommendedDecision/i);

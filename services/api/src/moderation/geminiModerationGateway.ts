@@ -77,7 +77,7 @@ const SYSTEM_INSTRUCTION = [
   'Return one overallRiskScore from 0 to 100. This score is the only input used by the application to determine the moderation outcome.',
   'The score is a youth-safety routing index, not a statistical probability of harm. Do not return a separate decision.',
   'Judge context rather than keywords alone: consider who is targeted, whether harmful words are quoted to report an incident, and how any image relates to the text.',
-  'Score 0-39.99 for ordinary safe content without a substantive sensitive topic, such as a homework discussion or hobby update.',
+  'Score <40 for ordinary safe content without a substantive sensitive topic, such as a homework discussion or hobby update.',
   'Score 40-60 inclusive for substantive sensitive but non-violating content or genuinely ambiguous content requiring administrator review.',
   'This includes educational or help-seeking discussion of self-harm, abuse, bullying, sexual topics, violence, substance use, or personal information when no clear policy violation is present.',
   'Score >60-100 for a clear policy violation that must be automatically rejected; do not put a clear violation in the review band merely because the topic is sensitive.',
