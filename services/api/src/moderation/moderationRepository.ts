@@ -105,8 +105,6 @@ export function createModerationRepository(
         p_claim_token: result.claimToken,
         p_case_state: result.state,
         p_overall_risk_score: result.overallRiskScore,
-        // Retained for compatibility with the existing SQL function and table.
-        p_category_scores: {},
         p_evidence: result.evidence,
         p_user_reason: result.userReason,
         p_model: result.model,

@@ -557,9 +557,14 @@ writes, and the service-role RPCs used by the Express API:
 - `mark_content_moderation_failed`
 - `decide_content_moderation_case`
 
-It is designed to be rerun: table/index/policy creation is guarded and the
-functions are replaced with their current definitions. Inspect any SQL Editor
-error before retrying. The Gemini key is configured only in the API environment;
+It is designed to be rerun: table/index/policy creation is guarded, and the
+functions are updated to their current definitions. Rerunning this file also
+drops the obsolete `category_scores` column and the old
+`apply_ai_moderation_result` signature. Apply it together with the matching API
+update because the old and new RPC argument lists are incompatible. Export any
+historical category breakdowns before running the SQL if they must be retained,
+because dropping the column removes those values. Inspect any SQL Editor error
+before retrying. The Gemini key is configured only in the API environment;
 Supabase does not call Gemini directly.
 
 For an existing project that returns SQLSTATE `42804` when an administrator

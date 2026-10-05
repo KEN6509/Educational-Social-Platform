@@ -45,7 +45,26 @@ test('fresh schema contains the moderation base tables and revision fields', () 
   assert.match(schema, /mime_type text/i);
 });
 
-test('moderation cases preserve the exact target revision submitted for review', () => {
+test('moderation result no longer accepts or stores category scores', () => {
+  for (const sql of [migration, schema]) {
+    const table = sql.match(
+      /create table if not exists public\.content_moderation_cases\s*\(([\s\S]*?)\n\);/i,
+    )?.[1];
+    assert.ok(table);
+    assert.doesNotMatch(table, /category_scores/i);
+  }
+
+  const signature = migration.match(
+    /create or replace function public\.apply_ai_moderation_result\s*\(([\s\S]*?)\)\s*returns jsonb/i,
+  )?.[1];
+  assert.ok(signature);
+  assert.doesNotMatch(signature, /p_category_scores/i);
+  assert.doesNotMatch(migration, /category_scores\s*=\s*coalesce/i);
+  assert.match(migration, /drop column if exists category_scores/i);
+  assert.match(migration, /drop function if exists public\.apply_ai_moderation_result/i);
+});
+
+test('moderation cases record a snapshot of the target revision', () => {
   for (const sql of [migration, schema]) {
     assert.match(sql, /target_snapshot jsonb not null default '\{\}'::jsonb/i);
   }

@@ -13,7 +13,6 @@ create table if not exists public.content_moderation_cases (
   ),
   overall_risk_score numeric(5,2)
     check (overall_risk_score between 0 and 100),
-  category_scores jsonb not null default '{}'::jsonb,
   evidence jsonb not null default '[]'::jsonb,
   user_reason text,
   provider text,
@@ -36,6 +35,10 @@ create table if not exists public.content_moderation_cases (
 
 alter table public.content_moderation_cases
   add column if not exists target_snapshot jsonb not null default '{}'::jsonb;
+
+-- Remove the unused category breakdown from existing projects as well.
+alter table public.content_moderation_cases
+  drop column if exists category_scores;
 
 alter table public.posts
   add column if not exists moderation_revision integer not null default 1;
@@ -517,13 +520,17 @@ begin
 end;
 $$;
 
+-- PostgreSQL cannot replace a function after changing its argument list.
+drop function if exists public.apply_ai_moderation_result(
+  uuid, integer, uuid, text, numeric, jsonb, jsonb, text, text, text, integer
+);
+
 create or replace function public.apply_ai_moderation_result(
   p_case_id uuid,
   p_expected_revision integer,
   p_claim_token uuid,
   p_case_state text,
   p_overall_risk_score numeric,
-  p_category_scores jsonb,
   p_evidence jsonb,
   p_user_reason text,
   p_model text,
@@ -601,7 +608,6 @@ begin
   update public.content_moderation_cases
   set state = p_case_state,
       overall_risk_score = p_overall_risk_score,
-      category_scores = coalesce(p_category_scores, '{}'::jsonb),
       evidence = coalesce(p_evidence, '[]'::jsonb),
       user_reason = p_user_reason,
       provider = 'gemini',
@@ -779,10 +785,10 @@ grant execute on function public.prepare_content_moderation(text, uuid, uuid)
 to service_role;
 
 revoke all on function public.apply_ai_moderation_result(
-  uuid, integer, uuid, text, numeric, jsonb, jsonb, text, text, text, integer
+  uuid, integer, uuid, text, numeric, jsonb, text, text, text, integer
 ) from public, anon, authenticated;
 grant execute on function public.apply_ai_moderation_result(
-  uuid, integer, uuid, text, numeric, jsonb, jsonb, text, text, text, integer
+  uuid, integer, uuid, text, numeric, jsonb, text, text, text, integer
 ) to service_role;
 
 revoke all on function public.mark_content_moderation_failed(
@@ -811,3 +817,5 @@ revoke all on function public.protect_comment_moderation_fields()
 from public, anon, authenticated;
 revoke all on function public.invalidate_post_image_moderation()
 from public, anon, authenticated;
+
+notify pgrst, 'reload schema';

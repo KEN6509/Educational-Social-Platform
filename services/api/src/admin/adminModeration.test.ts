@@ -102,7 +102,6 @@ test('repository lists moderation cases and invokes the decision RPC', async () 
           moderation_revision: 1,
           state: 'admin_review',
           overall_risk_score: 50,
-          category_scores: { hate: 50 },
           evidence: ['test evidence'],
           user_reason: 'Needs review',
           model: 'gemini-3.8-flash',
