@@ -4,6 +4,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../data/posts_repository.dart';
 
+String reportSubmissionErrorMessage(Object error) {
+  if (error is PostgrestException &&
+      error.code == '23505' &&
+      error.message.contains('reports_one_unresolved_per_reporter_target')) {
+    return 'You have already reported this content.';
+  }
+  return 'Unable to submit this report. Please try again.';
+}
+
 class ReportPostPage extends StatefulWidget {
   const ReportPostPage({
     required String postId,
@@ -54,7 +63,7 @@ class _ReportPostPageState extends State<ReportPostPage> {
       if (mounted) {
         AppFeedback.showError(
           context,
-          'Unable to submit this report. Please try again.',
+          reportSubmissionErrorMessage(e),
         );
       }
     } finally {
