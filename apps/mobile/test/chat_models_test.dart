@@ -537,6 +537,13 @@ void main() {
 
       expect(notification('post_rejected').isAppealableModerationNotification,
           isTrue);
+      expect(notification('post_auto_rejected').isPostRejection, isTrue);
+      expect(
+          notification('post_auto_rejected').isAppealableModerationNotification,
+          isFalse);
+      expect(
+          notification('comment_rejected').isAppealableModerationNotification,
+          isFalse);
       expect(
         notification('reported_post_removed')
             .isAppealableModerationNotification,

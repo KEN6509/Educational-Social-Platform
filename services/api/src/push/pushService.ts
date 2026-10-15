@@ -254,6 +254,16 @@ export function pushPresentationFor(
           title: 'Post Created Status',
           body: 'Your post was rejected. Open CyanZone to view the reason and appeal options.',
         };
+      case 'post_auto_rejected':
+        return {
+          title: 'Post Created Status',
+          body: 'Your post was rejected. Open CyanZone to view the reason.',
+        };
+      case 'comment_rejected':
+        return {
+          title: 'Comment Created Status',
+          body: 'Your comment was rejected. Open CyanZone to view the reason.',
+        };
       case 'post_appeal_approved':
         return {
           title: 'Post Appeal Status',

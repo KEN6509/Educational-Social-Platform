@@ -190,6 +190,30 @@ test('creator, moderation, report, and appeal notification rules stay explicit',
   );
 });
 
+test('automatic post and comment rejections create author-only system notices', () => {
+  const postFunction = chatSql.slice(
+    chatSql.indexOf('create or replace function public.notify_post_rejected'),
+    chatSql.indexOf('create or replace function public.notify_post_approved'),
+  );
+  assert.match(postFunction, /new\.moderation_status = 'rejected'/);
+  assert.match(postFunction, /new\.reviewed_by is null/);
+  assert.match(postFunction, /'template_type', 'post_auto_rejected'/);
+  assert.match(postFunction, /new\.author_id/);
+  assert.match(postFunction, /np\.system_enabled/);
+  assert.match(postFunction, /existing\.action_payload->>'moderation_revision'/);
+
+  const commentFunction = chatSql.slice(
+    chatSql.indexOf('create or replace function public.notify_comment_rejected'),
+    chatSql.indexOf('drop trigger if exists notify_new_follower_on_insert'),
+  );
+  assert.match(commentFunction, /new\.moderation_status = 'rejected'/);
+  assert.match(commentFunction, /'template_type', 'comment_rejected'/);
+  assert.match(commentFunction, /new\.author_id/);
+  assert.match(commentFunction, /np\.system_enabled/);
+  assert.match(commentFunction, /existing\.action_payload->>'moderation_revision'/);
+  assert.match(chatSql, /create trigger notify_comment_rejected_on_update\s+after update of moderation_status on public\.comments/);
+});
+
 test('system notification reason resolver is owner checked and covers legacy decisions', () => {
   const resolver = sql.slice(
     sql.indexOf(

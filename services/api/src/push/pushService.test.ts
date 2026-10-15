@@ -170,6 +170,34 @@ test('rejected post push keeps the detailed reason out of the lock-screen messag
   );
 });
 
+test('automatic post rejection push does not offer an unavailable appeal', () => {
+  assert.deepEqual(
+    pushPresentationFor(source({
+      eventType: 'system',
+      body: 'Your post was rejected. Reason: private moderation details.',
+      actionPayload: {template_type: 'post_auto_rejected'},
+    })),
+    {
+      title: 'Post Created Status',
+      body: 'Your post was rejected. Open CyanZone to view the reason.',
+    },
+  );
+});
+
+test('rejected comment push uses a concise status without its moderation reason', () => {
+  assert.deepEqual(
+    pushPresentationFor(source({
+      eventType: 'system',
+      body: 'Your comment was rejected. Reason: private moderation details.',
+      actionPayload: {template_type: 'comment_rejected'},
+    })),
+    {
+      title: 'Comment Created Status',
+      body: 'Your comment was rejected. Open CyanZone to view the reason.',
+    },
+  );
+});
+
 test('appeal decision pushes use concise status messages', () => {
   for (const [template, expectedBody] of [
     ['post_appeal_approved', 'Your appeal was approved. Your post is available again.'],

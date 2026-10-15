@@ -261,9 +261,12 @@ class _SystemNotificationDetailPageState
               ),
             ],
             const SizedBox(height: 16),
-            const Text(
-              'Admin:',
-              style: TextStyle(
+            Text(
+              const {'post_auto_rejected', 'comment_rejected'}
+                      .contains(notification.systemTemplateType)
+                  ? 'Moderation:'
+                  : 'Admin:',
+              style: const TextStyle(
                 color: Color(0xFF334155),
                 fontSize: 14,
                 fontWeight: FontWeight.w800,

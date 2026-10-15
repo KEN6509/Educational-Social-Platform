@@ -565,7 +565,9 @@ class ChatNotification {
       'No additional moderation evidence was provided.';
   DateTime? get scheduledDeletionAt =>
       _dateTimeValue(actionPayload['scheduled_deletion_at']);
-  bool get isPostRejection => systemTemplateType == 'post_rejected';
+  bool get isPostRejection =>
+      systemTemplateType == 'post_rejected' ||
+      systemTemplateType == 'post_auto_rejected';
   bool get isCreatorAward => systemTemplateType == 'creator_badge_awarded';
   bool get isAppealableModerationNotification =>
       postId != null &&
