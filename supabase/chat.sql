@@ -1828,6 +1828,53 @@ begin
           and existing.post_id = new.id
           and existing.action_payload->>'template_type' = 'post_rejected'
       );
+  elsif old.moderation_status is distinct from 'rejected'
+    and new.moderation_status = 'rejected'
+    and new.reviewed_by is null
+  then
+    v_evidence := coalesce(
+      nullif(btrim(new.moderation_reason), ''),
+      'This post did not meet the content guidelines.'
+    );
+
+    insert into public.notifications (
+      user_id,
+      type,
+      post_id,
+      title,
+      body,
+      action_type,
+      action_payload
+    )
+    select
+      new.author_id,
+      'system',
+      new.id,
+      'Post has been rejected',
+      format('Your post was not published. Reason: %s', v_evidence),
+      'open_rejected_post',
+      jsonb_build_object(
+        'template_type', 'post_auto_rejected',
+        'moderation_revision', new.moderation_revision,
+        'post_title', new.title,
+        'brief', 'Your post was not published.',
+        'decision_message', v_evidence
+      )
+    where coalesce((
+      select (np.in_app_enabled or np.push_enabled) and np.system_enabled
+      from public.notification_preferences np
+      where np.user_id = new.author_id
+    ), true)
+      and not exists (
+        select 1
+        from public.notifications existing
+        where existing.user_id = new.author_id
+          and existing.type = 'system'
+          and existing.post_id = new.id
+          and existing.action_payload->>'template_type' = 'post_auto_rejected'
+          and existing.action_payload->>'moderation_revision' =
+              new.moderation_revision::text
+      );
   end if;
 
   return new;
@@ -1951,6 +1998,68 @@ begin
 end;
 $$;
 
+create or replace function public.notify_comment_rejected()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_reason text;
+begin
+  if old.moderation_status is distinct from 'rejected'
+    and new.moderation_status = 'rejected'
+  then
+    v_reason := coalesce(
+      nullif(btrim(new.moderation_reason), ''),
+      'This comment did not meet the content guidelines.'
+    );
+
+    insert into public.notifications (
+      user_id,
+      type,
+      post_id,
+      comment_id,
+      title,
+      body,
+      action_type,
+      action_payload
+    )
+    select
+      new.author_id,
+      'system',
+      new.post_id,
+      new.id,
+      'Comment has been rejected',
+      format('Your comment was not posted. Reason: %s', v_reason),
+      'none',
+      jsonb_build_object(
+        'template_type', 'comment_rejected',
+        'moderation_revision', new.moderation_revision,
+        'brief', 'Your comment was not posted.',
+        'decision_message', v_reason
+      )
+    where coalesce((
+      select (np.in_app_enabled or np.push_enabled) and np.system_enabled
+      from public.notification_preferences np
+      where np.user_id = new.author_id
+    ), true)
+      and not exists (
+        select 1
+        from public.notifications existing
+        where existing.user_id = new.author_id
+          and existing.type = 'system'
+          and existing.comment_id = new.id
+          and existing.action_payload->>'template_type' = 'comment_rejected'
+          and existing.action_payload->>'moderation_revision' =
+              new.moderation_revision::text
+      );
+  end if;
+
+  return new;
+end;
+$$;
+
 drop trigger if exists notify_new_follower_on_insert on public.follows;
 create trigger notify_new_follower_on_insert
 after insert on public.follows
@@ -1996,6 +2105,11 @@ drop trigger if exists notify_comment_approved_on_update on public.comments;
 create trigger notify_comment_approved_on_update
 after update of moderation_status on public.comments
 for each row execute function public.notify_comment_approved();
+
+drop trigger if exists notify_comment_rejected_on_update on public.comments;
+create trigger notify_comment_rejected_on_update
+after update of moderation_status on public.comments
+for each row execute function public.notify_comment_rejected();
 
 alter table public.chat_conversations enable row level security;
 alter table public.chat_conversation_members enable row level security;

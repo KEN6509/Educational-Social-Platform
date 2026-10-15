@@ -2253,6 +2253,36 @@ void main() {
     );
   });
 
+  testWidgets(
+      'automatic rejection detail attributes the reason to moderation without an appeal',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SystemNotificationDetailPage(
+          notification: ChatNotification.fromMap({
+            'id': 'auto-rejection-1',
+            'type': 'system',
+            'post_id': 'post-1',
+            'title': 'Post has been rejected',
+            'body': 'Your post was rejected.',
+            'created_at': '2026-08-02T01:10:00',
+            'action_payload': {
+              'template_type': 'post_auto_rejected',
+              'brief': 'Your post was not published.',
+              'decision_message': 'The post contains targeted harassment.',
+            },
+          }),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Moderation:'), findsOneWidget);
+    expect(find.text('Admin:'), findsNothing);
+    expect(find.text('The post contains targeted harassment.'), findsOneWidget);
+    expect(find.text('Appeal'), findsNothing);
+  });
+
   testWidgets('approved-comment detail links to its post without a post title',
       (tester) async {
     String? openedPostId;
