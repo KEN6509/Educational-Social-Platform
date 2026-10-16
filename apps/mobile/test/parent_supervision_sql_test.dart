@@ -74,6 +74,38 @@ void main() {
     expect(schema, contains('screen_time_logs.user_id'));
   });
 
+  test('following is required only when a family link request is created', () {
+    for (final sql in [migration, schema]) {
+      final createStart = sql.indexOf(
+        'create or replace function public.create_parent_child_link(',
+      );
+      final acceptStart = sql.indexOf(
+        'create or replace function public.accept_parent_child_link(',
+        createStart,
+      );
+      final rejectStart = sql.indexOf(
+        'create or replace function public.reject_parent_child_link(',
+        acceptStart,
+      );
+      final cancelStart = sql.indexOf(
+        'create or replace function public.cancel_parent_child_link(',
+        rejectStart,
+      );
+      final createRequest = sql.substring(createStart, acceptStart);
+      final acceptRequest = sql.substring(acceptStart, rejectStart);
+      final rejectRequest = sql.substring(rejectStart, cancelStart);
+
+      expect(
+        createRequest,
+        matches(RegExp(
+          r'from public\.follows follow_row\s+where follow_row\.follower_id = v_user_id\s+and follow_row\.following_id = p_candidate_id',
+        )),
+      );
+      expect(acceptRequest, isNot(contains('public.follows')));
+      expect(rejectRequest, isNot(contains('public.follows')));
+    }
+  });
+
   test('Supabase README documents parent supervision rollout', () {
     expect(readme, contains('parent_supervision.sql'));
     expect(readme, contains('supervision_notifications'));

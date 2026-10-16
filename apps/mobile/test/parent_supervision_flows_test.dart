@@ -24,11 +24,17 @@ void main() {
     const profile = ProfileSummary(id: 'candidate-1', name: 'Alex Tan');
     const available = LinkCandidate(
       profile: profile,
+      isFollower: false,
+      isFollowing: true,
+    );
+    const followerOnly = LinkCandidate(
+      profile: profile,
       isFollower: true,
       isFollowing: false,
     );
 
     expect(available.isEligible, isTrue);
+    expect(followerOnly.isEligible, isFalse);
     expect(
       available.copyWith(linkState: LinkCandidateState.pending).isEligible,
       isFalse,
@@ -83,6 +89,51 @@ void main() {
     expect(find.text('Choose your role'), findsNothing);
     expect(repository.createdRole, FamilyRole.child);
     expect(find.text('Pending'), findsOneWidget);
+  });
+
+  testWidgets('follower-only account cannot receive a link request',
+      (tester) async {
+    final repository = FlowFakeRepository(
+      candidates: const [
+        LinkCandidate(
+          profile: ProfileSummary(id: 'candidate-1', name: 'Alex Tan'),
+          isFollower: true,
+          isFollowing: false,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: LinkCandidatesPage(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    final button = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Request'),
+    );
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('empty link candidates refer to the Following list',
+      (tester) async {
+    final repository = FlowFakeRepository(candidates: const []);
+    await tester.pumpWidget(
+      MaterialApp(home: LinkCandidatesPage(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No one in your Following list yet.'), findsOneWidget);
+  });
+
+  testWidgets('failed candidate load refers only to Following', (tester) async {
+    final pending = Completer<List<LinkCandidate>>();
+    final repository = FlowFakeRepository(pendingCandidates: pending);
+    await tester.pumpWidget(
+      MaterialApp(home: LinkCandidatesPage(repository: repository)),
+    );
+    pending.completeError(StateError('offline'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unable to load your Following list.'), findsOneWidget);
   });
 
   testWidgets('candidate list uses an indented divider', (tester) async {

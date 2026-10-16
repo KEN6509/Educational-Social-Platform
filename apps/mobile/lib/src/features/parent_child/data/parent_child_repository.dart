@@ -118,27 +118,20 @@ class ParentChildRepository implements ParentChildRepositoryContract {
     final rows = await _client
         .from('follows')
         .select(
-          'follower:profiles!follows_follower_id_fkey(id, name, email, avatar_url), following:profiles!follows_following_id_fkey(id, name, email, avatar_url), follower_id, following_id',
+          'following:profiles!follows_following_id_fkey(id, name, email, avatar_url)',
         )
-        .or('follower_id.eq.$id,following_id.eq.$id');
+        .eq('follower_id', id);
     final candidates = <String, LinkCandidate>{};
     for (final row in rows) {
-      final isFollower = row['following_id'] == id;
       final profileMap = Map<String, dynamic>.from(
-        (isFollower ? row['follower'] : row['following']) as Map,
+        row['following'] as Map,
       );
       final profile = ProfileSummary.fromMap(profileMap);
-      final previous = candidates[profile.id];
-      candidates[profile.id] = previous == null
-          ? LinkCandidate(
-              profile: profile,
-              isFollower: isFollower,
-              isFollowing: !isFollower,
-            )
-          : previous.copyWith(
-              isFollower: previous.isFollower || isFollower,
-              isFollowing: previous.isFollowing || !isFollower,
-            );
+      candidates[profile.id] = LinkCandidate(
+        profile: profile,
+        isFollower: false,
+        isFollowing: true,
+      );
     }
     final links = await fetchLinks();
     for (final link in links) {

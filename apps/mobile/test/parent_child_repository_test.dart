@@ -53,6 +53,32 @@ void main() {
     expect(source, contains('LinkCandidateState.linked'));
   });
 
+  test('link candidates are selected from the requester Following list', () {
+    final source = File(
+      'lib/src/features/parent_child/data/parent_child_repository.dart',
+    ).readAsStringSync();
+    final start = source
+        .indexOf('Future<List<LinkCandidate>> fetchLinkCandidates() async');
+    final end = source.indexOf('final links = await fetchLinks();', start);
+    final candidateQuery = source.substring(start, end);
+
+    expect(candidateQuery, contains(".eq('follower_id', id)"));
+    expect(candidateQuery, isNot(contains('.or(')));
+  });
+
+  test('pending links remain readable after either account unfollows', () {
+    final source = File(
+      'lib/src/features/parent_child/data/parent_child_repository.dart',
+    ).readAsStringSync();
+    final start = source.indexOf('Future<List<FamilyLink>> fetchLinks() async');
+    final end =
+        source.indexOf('Future<ScreenTimeSummary> fetchScreenTime(', start);
+    final linkQuery = source.substring(start, end);
+
+    expect(linkQuery, contains(".from('parent_child_links')"));
+    expect(linkQuery, isNot(contains(".from('follows')")));
+  });
+
   test('repository exposes focused live SOS reads, writes, and realtime', () {
     final source = File(
       'lib/src/features/parent_child/data/parent_child_repository.dart',
