@@ -151,7 +151,7 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
             if (snapshot.hasError) {
               return _CandidatesMessage(
                 icon: Icons.cloud_off_outlined,
-                message: 'Unable to load followers and following.',
+                message: 'Unable to load your Following list.',
                 action: TextButton(
                   onPressed: _retry,
                   child: const Text('Retry'),
@@ -169,9 +169,11 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
                       .contains(normalizedQuery);
             }).toList(growable: false);
             if (candidates.isEmpty) {
-              return const _CandidatesMessage(
+              return _CandidatesMessage(
                 icon: Icons.people_outline_rounded,
-                message: 'No matching followers or following found.',
+                message: normalizedQuery.isEmpty
+                    ? 'No one in your Following list yet.'
+                    : 'No matching people in your Following list.',
               );
             }
             return ListView.separated(
@@ -191,7 +193,8 @@ class _LinkCandidatesPageState extends State<LinkCandidatesPage> {
                     _locallyPendingCandidateIds.contains(profile.id)
                         ? LinkCandidateState.pending
                         : candidate.linkState;
-                final requestable = linkState == LinkCandidateState.requestable;
+                final requestable =
+                    candidate.copyWith(linkState: linkState).isEligible;
                 final label = switch (linkState) {
                   LinkCandidateState.requestable => 'Request',
                   LinkCandidateState.pending => 'Pending',

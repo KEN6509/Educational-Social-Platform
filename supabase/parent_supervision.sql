@@ -81,6 +81,14 @@ begin
   ) then
     raise exception 'This account is not available for family linking';
   end if;
+  if not exists (
+    select 1
+    from public.follows follow_row
+    where follow_row.follower_id = v_user_id
+      and follow_row.following_id = p_candidate_id
+  ) then
+    raise exception 'Follow this account before requesting a family link';
+  end if;
 
   perform pg_advisory_xact_lock(
     hashtextextended(least(v_user_id, p_candidate_id)::text, 0)

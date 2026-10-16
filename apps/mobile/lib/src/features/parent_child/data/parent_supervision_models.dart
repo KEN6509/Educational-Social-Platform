@@ -60,7 +60,8 @@ final class LinkCandidate {
   final bool isFollower;
   final bool isFollowing;
   final LinkCandidateState linkState;
-  bool get isEligible => linkState == LinkCandidateState.requestable;
+  bool get isEligible =>
+      isFollowing && linkState == LinkCandidateState.requestable;
 
   LinkCandidate copyWith({
     bool? isFollower,
