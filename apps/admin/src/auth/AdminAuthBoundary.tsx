@@ -40,6 +40,10 @@ type Props = {
   loadAdminProfile?: (userId: string) => Promise<AdminProfile | null>;
 };
 
+const EMAIL_MAX_LENGTH = 254;
+const PASSWORD_MAX_LENGTH = 128;
+const EMAIL_FORMAT = /^[^\s@]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
+
 const productionAuth: AdminAuthAdapter = {
   getSession: async () => {
     const { data } = await supabase.auth.getSession();
@@ -183,9 +187,22 @@ function AdminLogin({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setBusy(true);
     setLocalMessage(null);
-    setLocalMessage(await auth.signIn(email.trim(), password));
+    const normalizedEmail = email.trim();
+    if (
+      normalizedEmail.length > EMAIL_MAX_LENGTH ||
+      !EMAIL_FORMAT.test(normalizedEmail)
+    ) {
+      setLocalMessage('Enter a valid email address.');
+      return;
+    }
+    if (!password) {
+      setLocalMessage('Enter your password.');
+      return;
+    }
+
+    setBusy(true);
+    setLocalMessage(await auth.signIn(normalizedEmail, password));
     setBusy(false);
   }
 
@@ -203,6 +220,7 @@ function AdminLogin({
           <form
             className="mt-8 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-cyan-950/5"
             onSubmit={submit}
+            noValidate
           >
             <label className="block text-sm font-bold">
               Email
@@ -210,7 +228,10 @@ function AdminLogin({
                 className="mt-2 h-12 w-full rounded-lg border border-slate-300 px-3"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                maxLength={EMAIL_MAX_LENGTH}
+                onChange={(event) =>
+                  setEmail(event.target.value.slice(0, EMAIL_MAX_LENGTH))
+                }
                 required
               />
             </label>
@@ -220,7 +241,10 @@ function AdminLogin({
                 className="mt-2 h-12 w-full rounded-lg border border-slate-300 px-3"
                 type="password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                maxLength={PASSWORD_MAX_LENGTH}
+                onChange={(event) =>
+                  setPassword(event.target.value.slice(0, PASSWORD_MAX_LENGTH))
+                }
                 required
               />
             </label>

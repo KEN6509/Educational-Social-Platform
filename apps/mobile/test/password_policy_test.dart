@@ -10,6 +10,26 @@ void main() {
       expect(result.isValid, isFalse);
     });
 
+    test('accepts 128 characters and rejects 129 characters', () {
+      final password = 'Aa1!${'x' * 124}';
+      expect(password.length, 128);
+      expect(PasswordPolicy.evaluate(password).isValid, isTrue);
+      expect(PasswordPolicy.evaluate('${password}x').isValid, isFalse);
+    });
+
+    test('counts visible characters consistently with the input formatter', () {
+      final elevenCharacters = 'Aa1!${'x' * 6}😀';
+      final oneHundredTwentyEightCharacters = 'Aa1!${'x' * 123}😀';
+
+      expect(
+          PasswordPolicy.evaluate(elevenCharacters).hasMinimumLength, isFalse);
+      expect(
+        PasswordPolicy.evaluate(oneHundredTwentyEightCharacters)
+            .hasMaximumLength,
+        isTrue,
+      );
+    });
+
     test('requires an uppercase letter', () {
       final result = PasswordPolicy.evaluate('lowercasepass1.');
 

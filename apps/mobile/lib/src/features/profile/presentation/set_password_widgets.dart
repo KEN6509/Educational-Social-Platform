@@ -99,6 +99,9 @@ class _PasswordInput extends StatelessWidget {
           key: fieldKey,
           controller: controller,
           obscureText: true,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(PasswordPolicy.maxLength),
+          ],
           onChanged: onChanged,
           style: const TextStyle(
             fontSize: 15,
