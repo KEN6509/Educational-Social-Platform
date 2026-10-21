@@ -12,6 +12,8 @@ import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/profile_name_form_field.dart';
 import '../data/user_profile.dart';
 import '../data/profile_repository.dart';
+import '../data/profile_avatar_storage_path.dart';
+import '../data/profile_avatar_replacement.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
 import 'avatar_crop_page.dart';
 
@@ -95,31 +97,53 @@ class _EditProfilePageState extends State<EditProfilePage> {
     try {
       final client = Supabase.instance.client;
       final userId = widget.profile.id;
-      String? avatarUrl = widget.profile.avatarUrl;
+      Future<void> saveProfile(String? avatarUrl) =>
+          _profileRepository.updateProfile(
+            userId: userId,
+            name: normalizedName,
+            bio: _bioController.text.trim(),
+            avatarUrl: avatarUrl,
+          );
 
-      // Handle Image Upload if new image selected
-      if (_selectedImage != null) {
-        const fileName = 'avatar.jpg';
-        final filePath = '$userId/$fileName';
+      final selectedImage = _selectedImage;
+      if (selectedImage != null) {
+        final avatars = client.storage.from('avatars');
+        final filePath = profileAvatarStoragePath(
+          userId,
+          uploadId: DateTime.now().microsecondsSinceEpoch.toString(),
+        );
+        final newAvatarUrl = avatars.getPublicUrl(filePath);
+        final previousPath = ownedProfileAvatarStoragePath(
+          avatarUrl: widget.profile.avatarUrl,
+          userId: userId,
+          expectedLegacyUrl: avatars.getPublicUrl('$userId/avatar.jpg'),
+        );
 
-        // Upload/Replace avatar (one account, one avatar logic)
-        await client.storage.from('avatars').upload(
+        await replaceProfileAvatar(
+          newPath: filePath,
+          oldPath: previousPath,
+          uploadNew: () async {
+            await avatars.upload(
               filePath,
-              _selectedImage!,
-              fileOptions: const FileOptions(upsert: true),
+              selectedImage,
+              fileOptions: const FileOptions(upsert: false),
             );
-
-        // Get public URL
-        avatarUrl = client.storage.from('avatars').getPublicUrl(filePath);
+          },
+          saveProfile: () => saveProfile(newAvatarUrl),
+          isNewAvatarReferenced: () => _profileRepository.isCurrentAvatarUrl(
+            userId: userId,
+            avatarUrl: newAvatarUrl,
+          ),
+          remove: (path) async {
+            await avatars.remove([path]);
+          },
+          onCleanupError: (path, error, _) {
+            debugPrint('Avatar cleanup failed for $path ($error)');
+          },
+        );
+      } else {
+        await saveProfile(widget.profile.avatarUrl);
       }
-
-      // Update Profile Info
-      await _profileRepository.updateProfile(
-        userId: userId,
-        name: normalizedName,
-        bio: _bioController.text.trim(),
-        avatarUrl: avatarUrl,
-      );
 
       if (mounted) {
         Navigator.pop(context, true); // Return true to signal refresh

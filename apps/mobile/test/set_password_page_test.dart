@@ -89,6 +89,27 @@ void main() {
     expect(find.text('Change Password'), findsOneWidget);
   });
 
+  testWidgets('current, new, and confirm password stop at 128 characters',
+      (tester) async {
+    await pumpPage(
+      tester,
+      reauthenticate: (_, __) async => 'user-1',
+      updatePassword: (_) async {},
+    );
+
+    final longPassword = 'Aa1!${'x' * 125}';
+    expect(longPassword.length, 129);
+    for (final key in [
+      const ValueKey('current-password-field'),
+      const ValueKey('new-password-field'),
+      const ValueKey('confirm-password-field'),
+    ]) {
+      final field = find.byKey(key);
+      await tester.enterText(field, longPassword);
+      expect(tester.widget<TextField>(field).controller?.text.length, 128);
+    }
+  });
+
   testWidgets('mismatched new passwords never reauthenticate', (tester) async {
     var reauthenticationCalls = 0;
     var updateCalls = 0;

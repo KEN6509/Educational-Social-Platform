@@ -57,6 +57,89 @@ void main() {
     expect(authGateway.signInPassword, 'Secret123!');
   });
 
+  testWidgets('login rejects a dot only in the email local part',
+      (tester) async {
+    await pumpAuthPage(tester);
+    await tester.enterText(
+      find.byKey(const ValueKey('login-email-field')),
+      'name.with.dot@example',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('login-password-field')),
+      'Secret123!',
+    );
+    await tapLogin(tester);
+    await tester.pump();
+
+    expect(find.text('Enter a valid email address.'), findsOneWidget);
+    expect(authGateway.signInEmail, isNull);
+  });
+
+  testWidgets('login and registration email fields stop at 254 characters',
+      (tester) async {
+    await pumpAuthPage(tester);
+    final longEmail = '${'a' * 250}@x.co';
+    expect(longEmail.length, 255);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('login-email-field')),
+      longEmail,
+    );
+    expect(
+      tester
+          .widget<TextFormField>(
+              find.byKey(const ValueKey('login-email-field')))
+          .controller
+          ?.text
+          .length,
+      254,
+    );
+
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('register-email-field')),
+      longEmail,
+    );
+    expect(
+      tester
+          .widget<TextFormField>(
+              find.byKey(const ValueKey('register-email-field')))
+          .controller
+          ?.text
+          .length,
+      254,
+    );
+  });
+
+  testWidgets('auth password fields stop at 128 but accept short login input',
+      (tester) async {
+    await pumpAuthPage(tester);
+    final loginPassword = find.byKey(const ValueKey('login-password-field'));
+    await tester.enterText(loginPassword, 'ShortPass1!');
+    expect(tester.widget<TextFormField>(loginPassword).controller?.text.length,
+        11);
+
+    final longPassword = 'Aa1!${'x' * 125}';
+    expect(longPassword.length, 129);
+    await tester.enterText(loginPassword, longPassword);
+    expect(tester.widget<TextFormField>(loginPassword).controller?.text.length,
+        128);
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+    for (final key in [
+      const ValueKey('register-password-field'),
+      const ValueKey('register-confirm-password-field'),
+    ]) {
+      final field = find.byKey(key);
+      await tester.enterText(field, longPassword);
+      expect(tester.widget<TextFormField>(field).controller?.text.length, 128);
+    }
+  });
+
   testWidgets('registration shows and enforces the shared name policy',
       (tester) async {
     await pumpAuthPage(tester);

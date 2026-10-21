@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -34,6 +34,80 @@ describe('AdminAuthBoundary', () => {
     expect(
       await screen.findByRole('button', { name: 'Admin Sign In' }),
     ).toBeInTheDocument();
+  });
+
+  it('limits email and password input lengths', async () => {
+    render(
+      <AdminAuthBoundary auth={createAdapter(null)} loadAdminProfile={vi.fn()}>
+        {() => <div>Protected portal</div>}
+      </AdminAuthBoundary>,
+    );
+
+    expect(await screen.findByLabelText('Email')).toHaveAttribute('maxLength', '254');
+    expect(screen.getByLabelText('Password')).toHaveAttribute('maxLength', '128');
+  });
+
+  it('rejects an email whose dot appears only before the at sign', async () => {
+    const signIn = vi.fn(async () => null);
+    render(
+      <AdminAuthBoundary
+        auth={{ ...createAdapter(null), signIn }}
+        loadAdminProfile={vi.fn()}
+      >
+        {() => <div>Protected portal</div>}
+      </AdminAuthBoundary>,
+    );
+
+    const email = await screen.findByLabelText('Email');
+    fireEvent.change(email, { target: { value: 'name.with.dot@example' } });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'Secret123!' },
+    });
+    fireEvent.submit(email.closest('form')!);
+
+    expect(await screen.findByText('Enter a valid email address.')).toBeInTheDocument();
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
+  it('rejects punctuation inside the email domain', async () => {
+    const signIn = vi.fn(async () => null);
+    render(
+      <AdminAuthBoundary
+        auth={{ ...createAdapter(null), signIn }}
+        loadAdminProfile={vi.fn()}
+      >
+        {() => <div>Protected portal</div>}
+      </AdminAuthBoundary>,
+    );
+
+    const email = await screen.findByLabelText('Email');
+    fireEvent.change(email, { target: { value: 'name@foo,bar.com' } });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'Secret123!' },
+    });
+    fireEvent.submit(email.closest('form')!);
+
+    expect(await screen.findByText('Enter a valid email address.')).toBeInTheDocument();
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
+  it('does not submit an empty password', async () => {
+    const signIn = vi.fn(async () => null);
+    render(
+      <AdminAuthBoundary
+        auth={{ ...createAdapter(null), signIn }}
+        loadAdminProfile={vi.fn()}
+      >
+        {() => <div>Protected portal</div>}
+      </AdminAuthBoundary>,
+    );
+
+    const email = await screen.findByLabelText('Email');
+    fireEvent.change(email, { target: { value: 'admin@example.com' } });
+    fireEvent.submit(email.closest('form')!);
+
+    expect(await screen.findByText('Enter your password.')).toBeInTheDocument();
+    expect(signIn).not.toHaveBeenCalled();
   });
 
   it('renders the portal for an active administrator', async () => {

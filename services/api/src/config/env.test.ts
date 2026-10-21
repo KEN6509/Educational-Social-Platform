@@ -25,7 +25,7 @@ test('Gemini moderation configuration has bounded defaults', () => {
   const env = parseEnv(requiredEnv);
   assert.equal(env.GEMINI_MODEL, 'gemini-3.5-flash-lite');
   assert.equal(env.GEMINI_FALLBACK_MODEL, 'gemini-3.8-flash');
-  assert.equal(env.GEMINI_TIMEOUT_MS, 15000);
+  assert.equal(env.GEMINI_TIMEOUT_MS, 8500);
 });
 
 test('Gemini moderation configuration accepts deployment overrides', () => {

@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/security/password_policy.dart';
+import '../../../core/validation/email_policy.dart';
 import '../../../core/validation/profile_name_policy.dart';
 import '../../../core/widgets/cyanzone_wordmark.dart';
 import '../../../core/widgets/password_checklist.dart';
@@ -453,6 +455,9 @@ class _AuthPanel extends StatelessWidget {
                 enabled: !isLoading,
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(EmailPolicy.maxLength),
+                ],
                 textInputAction: TextInputAction.next,
                 autofillHints: const [AutofillHints.email],
                 forceErrorText: isRegistering ? emailError : null,
@@ -460,13 +465,7 @@ class _AuthPanel extends StatelessWidget {
                   labelText: 'Email',
                   prefixIcon: Icon(Icons.alternate_email_rounded),
                 ),
-                validator: (value) {
-                  final email = value?.trim() ?? '';
-                  if (!email.contains('@') || !email.contains('.')) {
-                    return 'Enter a valid email address.';
-                  }
-                  return null;
-                },
+                validator: (value) => EmailPolicy.validationError(value ?? ''),
                 onChanged: isRegistering ? (_) => onEmailChanged() : null,
               ),
               const SizedBox(height: 14),
@@ -479,6 +478,9 @@ class _AuthPanel extends StatelessWidget {
                 enabled: !isLoading,
                 controller: passwordController,
                 obscureText: !showPassword,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(PasswordPolicy.maxLength),
+                ],
                 textInputAction:
                     isRegistering ? TextInputAction.next : TextInputAction.done,
                 autofillHints: isRegistering
@@ -522,6 +524,9 @@ class _AuthPanel extends StatelessWidget {
                   enabled: !isLoading,
                   controller: confirmPasswordController,
                   obscureText: !showConfirmPassword,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(PasswordPolicy.maxLength),
+                  ],
                   textInputAction: TextInputAction.done,
                   autofillHints: const [AutofillHints.newPassword],
                   decoration: InputDecoration(

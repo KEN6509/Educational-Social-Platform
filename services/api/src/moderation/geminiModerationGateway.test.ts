@@ -9,6 +9,7 @@ import {
   GeminiModerationGateway,
   type GeminiInteractionClient,
   type GeminiInteractionRequest,
+  type GeminiInteractionRequestOptions,
 } from './geminiModerationGateway.js';
 
 const safeResponse = {
@@ -40,7 +41,7 @@ function createGateway(
 }
 
 test('applies the timeout and disables SDK retries on every provider call', async () => {
-  const requestOptions: Array<{ timeout: number; maxRetries: number }> = [];
+  const requestOptions: GeminiInteractionRequestOptions[] = [];
   const gateway = createGateway(async (_request, options) => {
     requestOptions.push(options);
     if (requestOptions.length === 1) {
@@ -52,8 +53,8 @@ test('applies the timeout and disables SDK retries on every provider call', asyn
   await gateway.moderate(commentTarget);
 
   assert.deepEqual(requestOptions, [
-    { timeout: 8500, maxRetries: 0 },
-    { timeout: 8500, maxRetries: 0 },
+    { timeout_ms: 8500, retries: { strategy: 'none' } },
+    { timeout_ms: 8500, retries: { strategy: 'none' } },
   ]);
 });
 
