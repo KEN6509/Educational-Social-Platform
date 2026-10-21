@@ -5,6 +5,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+      'create-post tag selection hides Others while feed filter keeps it',
+      (tester) async {
+    final catalog = Future.value(const <TagCategory>[]);
+    await tester.pumpWidget(MaterialApp(
+      home: FilterPage(
+        initialSelectedTags: const {},
+        tagsFuture: catalog,
+        isSelectionMode: true,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Others'), findsNothing);
+
+    await tester.pumpWidget(MaterialApp(
+      home: FilterPage(
+        initialSelectedTags: const {},
+        tagsFuture: catalog,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Others'), findsOneWidget);
+  });
+
   testWidgets('tag selection limit keeps its two-second warning',
       (tester) async {
     tester.view.physicalSize = const Size(800, 1600);

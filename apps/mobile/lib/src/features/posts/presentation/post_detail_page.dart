@@ -1194,6 +1194,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       final repo = PostsRepository(Supabase.instance.client);
       await repo.removePost(_post.id);
       if (!mounted) return;
+      AppFeedback.showSuccess(context, 'Post deleted successfully.');
       navigator.pop({'deleted': true});
     } catch (e) {
       if (!mounted) return;

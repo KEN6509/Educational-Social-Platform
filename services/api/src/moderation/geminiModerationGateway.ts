@@ -48,10 +48,9 @@ export type GeminiInteractionResponse = {
   safety_ratings?: unknown;
 };
 
-export type GeminiInteractionRequestOptions = {
-  timeout: number;
-  maxRetries: 0;
-};
+export type GeminiInteractionRequestOptions = NonNullable<
+  Parameters<GoogleGenAI['interactions']['create']>[1]
+>;
 
 export type GeminiInteractionClient = {
   create(
@@ -173,8 +172,8 @@ export class GeminiModerationGateway implements ModerationProvider {
     let response: GeminiInteractionResponse;
     try {
       response = await this.createInteraction(request, {
-        timeout: this.timeoutMs,
-        maxRetries: 0,
+        timeout_ms: this.timeoutMs,
+        retries: { strategy: 'none' },
       });
     } catch (error) {
       throw error;

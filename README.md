@@ -71,7 +71,7 @@ The default moderation chain uses `gemini-3.5-flash-lite` first and makes one
 `gemini-3.8-flash` fallback call after an HTTP 429 or 503. Other retryable
 transport failures return a retryable error without duplicating the provider
 call; safety and permanent failures stop immediately. Each provider call has a
-15-second timeout. `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, and
+8.5-second timeout. `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, and
 `GEMINI_TIMEOUT_MS` are optional overrides. Keep all Gemini credentials
 server-side; never put them in Flutter, React, Supabase client configuration,
 or source control. Firebase service-account values, webhook secrets, the

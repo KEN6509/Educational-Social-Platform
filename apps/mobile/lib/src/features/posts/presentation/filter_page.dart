@@ -159,7 +159,8 @@ class _FilterPageState extends State<FilterPage> {
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                  itemCount: categories.length + 1,
+                  itemCount:
+                      categories.length + (widget.isSelectionMode ? 0 : 1),
                   itemBuilder: (context, index) {
                     if (index == categories.length) {
                       // Special "Others" category

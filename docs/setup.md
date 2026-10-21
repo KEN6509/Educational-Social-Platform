@@ -134,7 +134,7 @@ do not backfill old Activity/New Followers rows.
   server-side. The default chain uses `gemini-3.5-flash-lite` first and
   `gemini-3.8-flash` as one fallback after HTTP 429/503. Other retryable
   transport failures return a retryable error without duplicating the provider
-  call. Each provider call has a 15-second timeout. `GEMINI_MODEL`,
+  call. Each provider call has an 8.5-second timeout. `GEMINI_MODEL`,
   `GEMINI_FALLBACK_MODEL`, and `GEMINI_TIMEOUT_MS` are optional API overrides.
 
 ## Local Tooling
@@ -168,7 +168,7 @@ REPORT_REVIEW_THRESHOLD=1
 GEMINI_API_KEY=your-gemini-api-key
 GEMINI_MODEL=gemini-3.5-flash-lite
 GEMINI_FALLBACK_MODEL=gemini-3.8-flash
-GEMINI_TIMEOUT_MS=15000
+GEMINI_TIMEOUT_MS=8500
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 PUSH_WEBHOOK_SECRET=replace-with-a-random-secret-at-least-32-characters
 FIREBASE_PROJECT_ID=your-firebase-project-id

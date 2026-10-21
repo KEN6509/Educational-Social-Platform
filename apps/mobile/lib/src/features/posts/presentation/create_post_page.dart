@@ -318,12 +318,12 @@ class _CreatePostPageState extends State<CreatePostPage> {
           _showModerationMessage(
               'This post changed. Submit the latest version again.');
         case ContentModerationState.failed:
-          _showModerationRetry(postId);
+          _showModerationRetry();
       }
     } on ContentModerationFailure catch (error) {
       if (!mounted) return;
       if (error.retryAllowed) {
-        _showModerationRetry(postId);
+        _showModerationRetry();
       } else {
         _showSubmissionError(error.message);
       }
@@ -334,17 +334,13 @@ class _CreatePostPageState extends State<CreatePostPage> {
     AppFeedback.show(context, message: message);
   }
 
-  void _showModerationRetry(String postId) {
+  void _showModerationRetry() {
     AppFeedback.show(
       context,
-      message: 'Moderation could not complete.',
+      message:
+          "AI moderation couldn't complete. Retry after 15 seconds on the Home page.",
       kind: AppFeedbackKind.warning,
-      actions: [
-        AppFeedbackAction(
-          label: 'Retry moderation',
-          onPressed: () => _moderatePost(postId),
-        ),
-      ],
+      duration: const Duration(seconds: 6),
     );
   }
 

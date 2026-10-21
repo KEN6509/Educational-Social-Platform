@@ -270,6 +270,38 @@ test('final provider failure marks the case and exposes retryable 503 semantics'
   assert.equal(harness.persistedFailure?.attemptCount, 2);
 });
 
+test('provider failure logs safe diagnostics without content or upstream messages', async (context) => {
+  const entries: unknown[][] = [];
+  context.mock.method(console, 'error', (...args: unknown[]) => {
+    entries.push(args);
+  });
+  const harness = createHarness();
+  const cause = new Error('private provider message');
+  cause.name = 'TimeoutError';
+  harness.provider.moderate = async () => {
+    throw new ModerationProviderError('private post text', {
+      retryable: true,
+      statusCode: 504,
+      providerAttempts: 1,
+      cause,
+    });
+  };
+
+  await assert.rejects(harness.service.moderate('post', 'post-1', member));
+
+  assert.deepEqual(entries, [[
+    'Moderation provider failed',
+    {
+      caseId: 'case-1',
+      statusCode: 504,
+      causeName: 'TimeoutError',
+      retryable: true,
+      providerAttempts: 1,
+    },
+  ]]);
+  assert.doesNotMatch(JSON.stringify(entries), /private post text|private provider message/);
+});
+
 test('rejects a member attempting to moderate another member\'s target', async () => {
   const harness = createHarness();
   harness.repository.loadTarget = async () => ({ ...target(), ownerId: 'other-member' });

@@ -134,6 +134,14 @@ export function createModerationService(
         }
         if (!(error instanceof ModerationProviderError)) throw error;
 
+        console.error('Moderation provider failed', {
+          caseId: moderationCase.id,
+          statusCode: error.statusCode ?? null,
+          causeName: error.cause instanceof Error ? error.cause.name : null,
+          retryable: error.retryable,
+          providerAttempts: error.providerAttempts,
+        });
+
         try {
           await repository.markFailed(moderationCase.id, moderationCase.revision, {
             claimToken: moderationCase.claimToken ?? '',
