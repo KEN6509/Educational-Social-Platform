@@ -190,6 +190,25 @@ class ProfileRepository {
 
     if (updates.isEmpty) return;
 
-    await _client.from('profiles').update(updates).eq('id', userId);
+    final updated = await _client
+        .from('profiles')
+        .update(updates)
+        .eq('id', userId)
+        .select('id');
+    if (updated.isEmpty) {
+      throw StateError('Profile update did not change an account.');
+    }
+  }
+
+  Future<bool> isCurrentAvatarUrl({
+    required String userId,
+    required String avatarUrl,
+  }) async {
+    final profile = await _client
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+    return profile?['avatar_url'] == avatarUrl;
   }
 }
