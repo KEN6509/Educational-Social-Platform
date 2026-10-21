@@ -12,6 +12,7 @@ import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/profile_name_form_field.dart';
 import '../data/user_profile.dart';
 import '../data/profile_repository.dart';
+import '../data/profile_avatar_storage_path.dart';
 import '../../media/presentation/device_photo_picker_page.dart';
 import 'avatar_crop_page.dart';
 
@@ -99,14 +100,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
       // Handle Image Upload if new image selected
       if (_selectedImage != null) {
-        const fileName = 'avatar.jpg';
-        final filePath = '$userId/$fileName';
+        final filePath = profileAvatarStoragePath(
+          userId,
+          uploadId: DateTime.now().microsecondsSinceEpoch.toString(),
+        );
 
-        // Upload/Replace avatar (one account, one avatar logic)
+        // A new URL ensures refreshed profiles do not reuse the old image.
         await client.storage.from('avatars').upload(
               filePath,
               _selectedImage!,
-              fileOptions: const FileOptions(upsert: true),
+              fileOptions: const FileOptions(upsert: false),
             );
 
         // Get public URL
