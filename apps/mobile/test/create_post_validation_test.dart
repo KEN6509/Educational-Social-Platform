@@ -35,4 +35,42 @@ void main() {
     expect(canSubmitPostBody(content: 'A note', imageCount: 0), isTrue);
     expect(canSubmitPostBody(content: '   ', imageCount: 1), isTrue);
   });
+
+  test('post image size accepts the 10 MiB boundary and rejects one byte over',
+      () {
+    expect(maxPostImageBytes, 10485760);
+    expect(postImageExceedsLimit(maxPostImageBytes - 1), isFalse);
+    expect(postImageExceedsLimit(maxPostImageBytes), isFalse);
+    expect(postImageExceedsLimit(maxPostImageBytes + 1), isTrue);
+  });
+
+  test('oversized images are checked before creating a post', () {
+    final source = File(
+      'lib/src/features/posts/presentation/create_post_page.dart',
+    ).readAsStringSync();
+    final submit = source.substring(
+      source.indexOf('Future<void> _submit()'),
+      source.indexOf('Future<void> _moderatePost('),
+    );
+    final sizeCheck = submit.indexOf('postImageExceedsLimit(');
+    final create = submit.indexOf('_repository.createPost(');
+    final update = submit.indexOf('_repository.updatePost(');
+
+    expect(sizeCheck, greaterThanOrEqualTo(0));
+    expect(sizeCheck, lessThan(create));
+    expect(sizeCheck, lessThan(update));
+  });
+
+  test('oversized images are rejected during selection', () {
+    final source = File(
+      'lib/src/features/posts/presentation/create_post_page.dart',
+    ).readAsStringSync();
+    final picker = source.substring(
+      source.indexOf('Future<void> _pickImages()'),
+      source.indexOf('void _removeImage('),
+    );
+
+    expect(picker, contains('postImageExceedsLimit('));
+    expect(picker, contains('postImageSizeErrorMessage'));
+  });
 }

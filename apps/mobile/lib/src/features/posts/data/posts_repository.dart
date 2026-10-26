@@ -108,20 +108,7 @@ class PostsRepository implements PostSubmissionRepository {
         .eq('moderation_status', 'approved');
 
     if (tagFilters != null && tagFilters.isNotEmpty) {
-      final hasOthers = tagFilters.contains('others');
-      final activeFilters = tagFilters.where((t) => t != 'others').toList();
-
-      if (hasOthers && activeFilters.isEmpty) {
-        // Only "Others" selected: posts with empty tags
-        query = query.eq('tags', '{}');
-      } else if (hasOthers && activeFilters.isNotEmpty) {
-        // "Others" AND specific tags: (tags is empty) OR (tags overlaps activeFilters)
-        query =
-            query.or('tags.eq.{},tags.overlaps.{${activeFilters.join(',')}}');
-      } else {
-        // Only specific tags
-        query = query.overlaps('tags', activeFilters);
-      }
+      query = query.overlaps('tags', tagFilters);
     }
 
     final response = await query.order('created_at', ascending: false);

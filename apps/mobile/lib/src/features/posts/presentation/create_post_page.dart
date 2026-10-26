@@ -119,18 +119,32 @@ class _CreatePostPageState extends State<CreatePostPage> {
     }
 
     final drafts = <_DraftImage>[];
+    var skippedOversizedImage = false;
     for (final image in picked.take(remaining)) {
+      if (postImageExceedsLimit(await image.length())) {
+        skippedOversizedImage = true;
+        continue;
+      }
+      final bytes = await image.readAsBytes();
+      if (postImageExceedsLimit(bytes.length)) {
+        skippedOversizedImage = true;
+        continue;
+      }
       drafts.add(
         _DraftImage.picked(
           file: image,
-          bytes: await image.readAsBytes(),
+          bytes: bytes,
         ),
       );
     }
 
+    if (!mounted) return;
     setState(() {
       _images.addAll(drafts);
     });
+    if (skippedOversizedImage) {
+      AppFeedback.showWarning(context, postImageSizeErrorMessage);
+    }
   }
 
   void _removeImage(int index) {
@@ -175,7 +189,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
   }
 
   String? _findTagNameFromCatalog(String slug) {
-    if (slug == 'others') return 'Others';
     // This is a bit inefficient but fine for small lists
     for (final category in TagCatalog.fallback) {
       for (final tag in category.tags) {
@@ -198,6 +211,12 @@ class _CreatePostPageState extends State<CreatePostPage> {
       _showSubmissionError(
         'Add an image or write some content before posting.',
       );
+      return;
+    }
+
+    if (_images.any((image) =>
+        image.isPicked && postImageExceedsLimit(image.bytes!.length))) {
+      _showSubmissionError(postImageSizeErrorMessage);
       return;
     }
 

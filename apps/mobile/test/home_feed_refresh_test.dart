@@ -40,6 +40,34 @@ FeedPost _post(String id, DateTime createdAt) {
 }
 
 void main() {
+  testWidgets('All feed includes posts without tags', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: HomeFeedPage(
+        feedMode: FeedMode.feeds,
+        postsFetcher: (_) async => [_post('untagged', DateTime(2026, 10, 22))],
+        tagFilters: const [],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('untagged'), findsOneWidget);
+  });
+
+  testWidgets('retired Others filter does not select untagged posts',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: HomeFeedPage(
+        feedMode: FeedMode.feeds,
+        postsFetcher: (_) async => [_post('untagged', DateTime(2026, 10, 22))],
+        tagFilters: const ['others'],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('untagged'), findsNothing);
+    expect(find.text('No posts found for the selected topics'), findsOneWidget);
+  });
+
   testWidgets('mode change supersedes an in-flight refresh', (tester) async {
     final initialFeeds = Completer<List<FeedPost>>();
     final refreshingFeeds = Completer<List<FeedPost>>();

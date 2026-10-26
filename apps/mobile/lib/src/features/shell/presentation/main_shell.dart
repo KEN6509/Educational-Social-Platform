@@ -218,19 +218,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     setState(() {
       if (slug == 'all') {
         _selectedFilterTags.clear();
-      } else if (slug == 'others') {
-        _selectedFilterTags = {'others'};
       } else {
         // Toggle selection for individual tags in the quick bar
         if (_selectedFilterTags.contains(slug)) {
           _selectedFilterTags.remove(slug);
         } else {
-          // If we were on 'others' or 'all', reset and just select this one
-          if (_selectedFilterTags.contains('others')) {
-            _selectedFilterTags = {slug};
-          } else {
-            _selectedFilterTags.add(slug);
-          }
+          _selectedFilterTags.add(slug);
         }
       }
     });
@@ -278,13 +271,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ];
 
     // Determine what tags to show in the bar
-    // Logic: All -> Selected (from FilterPage, excluding fixed) -> Fixed Tags -> Others -> +
+    // Logic: All -> Selected (from FilterPage, excluding fixed) -> Fixed Tags -> +
     final List<TagOption> barTags = [];
     final Set<String> fixedSlugs = _fixedTags.map((t) => t.slug).toSet();
 
-    // 1. Add selected tags that are NOT in the fixed list and NOT 'others'
+    // 1. Add selected tags that are not in the fixed list
     for (final slug in _selectedFilterTags) {
-      if (slug != 'others' && !fixedSlugs.contains(slug)) {
+      if (!fixedSlugs.contains(slug)) {
         final name = _findTagNameFromCatalog(slug) ?? slug;
         barTags.add(TagOption(name: name, slug: slug));
       }
@@ -535,14 +528,6 @@ class _QuickTagBar extends StatelessWidget {
               onUnselect: isSelected ? () => onUnselect(tag.slug) : null,
             );
           }),
-          _QuickTagChip(
-            label: 'Others',
-            isSelected: selectedTags.contains('others'),
-            onTap: () => onToggle('others'),
-            onUnselect: selectedTags.contains('others')
-                ? () => onUnselect('others')
-                : null,
-          ),
           Padding(
             padding: const EdgeInsets.only(left: 4),
             child: IconButton.filledTonal(
