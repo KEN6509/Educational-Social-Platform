@@ -81,6 +81,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
   final GlobalKey _unreadDividerKey = GlobalKey();
   final GlobalKey _composerKey = GlobalKey();
   bool _isSending = false;
+  bool _canSendText = false;
   bool _isPickingImage = false;
   bool _initialScrollDone = false;
   bool _showJumpToBottom = false;
@@ -402,8 +403,13 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       text,
       _controller.selection.baseOffset,
     );
-    if (query != _mentionQuery && mounted) {
-      setState(() => _mentionQuery = query);
+    final canSendText =
+        text.trim().isNotEmpty && text.trim().runes.length <= 4096;
+    if ((query != _mentionQuery || canSendText != _canSendText) && mounted) {
+      setState(() {
+        _mentionQuery = query;
+        _canSendText = canSendText;
+      });
     }
   }
 
@@ -431,7 +437,11 @@ class _ChatRoomPageState extends State<ChatRoomPage>
       selection: TextSelection.collapsed(offset: result.selectionOffset),
     );
     _previousComposerText = result.text;
-    setState(() => _mentionQuery = null);
+    setState(() {
+      _mentionQuery = null;
+      _canSendText = result.text.trim().isNotEmpty &&
+          result.text.trim().runes.length <= 4096;
+    });
     _inputFocusNode.requestFocus();
   }
 
@@ -526,7 +536,12 @@ class _ChatRoomPageState extends State<ChatRoomPage>
 
   Future<void> _send() async {
     final body = _controller.text.trim();
-    if (body.isEmpty || _isSending || _canSendMessages != true) return;
+    if (body.isEmpty ||
+        body.runes.length > 4096 ||
+        _isSending ||
+        _canSendMessages != true) {
+      return;
+    }
 
     setState(() => _isSending = true);
     try {
@@ -554,6 +569,7 @@ class _ChatRoomPageState extends State<ChatRoomPage>
           };
       await action(_conversation.id, body);
       _controller.clear();
+      _canSendText = false;
       _mentionController.clear();
       _previousComposerText = '';
       _mentionQuery = null;
@@ -1157,6 +1173,12 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                                 focusNode: _inputFocusNode,
                                 minLines: 1,
                                 maxLines: 4,
+                                maxLength: 4096,
+                                buildCounter: (_,
+                                        {required currentLength,
+                                        required isFocused,
+                                        maxLength}) =>
+                                    null,
                                 onChanged: _handleComposerChanged,
                                 decoration: InputDecoration(
                                   hintText: 'Message...',
@@ -1178,7 +1200,8 @@ class _ChatRoomPageState extends State<ChatRoomPage>
                             SizedBox.square(
                               dimension: 44,
                               child: IconButton(
-                                onPressed: _isSending ? null : _send,
+                                onPressed:
+                                    _isSending || !_canSendText ? null : _send,
                                 color: const Color(0xFF128C7E),
                                 icon: Icon(
                                   _isSending

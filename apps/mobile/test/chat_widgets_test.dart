@@ -9,6 +9,7 @@ import 'package:cyanzone_mobile/src/features/chat/data/chat_models.dart';
 import 'package:cyanzone_mobile/src/features/chat/data/chat_mention.dart';
 import 'package:cyanzone_mobile/src/features/chat/data/chat_repository.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_details_page.dart';
+import 'package:cyanzone_mobile/src/features/chat/presentation/chat_group_pages.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_room_page.dart';
 import 'package:cyanzone_mobile/src/features/chat/presentation/chat_widgets.dart';
@@ -1577,6 +1578,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'draft');
+    await tester.pump();
     await tester.tap(find.byIcon(Icons.send_rounded));
     await tester.pumpAndSettle();
 
@@ -1624,6 +1626,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'stale draft');
+    await tester.pump();
     await tester.tap(find.byIcon(Icons.send_rounded));
     await tester.pumpAndSettle();
 
@@ -1679,6 +1682,68 @@ void main() {
     expect(find.text('Choose from gallery'), findsNothing);
   });
 
+  testWidgets('chat Send is disabled for empty or whitespace-only text',
+      (tester) async {
+    const conversation = ChatConversation(
+      id: 'composer-empty',
+      type: ChatConversationType.group,
+      requestStatus: ChatRequestStatus.none,
+      unreadCount: 0,
+      title: 'Study Group',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: ChatRoomPage(
+        conversation: conversation,
+        loadMessages: () async => const [],
+        markRead: (_) async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final sendButton = find.ancestor(
+      of: find.byIcon(Icons.send_rounded),
+      matching: find.byType(IconButton),
+    );
+    expect(tester.widget<IconButton>(sendButton).onPressed, isNull);
+
+    await tester.enterText(find.byType(TextField), '   ');
+    await tester.pump();
+    expect(tester.widget<IconButton>(sendButton).onPressed, isNull);
+
+    await tester.enterText(find.byType(TextField), 'Hello');
+    await tester.pump();
+    expect(tester.widget<IconButton>(sendButton).onPressed, isNotNull);
+
+    await tester.enterText(find.byType(TextField), '');
+    await tester.pump();
+    expect(tester.widget<IconButton>(sendButton).onPressed, isNull);
+  });
+
+  testWidgets('chat text input is limited to 4096 characters', (tester) async {
+    const conversation = ChatConversation(
+      id: 'composer-length',
+      type: ChatConversationType.group,
+      requestStatus: ChatRequestStatus.none,
+      unreadCount: 0,
+      title: 'Study Group',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: ChatRoomPage(
+        conversation: conversation,
+        loadMessages: () async => const [],
+        markRead: (_) async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final field = find.byType(TextField);
+    expect(tester.widget<TextField>(field).maxLength, 4096);
+
+    await tester.enterText(field, 'a' * 4097);
+    await tester.pump();
+    expect(tester.widget<TextField>(field).controller!.text.length, 4096);
+  });
+
   testWidgets('ChatRoomPage keeps text when send fails', (tester) async {
     final conversation = ChatConversation.fromMap({
       'id': 'send-fail-test',
@@ -1701,6 +1766,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pump();
     await tester.tap(find.byIcon(Icons.send_rounded));
     await tester.pump();
 
@@ -1733,6 +1799,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pump();
     await tester.tap(find.byIcon(Icons.send_rounded));
     await tester.pumpAndSettle();
 
@@ -3066,5 +3133,28 @@ void main() {
     expect(find.text('Trip group'), findsOneWidget);
     expect(find.byIcon(Icons.edit_rounded), findsOneWidget);
     expect(find.text('Clear chat'), findsOneWidget);
+  });
+
+  testWidgets('group-name editor limits input and counter to 80 characters',
+      (tester) async {
+    const group = ChatConversation(
+      id: 'group-name-limit',
+      type: ChatConversationType.group,
+      requestStatus: ChatRequestStatus.none,
+      unreadCount: 0,
+      title: 'Study Group',
+    );
+
+    await tester.pumpWidget(const MaterialApp(
+      home: EditGroupPage(conversation: group),
+    ));
+
+    final field = find.byType(TextField);
+    expect(tester.widget<TextField>(field).maxLength, 80);
+    await tester.enterText(field, 'a' * 81);
+    await tester.pump();
+
+    expect(tester.widget<TextField>(field).controller!.text.length, 80);
+    expect(find.text('80/80'), findsOneWidget);
   });
 }

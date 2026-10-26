@@ -72,8 +72,8 @@ begin
     raise exception 'Authentication required';
   end if;
 
-  if char_length(v_body) < 1 or char_length(v_body) > 10000 then
-    raise exception 'Message body must be 1 to 10000 characters';
+  if char_length(v_body) < 1 or char_length(v_body) > 4096 then
+    raise exception 'Message body must be 1 to 4096 characters';
   end if;
 
   if p_conversation_id is null then

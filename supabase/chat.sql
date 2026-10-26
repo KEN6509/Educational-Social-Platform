@@ -47,7 +47,7 @@ create table if not exists public.chat_messages (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.chat_conversations(id) on delete cascade,
   sender_id uuid not null references public.profiles(id) on delete cascade,
-  body text not null check (char_length(btrim(body)) between 1 and 10000),
+  body text not null check (char_length(btrim(body)) between 1 and 4096),
   created_at timestamptz not null default now(),
   deleted_at timestamptz,
   deleted_for uuid[] not null default '{}'::uuid[]
@@ -58,7 +58,7 @@ drop constraint if exists chat_messages_body_check;
 
 alter table public.chat_messages
 add constraint chat_messages_body_check
-check (char_length(btrim(body)) between 1 and 10000);
+check (char_length(btrim(body)) between 1 and 4096);
 
 alter table public.chat_messages add column if not exists deleted_for uuid[] not null default '{}'::uuid[];
 
@@ -987,8 +987,8 @@ begin
     raise exception 'Authentication required';
   end if;
 
-  if char_length(v_body) < 1 or char_length(v_body) > 10000 then
-    raise exception 'Message body must be 1 to 10000 characters';
+  if char_length(v_body) < 1 or char_length(v_body) > 4096 then
+    raise exception 'Message body must be 1 to 4096 characters';
   end if;
 
   if p_conversation_id is null then
