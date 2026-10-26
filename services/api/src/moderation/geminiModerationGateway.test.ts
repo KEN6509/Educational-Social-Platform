@@ -33,7 +33,7 @@ function createGateway(
     apiKey: 'test-key',
     primaryModel: 'gemini-3.5-flash-lite',
     fallbackModel: 'gemini-3.8-flash',
-    timeoutMs: 8500,
+    timeoutMs: 15000,
     allowedImageOrigin: 'https://example.supabase.co',
     createInteraction,
     ...(loadImageData == null ? {} : { loadImageData }),
@@ -53,8 +53,8 @@ test('applies the timeout and disables SDK retries on every provider call', asyn
   await gateway.moderate(commentTarget);
 
   assert.deepEqual(requestOptions, [
-    { timeout_ms: 8500, retries: { strategy: 'none' } },
-    { timeout_ms: 8500, retries: { strategy: 'none' } },
+    { timeout_ms: 15000, retries: { strategy: 'none' } },
+    { timeout_ms: 15000, retries: { strategy: 'none' } },
   ]);
 });
 
