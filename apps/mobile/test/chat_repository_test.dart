@@ -395,7 +395,7 @@ void main() {
     });
 
     test(
-        'bottom badge counts notification sections as sources plus unread chats',
+        'bottom badge totals unread notifications and messages without double counting chat notifications',
         () {
       final counts = {
         NotificationSection.activity: 5,
@@ -429,7 +429,7 @@ void main() {
           notificationCounts: counts,
           conversations: conversations,
         ),
-        4,
+        11,
       );
     });
 

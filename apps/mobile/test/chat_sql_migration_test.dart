@@ -3,6 +3,17 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('chat send RPCs limit text messages to 4096 characters', () {
+    for (final path in [
+      '../../supabase/chat.sql',
+      '../../supabase/chat_follow_gate_upgrade.sql',
+    ]) {
+      final sql = File(path).readAsStringSync();
+      expect(sql, contains('char_length(v_body) > 4096'));
+      expect(sql, contains('Message body must be 1 to 4096 characters'));
+    }
+  });
+
   test('storage SQL creates the shared images bucket', () {
     final sql = File('../../supabase/storage.sql').readAsStringSync();
 

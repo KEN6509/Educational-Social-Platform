@@ -153,11 +153,9 @@ class HomeFeedPageState extends State<HomeFeedPage> {
       return posts;
     }
 
-    final hasOthers = filters.contains('others');
-    final activeFilters = filters.where((t) => t != 'others').toSet();
+    final activeFilters = filters.toSet();
 
     return posts.where((post) {
-      if (post.tags.isEmpty && hasOthers) return true;
       return post.tags.any((tag) => activeFilters.contains(tag));
     }).toList();
   }

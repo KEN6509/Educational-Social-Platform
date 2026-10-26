@@ -35,7 +35,7 @@ const envSchema = z
       .int()
       .min(1000)
       .max(18000)
-      .default(8500),
+      .default(15000),
     PUSH_WEBHOOK_SECRET: z.string().min(32).optional(),
     CRON_SECRET: z.string().min(16).optional(),
     FIREBASE_PROJECT_ID: z.string().trim().min(1).optional(),

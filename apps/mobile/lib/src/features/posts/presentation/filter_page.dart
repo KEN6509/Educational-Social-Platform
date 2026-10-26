@@ -24,7 +24,7 @@ class _FilterPageState extends State<FilterPage> {
   @override
   void initState() {
     super.initState();
-    _selectedTags = Set.from(widget.initialSelectedTags);
+    _selectedTags = Set.from(widget.initialSelectedTags)..remove('others');
   }
 
   void _toggleTag(String slug) {
@@ -159,36 +159,8 @@ class _FilterPageState extends State<FilterPage> {
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                  itemCount:
-                      categories.length + (widget.isSelectionMode ? 0 : 1),
+                  itemCount: categories.length,
                   itemBuilder: (context, index) {
-                    if (index == categories.length) {
-                      // Special "Others" category
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 32),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'MISC',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: const Color(0xFF6E828A),
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            _TagChip(
-                              label: 'Others',
-                              slug: 'others',
-                              isSelected: _selectedTags.contains('others'),
-                              onToggle: _toggleTag,
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
                     final category = categories[index];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 32),
@@ -262,7 +234,6 @@ class _FilterPageState extends State<FilterPage> {
   }
 
   String? _findTagName(List<TagCategory> categories, String slug) {
-    if (slug == 'others') return 'Others';
     for (final category in categories) {
       for (final tag in category.tags) {
         if (tag.slug == slug) {

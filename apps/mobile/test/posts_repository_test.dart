@@ -20,6 +20,18 @@ void main() {
     expect(PostsRepository.feedSelectColumns, contains('hidden_until'));
   });
 
+  test('feed query filters only by selected predefined tags', () {
+    final source = File('lib/src/features/posts/data/posts_repository.dart')
+        .readAsStringSync();
+    final fetchFeed = source.substring(
+      source.indexOf('Future<List<FeedPost>> fetchFeed'),
+      source.indexOf('Future<FeedPost> fetchPostById'),
+    );
+
+    expect(fetchFeed.contains("tagFilters.contains('others')"), isFalse);
+    expect(fetchFeed.contains(".overlaps('tags', tagFilters)"), isTrue);
+  });
+
   test('report reasons are stable labels for the mobile report page', () {
     expect(
       PostsRepository.reportReasons,

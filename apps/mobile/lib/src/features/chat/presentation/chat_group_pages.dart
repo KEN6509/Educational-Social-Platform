@@ -93,7 +93,7 @@ class _EditGroupPageState extends State<EditGroupPage> {
             const SizedBox(height: 10),
             TextField(
               controller: _controller,
-              maxLength: 100,
+              maxLength: 80,
               decoration: InputDecoration(
                 hintText: 'Group chat',
                 counterText: '',
@@ -109,11 +109,11 @@ class _EditGroupPageState extends State<EditGroupPage> {
             ValueListenableBuilder<TextEditingValue>(
               valueListenable: _controller,
               builder: (context, value, _) {
-                final count = value.text.characters.length.clamp(0, 100);
+                final count = value.text.characters.length.clamp(0, 80);
                 return Align(
                   alignment: Alignment.centerRight,
                   child: Text(
-                    '$count/100',
+                    '$count/80',
                     style: const TextStyle(
                       color: Color(0xFF64748B),
                       fontSize: 13,

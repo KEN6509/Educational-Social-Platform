@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cyanzone_mobile/src/core/theme/app_theme.dart';
 import 'package:cyanzone_mobile/src/features/posts/data/tag_catalog.dart';
 import 'package:cyanzone_mobile/src/features/posts/presentation/filter_page.dart';
@@ -5,8 +7,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets(
-      'create-post tag selection hides Others while feed filter keeps it',
+  test('feed quick-filter bar does not offer Others', () {
+    final source = File(
+      'lib/src/features/shell/presentation/main_shell.dart',
+    ).readAsStringSync();
+
+    expect(source.contains("label: 'Others'"), isFalse);
+  });
+
+  testWidgets('Others is absent from post and feed tag selection',
       (tester) async {
     final catalog = Future.value(const <TagCategory>[]);
     await tester.pumpWidget(MaterialApp(
@@ -26,7 +35,21 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    expect(find.text('Others'), findsOneWidget);
+    expect(find.text('Others'), findsNothing);
+  });
+
+  testWidgets('obsolete Others selection is not shown in feed filters',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: FilterPage(
+        initialSelectedTags: const {'others'},
+        tagsFuture: Future.value(const <TagCategory>[]),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Others'), findsNothing);
+    expect(find.textContaining('SELECTED TOPICS'), findsNothing);
   });
 
   testWidgets('tag selection limit keeps its two-second warning',

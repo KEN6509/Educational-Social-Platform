@@ -180,15 +180,19 @@ class ChatRepository {
     required Map<NotificationSection, int> notificationCounts,
     required List<ChatConversation> conversations,
   }) {
-    final notificationSources = [
+    final unreadNotifications = [
       NotificationSection.activity,
       NotificationSection.system,
       NotificationSection.followers,
-    ].where((section) => (notificationCounts[section] ?? 0) > 0).length;
-    final unreadConversations = conversations
-        .where((conversation) => conversation.unreadCount > 0)
-        .length;
-    return notificationSources + unreadConversations;
+    ].fold<int>(
+      0,
+      (total, section) => total + (notificationCounts[section] ?? 0),
+    );
+    final unreadMessages = conversations.fold<int>(
+      0,
+      (total, conversation) => total + conversation.unreadCount,
+    );
+    return unreadNotifications + unreadMessages;
   }
 
   static Map<NotificationSection, int> countUnreadNotificationSections(
