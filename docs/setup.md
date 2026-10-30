@@ -132,9 +132,10 @@ do not backfill old Activity/New Followers rows.
 - Chat messages are not sent to Gemini moderation.
 - `GEMINI_API_KEY` is required by the API moderation routes and must remain
   server-side. The default chain uses `gemini-3.5-flash-lite` first and
-  `gemini-3.8-flash` as one fallback after HTTP 429/503. Other retryable
-  transport failures return a retryable error without duplicating the provider
-  call. Each provider call has a 15-second timeout. `GEMINI_MODEL`,
+  `gemini-3.8-flash` as one fallback after a temporary provider error or
+  timeout. Safety blocks and permanent failures stop immediately. Each provider
+  call has a 15-second timeout, the mobile request allows 65 seconds, and the
+  Vercel API function allows 60 seconds. `GEMINI_MODEL`,
   `GEMINI_FALLBACK_MODEL`, and `GEMINI_TIMEOUT_MS` are optional API overrides.
 
 ## Local Tooling
