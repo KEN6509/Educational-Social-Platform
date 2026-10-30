@@ -17,7 +17,7 @@ void main() {
       client: MockClient((request) async => http.Response('{}', 200)),
     );
 
-    expect(gateway.timeout, const Duration(seconds: 30));
+    expect(gateway.timeout, const Duration(seconds: 65));
   });
 
   test('posts target id with the Supabase bearer token and parses approval',

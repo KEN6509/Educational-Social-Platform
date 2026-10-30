@@ -13,7 +13,7 @@ final class HttpContentModerationGateway implements ContentModerationGateway {
     required this.baseUrl,
     required this.accessToken,
     http.Client? client,
-    this.timeout = const Duration(seconds: 30),
+    this.timeout = const Duration(seconds: 65),
   }) : _client = client ?? http.Client();
 
   final Uri baseUrl;

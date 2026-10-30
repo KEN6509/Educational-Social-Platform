@@ -27,7 +27,6 @@ supabase/
   storage.sql   Storage bucket setup
 docs/
   setup.md                Complete setup and deployment guide
-  Future_Improvements.md  Deferred post-MVP improvements
 ```
 
 ## Initial Setup
@@ -68,10 +67,10 @@ npm run dev
 
 The moderation routes require `GEMINI_API_KEY` in the Express API environment.
 The default moderation chain uses `gemini-3.5-flash-lite` first and makes one
-`gemini-3.8-flash` fallback call after an HTTP 429 or 503. Other retryable
-transport failures return a retryable error without duplicating the provider
-call; safety and permanent failures stop immediately. Each provider call has a
-15-second timeout. `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, and
+`gemini-3.8-flash` fallback call after a temporary provider error or timeout.
+Safety blocks and permanent failures stop immediately. Each provider call has a
+15-second timeout; the mobile moderation request allows 65 seconds for both
+attempts and related work. `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, and
 `GEMINI_TIMEOUT_MS` are optional overrides. Keep all Gemini credentials
 server-side; never put them in Flutter, React, Supabase client configuration,
 or source control. Firebase service-account values, webhook secrets, the

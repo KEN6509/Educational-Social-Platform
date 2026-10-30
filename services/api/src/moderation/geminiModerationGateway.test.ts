@@ -312,21 +312,32 @@ test('falls back to 3.8 Flash once after primary 503', async () => {
   assert.deepEqual(models, ['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
 });
 
-test('leaves a network timeout retryable without duplicating the provider call', async () => {
+test('uses the fallback model after a primary timeout', async () => {
   const models: string[] = [];
   const gateway = createGateway(async (request) => {
     models.push(request.model);
+    if (models.length === 1) throw new Error('request timed out');
+    return { output_text: JSON.stringify(safeResponse) };
+  });
+
+  const result = await gateway.moderate(commentTarget);
+  assert.deepEqual(models, ['gemini-3.5-flash-lite', 'gemini-3.8-flash']);
+  assert.equal(result.providerAttempts, 2);
+});
+
+test('keeps moderation retryable when both models time out', async () => {
+  let calls = 0;
+  const gateway = createGateway(async () => {
+    calls += 1;
     throw new Error('request timed out');
   });
 
-  await assert.rejects(
-    gateway.moderate(commentTarget),
-    (error: unknown) =>
-      error instanceof ModerationProviderError &&
-      error.retryable === true &&
-      error.providerAttempts === 1,
+  await assert.rejects(gateway.moderate(commentTarget), (error: unknown) =>
+    error instanceof ModerationProviderError &&
+    error.retryable === true &&
+    error.providerAttempts === 2,
   );
-  assert.deepEqual(models, ['gemini-3.5-flash-lite']);
+  assert.equal(calls, 2);
 });
 
 test('never makes a third provider call', async () => {
