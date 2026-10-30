@@ -25,8 +25,7 @@ supabase/
   README.md     Supabase setup guide
   schema.sql    Canonical database schema
   storage.sql   Storage bucket setup
-docs/
-  setup.md                Complete setup and deployment guide
+setup.md        Detailed setup and deployment guide
 ```
 
 ## Initial Setup
@@ -38,9 +37,12 @@ docs/
 5. Run `supabase/schema.sql` in the Supabase SQL editor to create database tables.
 6. Run `supabase/auth.sql` in the Supabase SQL editor to enable profile auto-create.
 7. Apply the incremental SQL required by current modules in the exact order in
-   [`docs/setup.md`](docs/setup.md). Git and Vercel deployments do not apply
+   [`setup.md`](setup.md). Git and Vercel deployments do not apply
    Supabase SQL.
 8. Install dependencies for each app when local tooling is available.
+
+For detailed environment configuration, SQL migration order, local checks, and
+Vercel deployment instructions, use [setup.md](setup.md) as the reference.
 
 ## Applications
 
@@ -55,7 +57,7 @@ flutter run
 The mobile app includes the educational feed, moderated posts/comments,
 profiles/search, Parent Supervision, direct/group chat, Android push and in-app
 notifications, safety Check-In/SOS, and offline-oriented media caching. See
-[`docs/setup.md`](docs/setup.md) for setup and deployment details.
+[`setup.md`](setup.md) for setup and deployment details.
 
 ### API
 

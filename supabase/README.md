@@ -620,9 +620,10 @@ After the base notification tables and triggers exist, apply
 `supabase/fcm_push_notifications.sql`. It is safe to rerun and adds protected
 per-device tokens, delivery records, notification preferences, and the RPCs
 used by the API. Then configure the two Supabase `INSERT` Database Webhooks
-described in `docs/setup.md`. The current project has completed these hosted
-configuration steps; end-to-end physical-device FCM UAT remains. A fresh
-installation must repeat every step. iOS/APNs remains future work.
+described in the repository root's `setup.md`. The current project has
+completed these hosted configuration steps; end-to-end physical-device FCM
+UAT remains. A fresh installation must repeat every step. iOS/APNs remains
+future work.
 
 ## 7. Client Usage
 

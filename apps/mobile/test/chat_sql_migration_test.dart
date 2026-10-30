@@ -273,7 +273,7 @@ void main() {
         File('../../supabase/chat_follow_gate_upgrade.sql').readAsStringSync();
     final canonical = File('../../supabase/chat.sql').readAsStringSync();
     final readme = File('../../supabase/README.md').readAsStringSync();
-    final setup = File('../../docs/setup.md').readAsStringSync();
+    final setup = File('../../setup.md').readAsStringSync();
 
     String normalizedBlock(String source, String start, String end) {
       final startIndex = source.indexOf(start);
