@@ -38,4 +38,4 @@ flutter test
 ```
 
 For database script order and deployment guidance, read
-[`docs/setup.md`](../../docs/setup.md).
+[`setup.md`](../../setup.md).
