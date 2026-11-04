@@ -65,6 +65,14 @@ class _CreateGroupChatPageState extends State<CreateGroupChatPage> {
   }
 
   void _toggle(ChatParticipant person) {
+    if (!_selectedIds.contains(person.id) &&
+        _selectedIds.length >= maxGroupChatMembers - 1) {
+      AppFeedback.showWarning(
+        context,
+        'A group can have up to $maxGroupChatMembers members, including you.',
+      );
+      return;
+    }
     setState(() {
       if (_selectedIds.contains(person.id)) {
         _selectedIds.remove(person.id);
@@ -76,6 +84,7 @@ class _CreateGroupChatPageState extends State<CreateGroupChatPage> {
 
   Future<void> _create() async {
     if (_selectedIds.isEmpty || _isCreating) return;
+    if (_selectedIds.length >= maxGroupChatMembers) return;
     setState(() => _isCreating = true);
     try {
       final action = widget.createGroup ??
@@ -98,9 +107,11 @@ class _CreateGroupChatPageState extends State<CreateGroupChatPage> {
                 message.contains('follow relationship') ||
                 message.contains('Cannot add group member')
             ? 'Only followers or people you follow can be added.'
-            : message.contains('Group title')
-                ? 'Could not create group because the group name is invalid.'
-                : 'No internet connection';
+            : message.contains('Group chat cannot have more than')
+                ? 'A group can have up to $maxGroupChatMembers members, including you.'
+                : message.contains('Group title')
+                    ? 'Could not create group because the group name is invalid.'
+                    : 'No internet connection';
         final kind = text == 'No internet connection'
             ? AppFeedbackKind.error
             : AppFeedbackKind.warning;

@@ -467,6 +467,7 @@ declare
   v_conversation_id uuid;
   v_title text := nullif(btrim(title), '');
   v_member_id uuid;
+  v_invited_count integer;
 begin
   if v_current_user is null then
     raise exception 'Authentication required';
@@ -474,6 +475,21 @@ begin
 
   if v_title is not null and char_length(v_title) > 80 then
     raise exception 'Group title must be 80 characters or fewer';
+  end if;
+
+  select count(*) into v_invited_count
+  from (
+    select distinct unnest(coalesce(member_ids, '{}'::uuid[])) as id
+  ) invited
+  where invited.id is not null
+    and invited.id <> v_current_user;
+
+  if v_invited_count = 0 then
+    raise exception 'Select at least one group member';
+  end if;
+
+  if v_invited_count > 4 then
+    raise exception 'Group chat cannot have more than 5 members';
   end if;
 
   insert into public.chat_conversations (type, title, created_by, request_status, last_message_at)
@@ -547,22 +563,51 @@ as $$
 declare
   v_current_user uuid := auth.uid();
   v_member_id uuid;
+  v_active_count integer;
+  v_new_count integer;
 begin
   if v_current_user is null then
     raise exception 'Authentication required';
   end if;
 
-  if not exists (
-    select 1
-    from public.chat_conversations c
-    join public.chat_conversation_members cm
-      on cm.conversation_id = c.id
-     and cm.user_id = v_current_user
-     and cm.status = 'active'
-    where c.id = p_conversation_id
-      and c.type = 'group'
-  ) then
+  perform 1
+  from public.chat_conversations c
+  where c.id = p_conversation_id
+    and c.type = 'group'
+    and exists (
+      select 1
+      from public.chat_conversation_members cm
+      where cm.conversation_id = c.id
+        and cm.user_id = v_current_user
+        and cm.status = 'active'
+    )
+  for update of c;
+
+  if not found then
     raise exception 'Group conversation not found';
+  end if;
+
+  select count(*) into v_active_count
+  from public.chat_conversation_members cm
+  where cm.conversation_id = p_conversation_id
+    and cm.status = 'active';
+
+  select count(*) into v_new_count
+  from (
+    select distinct unnest(coalesce(p_member_ids, '{}'::uuid[])) as id
+  ) invited
+  where invited.id is not null
+    and invited.id <> v_current_user
+    and not exists (
+      select 1
+      from public.chat_conversation_members cm
+      where cm.conversation_id = p_conversation_id
+        and cm.user_id = invited.id
+        and cm.status = 'active'
+    );
+
+  if v_active_count + v_new_count > 5 then
+    raise exception 'Group chat cannot have more than 5 members';
   end if;
 
   for v_member_id in
