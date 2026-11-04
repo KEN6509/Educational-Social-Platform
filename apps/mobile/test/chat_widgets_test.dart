@@ -2054,6 +2054,76 @@ void main() {
     expect(createdMembers, ['u2']);
   });
 
+  testWidgets('CreateGroupChatPage limits a group to five people total',
+      (tester) async {
+    List<String>? createdMembers;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateGroupChatPage(
+          loadSuggested: () async => const [
+            ChatParticipant(id: 'u2', name: 'Ming'),
+            ChatParticipant(id: 'u3', name: 'Ava'),
+            ChatParticipant(id: 'u4', name: 'Noah'),
+            ChatParticipant(id: 'u5', name: 'Lina'),
+            ChatParticipant(id: 'u6', name: 'Kai'),
+          ],
+          createGroup: (_, memberIds) async {
+            createdMembers = memberIds;
+            return 'c1';
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final name in ['Ming', 'Ava', 'Noah', 'Lina']) {
+      await tester.tap(find.text(name));
+      await tester.pump();
+    }
+    await tester.tap(find.text('Kai'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+    await tester.pump();
+
+    expect(createdMembers, ['u2', 'u3', 'u4', 'u5']);
+  });
+
+  testWidgets('AddGroupMembersPage stops at five total members',
+      (tester) async {
+    List<String>? addedMembers;
+    await tester.pumpWidget(MaterialApp(
+      home: AddGroupMembersPage(
+        conversation: const ChatConversation(
+          id: 'c1',
+          type: ChatConversationType.group,
+          requestStatus: ChatRequestStatus.none,
+          unreadCount: 0,
+        ),
+        loadExisting: () async => const [
+          ChatParticipant(id: 'u1', name: 'Creator'),
+          ChatParticipant(id: 'u2', name: 'Ming'),
+          ChatParticipant(id: 'u3', name: 'Ava'),
+          ChatParticipant(id: 'u4', name: 'Noah'),
+        ],
+        loadSuggested: () async => const [
+          ChatParticipant(id: 'u5', name: 'Lina'),
+          ChatParticipant(id: 'u6', name: 'Kai'),
+        ],
+        addMembers: (_, ids) async => addedMembers = ids,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Lina'));
+    await tester.pump();
+    await tester.tap(find.text('Kai'));
+    await tester.pump();
+    await tester.tap(find.text('Done'));
+    await tester.pump();
+
+    expect(addedMembers, ['u5']);
+  });
+
   testWidgets('NotificationSectionsPage shows selected section title',
       (tester) async {
     await tester.pumpWidget(

@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'chat_mention.dart';
 
+/// Prototype group size, including the creator.
+const int maxGroupChatMembers = 5;
+
 enum ChatConversationType { direct, group }
 
 enum ChatRequestStatus { none, pending, accepted, blocked }

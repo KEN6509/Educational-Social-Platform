@@ -406,9 +406,21 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
 }
 
 class AddGroupMembersPage extends StatefulWidget {
-  const AddGroupMembersPage({super.key, required this.conversation});
+  const AddGroupMembersPage({
+    super.key,
+    required this.conversation,
+    this.loadExisting,
+    this.loadSuggested,
+    this.searchPeople,
+    this.addMembers,
+  });
 
   final ChatConversation conversation;
+  final Future<List<ChatParticipant>> Function()? loadExisting;
+  final Future<List<ChatParticipant>> Function()? loadSuggested;
+  final Future<List<ChatParticipant>> Function(String term)? searchPeople;
+  final Future<void> Function(String conversationId, List<String> memberIds)?
+      addMembers;
 
   @override
   State<AddGroupMembersPage> createState() => _AddGroupMembersPageState();
@@ -420,6 +432,7 @@ class _AddGroupMembersPageState extends State<AddGroupMembersPage> {
   final _selectedIds = <String>{};
   late Future<List<ChatParticipant>> _future = _loadSuggestedMembers();
   bool _isAdding = false;
+  int _existingMemberCount = 0;
 
   @override
   void dispose() {
@@ -436,35 +449,55 @@ class _AddGroupMembersPageState extends State<AddGroupMembersPage> {
   }
 
   Future<List<ChatParticipant>> _loadSuggestedMembers() async {
-    final existing = await _repo.fetchConversationParticipants(
-      widget.conversation.id,
-    );
+    final existing = await (widget.loadExisting?.call() ??
+        _repo.fetchConversationParticipants(widget.conversation.id));
+    _existingMemberCount = existing.length;
     final existingIds = existing.map((member) => member.id).toSet();
-    final people = await _repo.fetchSuggestedGroupMembers();
+    final people = await (widget.loadSuggested?.call() ??
+        _repo.fetchSuggestedGroupMembers());
     return people.where((person) => !existingIds.contains(person.id)).toList();
   }
 
   Future<List<ChatParticipant>> _searchEligibleMembers(String value) async {
-    final existing = await _repo.fetchConversationParticipants(
-      widget.conversation.id,
-    );
+    final existing = await (widget.loadExisting?.call() ??
+        _repo.fetchConversationParticipants(widget.conversation.id));
+    _existingMemberCount = existing.length;
     final existingIds = existing.map((member) => member.id).toSet();
-    final people = await _repo.searchEligibleChatPeople(value);
+    final people = await (widget.searchPeople?.call(value) ??
+        _repo.searchEligibleChatPeople(value));
     return people.where((person) => !existingIds.contains(person.id)).toList();
   }
 
   Future<void> _add() async {
     if (_selectedIds.isEmpty || _isAdding) return;
+    if (_existingMemberCount + _selectedIds.length > maxGroupChatMembers) {
+      AppFeedback.showWarning(
+        context,
+        'A group can have up to $maxGroupChatMembers members.',
+      );
+      return;
+    }
     setState(() => _isAdding = true);
     try {
-      await _repo.addGroupMembers(
-        conversationId: widget.conversation.id,
-        memberIds: _selectedIds.toList(),
-      );
+      if (widget.addMembers != null) {
+        await widget.addMembers!(widget.conversation.id, _selectedIds.toList());
+      } else {
+        await _repo.addGroupMembers(
+          conversationId: widget.conversation.id,
+          memberIds: _selectedIds.toList(),
+        );
+      }
       if (mounted) Navigator.pop(context, true);
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        AppFeedback.showError(context, 'No internet connection');
+        if (error.toString().contains('Group chat cannot have more than')) {
+          AppFeedback.showWarning(
+            context,
+            'A group can have up to $maxGroupChatMembers members.',
+          );
+        } else {
+          AppFeedback.showError(context, 'No internet connection');
+        }
       }
     } finally {
       if (mounted) setState(() => _isAdding = false);
@@ -528,6 +561,15 @@ class _AddGroupMembersPageState extends State<AddGroupMembersPage> {
                           color: selected ? chatCyan : chatBorder,
                         ),
                         onTap: () {
+                          if (!selected &&
+                              _existingMemberCount + _selectedIds.length >=
+                                  maxGroupChatMembers) {
+                            AppFeedback.showWarning(
+                              context,
+                              'A group can have up to $maxGroupChatMembers members.',
+                            );
+                            return;
+                          }
                           setState(() {
                             if (selected) {
                               _selectedIds.remove(person.id);
