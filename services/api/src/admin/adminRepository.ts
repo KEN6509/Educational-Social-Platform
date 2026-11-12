@@ -409,7 +409,7 @@ export function createAdminRepository(
         return null;
       }
 
-      const [postsResult, postCountResult, auditResult] = await Promise.all([
+      const [postsResult, postCountResult, auditResult, emailConfirmationResult] = await Promise.all([
         client
           .from('posts')
           .select(
@@ -433,11 +433,13 @@ export function createAdminRepository(
           .eq('target_id', userId)
           .order('created_at', { ascending: false })
           .limit(10),
+        client.rpc('is_profile_email_confirmed', { profile_id: userId }),
       ]);
 
       assertQuerySucceeded(postsResult.error);
       assertQuerySucceeded(postCountResult.error);
       assertQuerySucceeded(auditResult.error);
+      assertQuerySucceeded(emailConfirmationResult.error);
       const recentPosts = await hydratePostSummaries(
         client,
         postsResult.data ?? [],
@@ -445,7 +447,7 @@ export function createAdminRepository(
 
       return {
         ...mapUser(profileResult.data),
-        emailVerified: null,
+        emailVerified: emailConfirmationResult.data === true,
         publishedPostCount: postCountResult.count ?? 0,
         recentPosts,
         recentDecisions: (auditResult.data ?? []).map((row) =>

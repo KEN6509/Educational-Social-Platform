@@ -88,6 +88,55 @@ test('user repository excludes administrator profiles from rows and totals', asy
   assert.equal(result.total, 1);
 });
 
+test('user detail reports the email confirmation status from auth', async () => {
+  const profile = {
+    id: 'member-1',
+    name: 'Member',
+    email: 'member@cyanzone.test',
+    avatar_url: null,
+    bio: null,
+    is_content_creator: false,
+    is_admin: false,
+    account_status: 'active',
+    created_at: '2026-07-30T00:00:00.000Z',
+  };
+  let confirmed = true;
+  const client = {
+    from(table: string) {
+      return {
+        select(_columns: string, options?: { head?: boolean }) {
+          return {
+            eq() { return this; },
+            order() { return this; },
+            limit() {
+              return Promise.resolve({ data: [], error: null });
+            },
+            maybeSingle() {
+              assert.equal(table, 'profiles');
+              return Promise.resolve({ data: profile, error: null });
+            },
+            then(resolve: (value: { count: number; error: null }) => unknown) {
+              assert.equal(table, 'posts');
+              assert.equal(options?.head, true);
+              return Promise.resolve({ count: 0, error: null }).then(resolve);
+            },
+          };
+        },
+      };
+    },
+    rpc(name: string, args: { profile_id: string }) {
+      assert.equal(name, 'is_profile_email_confirmed');
+      assert.equal(args.profile_id, profile.id);
+      return Promise.resolve({ data: confirmed, error: null });
+    },
+  } as unknown as SupabaseClient;
+
+  const repository = createAdminRepository(client);
+  assert.equal((await repository.getUserDetail(profile.id))?.emailVerified, true);
+  confirmed = false;
+  assert.equal((await repository.getUserDetail(profile.id))?.emailVerified, false);
+});
+
 test('moderation repository paginates the default queue in Supabase', async () => {
   const ranges: Array<[number, number]> = [];
   const query = {

@@ -103,7 +103,8 @@ class _Child extends _DashboardBase {
           key: const Key('family-links-card'),
           icon: Icons.people_outline_rounded,
           title: 'Family links',
-          subtitle: 'Child role · ${state.activeLinkCount} linked parents',
+          subtitle:
+              'Child role · ${state.activeLinkCount} linked ${state.activeLinkCount == 1 ? 'parent' : 'parents'}',
           actionLabel: 'View links',
           onTap: callbacks.onFamily,
           height: cardHeight,
@@ -156,7 +157,7 @@ class _Parent extends _DashboardBase {
               icon: Icons.people_outline_rounded,
               title: 'Family links',
               subtitle:
-                  'Parent role · ${state.activeLinkCount} linked children',
+                  'Parent role · ${state.activeLinkCount} linked ${state.activeLinkCount == 1 ? 'child' : 'children'}',
               actionLabel: 'View links',
               onTap: callbacks.onFamily,
               height: cardHeight,
