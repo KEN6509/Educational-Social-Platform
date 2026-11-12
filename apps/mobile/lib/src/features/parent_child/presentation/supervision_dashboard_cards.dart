@@ -366,7 +366,7 @@ class SupervisionNotificationsCard extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                'Only 10 latest be displayed',
+                'Showing 10 most recent notifications',
                 style: TextStyle(
                   color: _secondary,
                   fontWeight: FontWeight.w700,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cyanzone_mobile/src/features/parent_child/data/parent_child_repository.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/data/parent_supervision_models.dart';
 import 'package:cyanzone_mobile/src/features/parent_child/presentation/parent_child_page.dart';
@@ -26,7 +28,7 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(find.text('No active family links yet.'), findsOneWidget);
     expect(find.text('View links'), findsOneWidget);
-    expect(find.text('Only 10 latest be displayed'), findsOneWidget);
+    expect(find.text('Showing 10 most recent notifications'), findsOneWidget);
     expect(find.text('Safety Check-In'), findsNothing);
     expect(find.text('SOS'), findsNothing);
 
@@ -164,6 +166,12 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('uses singular child label for one parent link', (tester) async {
+    _usePhoneViewport(tester);
+    await _pump(tester, _state(role: FamilyRole.parent, activeLinks: 1));
+    expect(find.text('Parent role · 1 linked child'), findsOneWidget);
+  });
+
   testWidgets('keeps parent summary cards side by side at phone width',
       (tester) async {
     _usePhoneViewport(tester);
@@ -223,7 +231,7 @@ void main() {
       findsNWidgets(10),
     );
     expect(find.text('Live · Latest 3'), findsNothing);
-    expect(find.text('Only 10 latest be displayed'), findsOneWidget);
+    expect(find.text('Showing 10 most recent notifications'), findsOneWidget);
     expect(find.text('Open request'), findsNothing);
     final notificationsTitle =
         tester.widget<Text>(find.text('Supervision notifications'));
@@ -233,7 +241,7 @@ void main() {
     final notificationsTitleRect =
         tester.getRect(find.text('Supervision notifications'));
     final notificationsLimitRect =
-        tester.getRect(find.text('Only 10 latest be displayed'));
+        tester.getRect(find.text('Showing 10 most recent notifications'));
     expect(notificationsLimitRect.top, greaterThan(notificationsTitleRect.top));
     expect(
       tester
@@ -261,6 +269,33 @@ void main() {
       list.padding,
       const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 102),
     );
+  });
+
+  testWidgets('keeps dashboard visible during a background refresh',
+      (tester) async {
+    _usePhoneViewport(tester);
+    final refresh = Completer<SupervisionDashboardState>();
+    final repository = FakeParentChildRepository(
+      _state(role: null, activeLinks: 0),
+      refreshCompleter: refresh,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: ParentChildPage(
+        repository: repository,
+        subscribeToRealtime: false,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('screen-time-hero')), findsOneWidget);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(repository.fetchCount, 2);
+    expect(find.byKey(const Key('screen-time-hero')), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    refresh.complete(repository.state);
+    await tester.pumpAndSettle();
   });
 }
 
@@ -328,14 +363,21 @@ SupervisionDashboardState _state({
 }
 
 final class FakeParentChildRepository implements ParentChildRepositoryContract {
-  FakeParentChildRepository(this.state);
+  FakeParentChildRepository(this.state, {this.refreshCompleter});
   final SupervisionDashboardState state;
+  final Completer<SupervisionDashboardState>? refreshCompleter;
+  int fetchCount = 0;
 
   @override
   Future<SupervisionDashboardState> fetchDashboard({
     required DateTime localDay,
-  }) async =>
-      state;
+  }) {
+    fetchCount++;
+    if (fetchCount == 2 && refreshCompleter != null) {
+      return refreshCompleter!.future;
+    }
+    return Future.value(state);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
