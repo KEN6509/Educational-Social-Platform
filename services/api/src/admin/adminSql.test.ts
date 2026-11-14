@@ -10,6 +10,10 @@ const schemaSql = readFileSync(
   new URL('../../../../supabase/schema.sql', import.meta.url),
   'utf8',
 ).toLowerCase();
+const registrationSql = readFileSync(
+  new URL('../../../../supabase/registration_consent_otp.sql', import.meta.url),
+  'utf8',
+).toLowerCase();
 const migrationSql = readFileSync(
   new URL(
     '../../../../supabase/report_flow_simplification.sql',
@@ -237,6 +241,22 @@ test('system notification reason resolver is owner checked and covers legacy dec
 test('trusted RPCs cooperate with the profile privilege guard', () => {
   assert.match(sql, /cyanzone\.trusted_profile_update/);
   assert.match(sql, /prevent_profile_privilege_escalation/);
+});
+
+test('registration and admin migrations preserve the same guarded profile fields', () => {
+  for (const source of [registrationSql, sql]) {
+    const guard = source.slice(
+      source.indexOf('create or replace function public.prevent_profile_privilege_escalation'),
+      source.indexOf('$$;', source.indexOf('create or replace function public.prevent_profile_privilege_escalation')),
+    );
+    assert.match(guard, /current_setting\('cyanzone\.trusted_profile_update', true\)/);
+    for (const field of [
+      'is_admin', 'is_content_creator', 'account_status',
+      'terms_version', 'privacy_version', 'consent_accepted_at',
+    ]) {
+      assert.match(guard, new RegExp(`new\\.${field} is distinct from old\\.${field}`));
+    }
+  }
 });
 
 test('appeals and audit records are administrator-readable only', () => {

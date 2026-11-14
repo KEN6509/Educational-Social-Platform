@@ -289,6 +289,14 @@ export function pushPresentationFor(
   if (source.eventType !== 'chat_message') return fallback;
 
   const sender = source.actorName?.trim() || null;
+  if (source.body.startsWith('cz-post:')) {
+    return {
+      title: source.conversationType === 'group'
+        ? source.conversationTitle?.trim() || fallback.title
+        : sender || fallback.title,
+      body: `${sender || 'Someone'} shares a post`,
+    };
+  }
   if (source.conversationType === 'group') {
     return {
       title: source.conversationTitle?.trim() || fallback.title,

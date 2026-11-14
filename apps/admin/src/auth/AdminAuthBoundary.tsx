@@ -76,7 +76,7 @@ const productionAuth: AdminAuthAdapter = {
     return error?.message ?? null;
   },
   signOut: async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     return error?.message ?? null;
   },
 };

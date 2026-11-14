@@ -14,6 +14,10 @@ set search_path = public
 as $$
 begin
   if auth.role() = 'authenticated'
+    and coalesce(
+      current_setting('cyanzone.trusted_profile_update', true),
+      'off'
+    ) <> 'on'
     and (
       new.is_admin is distinct from old.is_admin
       or new.is_content_creator is distinct from old.is_content_creator
