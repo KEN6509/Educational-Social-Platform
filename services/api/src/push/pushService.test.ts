@@ -95,6 +95,35 @@ test('group chat push uses the group name and sender-prefixed message', () => {
   );
 });
 
+test('shared post push shows the sender instead of the encoded post payload', () => {
+  const sharedPost = 'cz-post:{"postId":"post-1","authorName":"Author","title":"A post"}';
+  for (const conversationType of ['group', 'direct'] as const) {
+    assert.deepEqual(
+      pushPresentationFor(source({
+        conversationType,
+        conversationTitle: 'Group chat',
+        actorName: 'Ernest Eh',
+        body: sharedPost,
+      })),
+      {
+        title: conversationType === 'group' ? 'Group chat' : 'Ernest Eh',
+        body: 'Ernest Eh shares a post',
+      },
+    );
+  }
+});
+
+test('shared post push hides the payload when the sender name is unavailable', () => {
+  assert.deepEqual(
+    pushPresentationFor(source({
+      conversationType: 'group',
+      actorName: null,
+      body: 'cz-post:{"postId":"post-1"}',
+    })),
+    { title: 'New message', body: 'Someone shares a post' },
+  );
+});
+
 test('chat push safely falls back when related names are unavailable', () => {
   assert.deepEqual(
     pushPresentationFor(source({

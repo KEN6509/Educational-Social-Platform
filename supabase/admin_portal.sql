@@ -53,6 +53,9 @@ begin
       new.is_admin is distinct from old.is_admin
       or new.is_content_creator is distinct from old.is_content_creator
       or new.account_status is distinct from old.account_status
+      or new.terms_version is distinct from old.terms_version
+      or new.privacy_version is distinct from old.privacy_version
+      or new.consent_accepted_at is distinct from old.consent_accepted_at
     )
   then
     raise exception
