@@ -127,9 +127,10 @@ CyanZone prioritizes a polished prototype over broad unfinished scope:
 - The Administration Portal and API deployments report Ready. The current
   database migrations, including former-link Parent Supervision history access,
   have been applied.
-- Android FCM physical-device UAT and the wider functional/non-functional
-  acceptance record remain before final submission. iOS/APNs is a future
-  improvement.
+- Functional, API, performance, and User Acceptance Testing for the current
+  FYP scope are complete. UAT outcomes from ten participants, including six
+  Administration Portal testers, and the Lighthouse evaluation are documented
+  in Chapter 7 of the FYP report. iOS/APNs is a future improvement.
 - Chat is intentionally excluded from AI moderation.
 - The temporary two-follower creator threshold and test-only
   `REPORT_REVIEW_THRESHOLD=1` must be reviewed before a production release.

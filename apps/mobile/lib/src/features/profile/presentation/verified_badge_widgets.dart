@@ -13,8 +13,7 @@ class _VerificationBottomAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isVerified = state.isVerified ||
-        state.requestStatus == CreatorRequestStatus.approved;
+    final isVerified = state.isVerified;
     final isPending = state.requestStatus == CreatorRequestStatus.pending;
     final meetsFollowerRequirement = state.meetsFollowerRequirement;
     final label = isVerified
@@ -66,8 +65,7 @@ class _BadgePageBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isVerified = state.isVerified ||
-        state.requestStatus == CreatorRequestStatus.approved;
+    final isVerified = state.isVerified;
     final isPending = state.requestStatus == CreatorRequestStatus.pending;
     final isRejected = state.requestStatus == CreatorRequestStatus.rejected;
 

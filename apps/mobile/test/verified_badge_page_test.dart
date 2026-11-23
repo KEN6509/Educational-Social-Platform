@@ -132,6 +132,45 @@ void main() {
         findsNothing);
   });
 
+  testWidgets('removed creator badge lets the user submit another application',
+      (tester) async {
+    String? submittedStatement;
+    await pumpPage(
+      tester,
+      state: const CreatorVerificationState(
+        followerCount: 2,
+        requestStatus: CreatorRequestStatus.approved,
+      ),
+      submitApplication: (statement) async {
+        submittedStatement = statement;
+      },
+    );
+
+    expect(
+      find.text('Your account is verified as a CyanZone content creator.'),
+      findsNothing,
+    );
+    expect(find.text('Account Verification Application'), findsOneWidget);
+    expect(
+      find.widgetWithText(FilledButton, 'Apply for verification'),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('creator-application-statement')),
+      'I would like to reapply with updated content.',
+    );
+    await tester
+        .tap(find.widgetWithText(FilledButton, 'Apply for verification'));
+    await tester.pumpAndSettle();
+
+    expect(submittedStatement, 'I would like to reapply with updated content.');
+    expect(find.text('Your application is being reviewed by an administrator.'),
+        findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Application pending'),
+        findsOneWidget);
+  });
+
   testWidgets('empty verification statement shows validation feedback',
       (tester) async {
     await pumpPage(
